@@ -55,7 +55,10 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
     from context import build_context
     ctx = build_context()
 
-    log.info(f"Session type today: {ctx['suggested_session_type']}")
+    stype      = ctx['suggested_session_type']
+    days_since = ctx.get('days_since_last_session_of_type')
+    days_str   = f"{days_since}d" if days_since is not None else "never"
+    log.info(f"Session type today: {stype} (last {stype}: {days_str} ago)")
     log.info(f"Bodyweight: {ctx.get('bodyweight_kg')}kg")
     log.info(f"Sessions last 7 days: {ctx['sessions_last_7_days']}")
 
@@ -83,6 +86,13 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
     workout_file = LOG_DIR / f"{date.today().isoformat()}_workout.json"
     workout_file.write_text(json.dumps(workout, indent=2))
 
+    # ── 3b. Log prescription to DB ─────────────────────────────────────────
+    from context import log_prescription, mark_posted_to_hevy, active_block_id
+    block_id     = active_block_id()
+    prescription_id = log_prescription(workout, block_id=block_id)
+    if prescription_id > 0:
+        log.info(f"Prescription logged to DB (id={prescription_id}, block={block_id})")
+
     if dry_run:
         log.info("[dry-run] Skipping Hevy POST.")
         print(json.dumps(workout, indent=2))
@@ -92,7 +102,9 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
     log.info("Posting workout to Hevy...")
     from hevy import post_workout
     result = post_workout(workout)
-    log.info(f"Hevy workout created: {result.get('workout', {}).get('id')}")
+    hevy_id = result.get("workout", {}).get("id")
+    log.info(f"Hevy workout created: {hevy_id}")
+    mark_posted_to_hevy(prescription_id)
 
     log.info("Done. Open Hevy to see today's session.")
 
