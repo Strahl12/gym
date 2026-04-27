@@ -178,6 +178,7 @@ def build_hevy_payload(workout: dict) -> dict:
             "title":       workout.get("title", "AI Prescribed Workout"),
             "description": workout.get("reasoning", ""),
             "start_time":  now_iso,
+            "end_time":    now_iso,
             "exercises":   hevy_exercises,
         }
     }
