@@ -166,11 +166,13 @@ def build_hevy_payload(workout: dict) -> dict:
                 "reps":       int(s.get("reps", 0)),
             })
 
-        hevy_exercises.append({
+        entry: dict = {
             "exercise_template_id": tid,
             "sets": hevy_sets,
-            "notes": ex.get("notes", ""),
-        })
+        }
+        if ex.get("notes"):
+            entry["notes"] = ex["notes"]
+        hevy_exercises.append(entry)
 
     now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     return {
@@ -206,13 +208,9 @@ def post_workout(workout: dict) -> dict:
         resp.raise_for_status()
 
     result = resp.json()
-    # Hevy POST returns the workout object directly (not nested under "workout")
-    if isinstance(result, list):
-        workout_obj = result[0] if result else {}
-    elif isinstance(result, dict):
-        workout_obj = result.get("workout", result)
-    else:
-        workout_obj = {}
+    # Hevy POST returns {"workout": [{...}]} — workout value is a list
+    workouts = result.get("workout", [])
+    workout_obj = workouts[0] if isinstance(workouts, list) and workouts else workouts
     print(f"[hevy] Workout created: {workout_obj.get('id', '?')}")
     return {"workout": workout_obj}
 
