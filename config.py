@@ -80,6 +80,9 @@ SESSION_LIFTS = {
     "arms": [],  # accessory-only session
 }
 
+# Hevy routine folder — routines are posted into this folder
+HEVY_ROUTINE_FOLDER_ID = 2770378   # "Dynamic"
+
 # Plateau detection: flag if e1RM hasn't improved across this many sessions
 PLATEAU_SESSIONS = 4
 

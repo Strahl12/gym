@@ -222,11 +222,14 @@ def build_routine_payload(workout: dict) -> dict:
             entry["notes"] = ex["notes"]
         exercises.append(entry)
 
+    date_prefix = datetime.now().strftime("[%d-%m-%Y]")
+    title = f"{date_prefix} {workout.get('title', 'AI Prescribed Workout')}"
+
     return {
         "routine": {
-            "title":     workout.get("title", "AI Prescribed Workout"),
+            "title":     title,
             "notes":     workout.get("reasoning", ""),
-            "folder_id": None,
+            "folder_id": config.HEVY_ROUTINE_FOLDER_ID,
             "exercises": exercises,
         }
     }
