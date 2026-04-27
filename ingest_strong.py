@@ -3,8 +3,8 @@ import sqlite3
 import re
 from pathlib import Path
 
-DB_PATH = Path("/home/claude/gym.db")
-CSV_PATH = Path("/mnt/user-data/uploads/strong.csv")
+DB_PATH = Path("/Users/johnparry/projects/projects/personal/gym/gym.db")
+CSV_PATH = Path("/Users/johnparry/Downloads/strong_workouts.csv")
 
 # ---------------------------------------------------------------------------
 # Exercise name normalisation
@@ -152,8 +152,23 @@ def ingest(csv_path: Path, db_path: Path) -> None:
     df['is_main_lift'] = df['exercise'].isin(MAIN_LIFTS)
     df['is_bodyweight'] = df['exercise'].isin(BODYWEIGHT_EXERCISES)
 
-    # Session type from workout name
+    # Session type: try workout name first, fall back to majority muscle group
     df['session_type'] = df['Workout Name'].apply(parse_session_type)
+    unknown_mask = df['session_type'] == 'unknown'
+    if unknown_mask.any():
+        # For each session with an unknown type, vote by majority muscle group
+        def infer_from_exercises(group):
+            counts = group[group['muscle_group'] != 'other']['muscle_group'].value_counts()
+            return counts.index[0] if not counts.empty else 'unknown'
+        inferred = (
+            df[unknown_mask]
+            .groupby(['date', 'Workout Name'])
+            .apply(infer_from_exercises)
+            .rename('inferred_type')
+        )
+        df = df.join(inferred, on=['date', 'Workout Name'])
+        df.loc[unknown_mask, 'session_type'] = df.loc[unknown_mask, 'inferred_type']
+        df.drop(columns='inferred_type', inplace=True)
 
     # Unique session ID per date+workout
     session_map = {}
@@ -171,6 +186,7 @@ def ingest(csv_path: Path, db_path: Path) -> None:
     sets.columns = ['session_id','date','workout_name','session_type','muscle_group',
                     'exercise','is_main_lift','is_bodyweight',
                     'set_number','weight_kg','reps','e1rm','notes','rpe']
+    sets['is_warmup'] = 0   # Strong export doesn't distinguish warmups
     sets['source'] = 'strong'
 
     con = sqlite3.connect(db_path)
@@ -178,22 +194,23 @@ def ingest(csv_path: Path, db_path: Path) -> None:
     con.execute("DROP TABLE IF EXISTS sets")
     con.execute("""
         CREATE TABLE sets (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            source       TEXT,
-            session_id   TEXT,
-            date         DATE,
-            workout_name TEXT,
-            session_type TEXT,
-            muscle_group TEXT,
-            exercise     TEXT,
-            is_main_lift INTEGER,
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            source        TEXT,
+            session_id    TEXT,
+            date          DATE,
+            workout_name  TEXT,
+            session_type  TEXT,
+            muscle_group  TEXT,
+            exercise      TEXT,
+            is_main_lift  INTEGER,
             is_bodyweight INTEGER,
-            set_number   INTEGER,
-            weight_kg    REAL,
-            reps         INTEGER,
-            e1rm         REAL,
-            notes        TEXT,
-            rpe          REAL
+            is_warmup     INTEGER DEFAULT 0,
+            set_number    INTEGER,
+            weight_kg     REAL,
+            reps          INTEGER,
+            e1rm          REAL,
+            notes         TEXT,
+            rpe           REAL
         )
     """)
 
