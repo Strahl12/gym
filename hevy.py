@@ -187,32 +187,65 @@ def build_hevy_payload(workout: dict) -> dict:
     }
 
 
-def post_workout(workout: dict) -> dict:
-    """
-    Resolve template IDs and POST the workout to Hevy.
-    Returns the created workout object from Hevy's API.
-    """
-    payload = build_hevy_payload(workout)
-
-    print(f"[hevy] Posting workout: {payload['workout']['title']}")
-    print(f"[hevy] {len(payload['workout']['exercises'])} exercises")
-
-    resp = requests.post(
-        f"{BASE_URL}/workouts",
-        headers=_headers(),
-        json=payload,
-    )
-
+def _post(endpoint: str, payload: dict, label: str) -> dict:
+    """POST to a Hevy endpoint; normalise the list-wrapped response."""
+    resp = requests.post(f"{BASE_URL}/{endpoint}", headers=_headers(), json=payload)
     if not resp.ok:
         print(f"[hevy] Error {resp.status_code}: {resp.text}")
         resp.raise_for_status()
+    result  = resp.json()
+    # Hevy wraps the created object in a single-element list, e.g. {"workout": [{...}]}
+    key     = list(result.keys())[0] if result else label
+    wrapped = result.get(key, [])
+    obj     = wrapped[0] if isinstance(wrapped, list) and wrapped else wrapped
+    print(f"[hevy] {label.title()} created: {obj.get('id', '?')}")
+    return {label: obj}
 
-    result = resp.json()
-    # Hevy POST returns {"workout": [{...}]} — workout value is a list
-    workouts = result.get("workout", [])
-    workout_obj = workouts[0] if isinstance(workouts, list) and workouts else workouts
-    print(f"[hevy] Workout created: {workout_obj.get('id', '?')}")
-    return {"workout": workout_obj}
+
+def build_routine_payload(workout: dict) -> dict:
+    """Convert Claude's workout JSON → Hevy routine payload (no timestamps)."""
+    exercises = []
+    for ex in workout.get("exercises", []):
+        name = ex["exercise_name"]
+        tid  = _resolve_template_id(name)
+        if not tid:
+            print(f"[hevy] WARNING: no template ID found for '{name}' — skipping")
+            continue
+        sets = [
+            {"type": "warmup" if s.get("is_warmup") else "normal",
+             "weight_kg": float(s.get("weight_kg", 0)),
+             "reps": int(s.get("reps", 0))}
+            for s in ex.get("sets", [])
+        ]
+        entry: dict = {"exercise_template_id": tid, "sets": sets}
+        if ex.get("notes"):
+            entry["notes"] = ex["notes"]
+        exercises.append(entry)
+
+    return {
+        "routine": {
+            "title":     workout.get("title", "AI Prescribed Workout"),
+            "notes":     workout.get("reasoning", ""),
+            "folder_id": None,
+            "exercises": exercises,
+        }
+    }
+
+
+def post_routine(workout: dict) -> dict:
+    """POST the prescription as a Hevy routine (start it at the gym)."""
+    payload = build_routine_payload(workout)
+    print(f"[hevy] Creating routine: {payload['routine']['title']}")
+    print(f"[hevy] {len(payload['routine']['exercises'])} exercises")
+    return _post("routines", payload, "routine")
+
+
+def post_workout(workout: dict) -> dict:
+    """POST the prescription as a completed Hevy workout (logs immediately)."""
+    payload = build_hevy_payload(workout)
+    print(f"[hevy] Posting workout: {payload['workout']['title']}")
+    print(f"[hevy] {len(payload['workout']['exercises'])} exercises")
+    return _post("workouts", payload, "workout")
 
 
 if __name__ == "__main__":

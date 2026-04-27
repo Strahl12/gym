@@ -5,11 +5,12 @@ Runs each morning (e.g. 07:30 via crontab):
   1. Sync Withings bodyweight → DB
   2. Build training context from DB
   3. Call Claude → get workout prescription
-  4. POST workout to Hevy
+  4. POST to Hevy as a routine (open Hevy at the gym and start it)
   5. Log everything to ~/gym_ai/logs/
 
 Usage:
-  python run.py                    # full run
+  python run.py                    # post as routine (default — start at the gym)
+  python run.py --as-workout       # post as a completed workout instead
   python run.py --dry-run          # build context + call Claude, don't post to Hevy
   python run.py --context-only     # just print today's context, no Claude call
   python run.py --find-templates   # print Hevy template IDs for main lifts then exit
@@ -36,7 +37,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
-def main(dry_run: bool = False, context_only: bool = False, find_templates: bool = False):
+def main(dry_run: bool = False, context_only: bool = False, find_templates: bool = False, as_workout: bool = False):
 
     # ── Template lookup helper ─────────────────────────────────────────────
     if find_templates:
@@ -99,10 +100,16 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
         return
 
     # ── 4. Post to Hevy ────────────────────────────────────────────────────
-    log.info("Posting workout to Hevy...")
-    from hevy import post_workout
-    result = post_workout(workout)
-    hevy_id = result.get("workout", {}).get("id")
+    if as_workout:
+        log.info("Posting to Hevy as completed workout...")
+        from hevy import post_workout
+        result  = post_workout(workout)
+        hevy_id = result.get("workout", {}).get("id")
+    else:
+        log.info("Creating Hevy routine (open Hevy at the gym to start it)...")
+        from hevy import post_routine
+        result  = post_routine(workout)
+        hevy_id = result.get("routine", {}).get("id")
     log.info(f"Hevy workout created: {hevy_id}")
     mark_posted_to_hevy(prescription_id)
 
@@ -113,4 +120,5 @@ if __name__ == "__main__":
     dry_run       = "--dry-run"       in sys.argv
     context_only  = "--context-only"  in sys.argv
     find_templates= "--find-templates" in sys.argv
-    main(dry_run=dry_run, context_only=context_only, find_templates=find_templates)
+    as_workout    = "--as-workout"    in sys.argv
+    main(dry_run=dry_run, context_only=context_only, find_templates=find_templates, as_workout=as_workout)
