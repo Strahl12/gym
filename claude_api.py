@@ -28,19 +28,32 @@ based on the athlete's training history, goals, and current context.
    the athlete hit the top of their rep range (all sets clean).
 2. If a lift shows a PLATEAU (e1RM flat for 4+ sessions): prescribe a RESET — drop
    working weight by 10%, rebuild with higher reps (6-8), note the reset in reasoning.
-3. For bodyweight exercises (Pull Up, Weighted Dip): if no added weight, prescribe
-   bodyweight and target rep increase. Add weight only when sets of 8 are consistently clean.
+3. For bodyweight exercises (Pull Up, Weighted Dip):
+   - If currently using added weight: treat like any barbell lift — apply rules 1 and 2
+     to the ADDED weight only (e.g. plateau at +10kg → reset to +9kg, NOT to bodyweight).
+   - Only prescribe pure bodyweight if the athlete has never used added weight, or
+     explicitly returned from injury.
 4. Never prescribe more than 5kg increase on any lift in one session.
 5. If a lift hasn't been trained in >14 days, treat as returning from deload:
    prescribe 80% of last working weight, higher reps.
-6. Always include 2-3 accessory exercises appropriate to the session type.
-   Accessories should complement the main lifts, not duplicate them.
+6. Always start the session with 2 compound movements, including on arm days.
+   Follow with 2-3 isolation accessories. Compounds go first in the exercises list.
 
 ## Session types
 - push: bench, OHP, weighted dips — accessories: lateral raises, triceps work
 - pull: pull ups — accessories: lat pulldown, cable row, face pulls, curls
 - legs: front squat — accessories: leg press, leg curl, calf raises
-- arms: curl variations, triceps variations (no main lift)
+- arms: start with 2 compounds (e.g. Close Grip Bench Press + Barbell/EZ Curl, or Dip + Chin Up),
+        then isolation work (cable curls, pushdowns, hammer curls, etc.)
+
+## Exercise selection — use the priority list
+You will receive a pre-ranked exercise priority list for today's session.
+priority = days_since_last / target_freq_days. Values > 1.0 are overdue.
+- Always include all main lifts (is_main=True) with priority > 0.3 unless recovery rules say otherwise.
+- Pick accessories from the TOP of the priority list — prefer exercises most overdue.
+- Select 2–4 accessories total; skip any that duplicate a main lift's muscle pattern.
+- If you skip a high-priority exercise for a valid reason, note it in reasoning.
+- If no priority list is provided, fall back to the session type defaults above.
 
 ## Output format — return ONLY valid JSON, no markdown, no explanation outside the JSON
 {
@@ -120,6 +133,18 @@ def _build_user_message(context: dict) -> str:
                 lines.append(f"    {h['date']}: {h['top_weight']}kg × {h['max_reps']} reps — {e1rm_str}")
         else:
             lines.append("  No recent history.")
+
+    priorities = context.get("exercise_priorities", [])
+    if priorities:
+        lines.append("\n## Exercise priority list (pick accessories from the top)")
+        lines.append("  (* = main lift)  format: name | days_since | target_freq | priority")
+        for p in priorities[:20]:
+            marker = "*" if p["is_main_lift"] else " "
+            days   = p["days_since_last"] if p["days_since_last"] is not None else "never"
+            lines.append(
+                f"  {marker} {p['exercise_name']}: "
+                f"days={days}, freq={p['target_freq_days']}d, priority={p['priority']}"
+            )
 
     lines.append("\nPrescribe today's full session as JSON.")
     return "\n".join(lines)
