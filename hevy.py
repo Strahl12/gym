@@ -44,6 +44,8 @@ def get_all_templates(pages: int = 10) -> list[dict]:
             headers=_headers(),
             params={"page": page, "pageSize": 100},
         )
+        if resp.status_code == 404:
+            break
         resp.raise_for_status()
         batch = resp.json().get("exercise_templates", [])
         if not batch:
