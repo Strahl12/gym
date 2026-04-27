@@ -179,6 +179,7 @@ def build_hevy_payload(workout: dict) -> dict:
             "description": workout.get("reasoning", ""),
             "start_time":  now_iso,
             "end_time":    now_iso,
+            "is_private":  True,
             "exercises":   hevy_exercises,
         }
     }
