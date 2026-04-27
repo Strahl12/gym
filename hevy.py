@@ -206,8 +206,15 @@ def post_workout(workout: dict) -> dict:
         resp.raise_for_status()
 
     result = resp.json()
-    print(f"[hevy] Workout created: {result.get('workout', {}).get('id', '?')}")
-    return result
+    # Hevy POST returns the workout object directly (not nested under "workout")
+    if isinstance(result, list):
+        workout_obj = result[0] if result else {}
+    elif isinstance(result, dict):
+        workout_obj = result.get("workout", result)
+    else:
+        workout_obj = {}
+    print(f"[hevy] Workout created: {workout_obj.get('id', '?')}")
+    return {"workout": workout_obj}
 
 
 if __name__ == "__main__":
