@@ -5,8 +5,11 @@ Two responsibilities:
   1. Fetch exercise template IDs (run once to populate config.MAIN_LIFTS)
   2. Write a Claude-prescribed workout as a Hevy workout session
 """
+import re
 import json
+import sqlite3
 import requests
+from datetime import datetime, timezone
 from typing import Optional
 import config
 
@@ -84,21 +87,58 @@ def print_template_ids_for_main_lifts():
         print()
 
 
-# ── Workout write ──────────────────────────────────────────────────────────
+# ── Template resolution ────────────────────────────────────────────────────
 
-def _resolve_template_id(exercise_name: str, templates: list[dict]) -> Optional[str]:
+def _norm(name: str) -> str:
+    """Lowercase, strip punctuation, collapse spaces — for fuzzy matching."""
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", " ", name.lower())).strip()
+
+
+def _resolve_template_id(exercise_name: str) -> Optional[str]:
     """
-    First check config for a pre-set ID, then search templates.
+    Look up a Hevy template ID for the given exercise name.
+
+    Order of precedence:
+      1. Hardcoded ID in config.MAIN_LIFTS (fastest, guaranteed correct)
+      2. Exact title match in hevy_exercise_library DB table
+      3. Normalised fuzzy match (strips punctuation, case-insensitive)
     """
+    # 1. Hardcoded config IDs
     for lift_name, cfg in config.MAIN_LIFTS.items():
         if (lift_name.lower() == exercise_name.lower() or
                 cfg.get("hevy_name", "").lower() == exercise_name.lower()):
             if cfg.get("hevy_template_id"):
                 return cfg["hevy_template_id"]
-    return find_template_id(exercise_name, templates)
+
+    # 2 & 3. DB lookup
+    try:
+        con = sqlite3.connect(config.DB_PATH)
+        con.row_factory = sqlite3.Row
+        rows = con.execute("SELECT hevy_id, title FROM hevy_exercise_library").fetchall()
+        con.close()
+    except Exception:
+        rows = []
+
+    query_norm = _norm(exercise_name)
+    exact_match = None
+    fuzzy_match = None
+
+    for row in rows:
+        title_norm = _norm(row["title"])
+        if row["title"].lower() == exercise_name.lower():
+            return row["hevy_id"]                    # exact
+        if title_norm == query_norm and not exact_match:
+            exact_match = row["hevy_id"]             # normalised exact
+        # Fuzzy: all words in query appear in title or vice versa
+        q_words = set(query_norm.split())
+        t_words = set(title_norm.split())
+        if (q_words <= t_words or t_words <= q_words) and not fuzzy_match:
+            fuzzy_match = row["hevy_id"]
+
+    return exact_match or fuzzy_match
 
 
-def build_hevy_payload(workout: dict, templates: list[dict]) -> dict:
+def build_hevy_payload(workout: dict) -> dict:
     """
     Convert Claude's workout JSON → Hevy API payload.
 
@@ -106,13 +146,13 @@ def build_hevy_payload(workout: dict, templates: list[dict]) -> dict:
       {title, session_type, reasoning, exercises: [{exercise_name, is_main_lift, sets: [{reps, weight_kg, is_warmup?}]}]}
 
     Hevy workout payload schema:
-      {workout: {title, description, exercises: [{exercise_template_id, sets: [{type, weight_kg, reps}]}]}}
+      {workout: {title, description, start_time, exercises: [{exercise_template_id, sets: [{type, weight_kg, reps}]}]}}
     """
     hevy_exercises = []
 
     for ex in workout.get("exercises", []):
         name = ex["exercise_name"]
-        tid  = _resolve_template_id(name, templates)
+        tid  = _resolve_template_id(name)
 
         if not tid:
             print(f"[hevy] WARNING: no template ID found for '{name}' — skipping")
@@ -132,10 +172,12 @@ def build_hevy_payload(workout: dict, templates: list[dict]) -> dict:
             "notes": ex.get("notes", ""),
         })
 
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     return {
         "workout": {
             "title":       workout.get("title", "AI Prescribed Workout"),
             "description": workout.get("reasoning", ""),
+            "start_time":  now_iso,
             "exercises":   hevy_exercises,
         }
     }
@@ -146,8 +188,7 @@ def post_workout(workout: dict) -> dict:
     Resolve template IDs and POST the workout to Hevy.
     Returns the created workout object from Hevy's API.
     """
-    templates = get_all_templates()
-    payload   = build_hevy_payload(workout, templates)
+    payload = build_hevy_payload(workout)
 
     print(f"[hevy] Posting workout: {payload['workout']['title']}")
     print(f"[hevy] {len(payload['workout']['exercises'])} exercises")

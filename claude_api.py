@@ -54,6 +54,7 @@ priority = days_since_last / target_freq_days. Values > 1.0 are overdue.
 - Select 2–4 accessories total; skip any that duplicate a main lift's muscle pattern.
 - If you skip a high-priority exercise for a valid reason, note it in reasoning.
 - If no priority list is provided, fall back to the session type defaults above.
+- IMPORTANT: use exercise names EXACTLY as they appear in the priority list. Do not paraphrase, abbreviate, or invent names.
 
 ## Output format — return ONLY valid JSON, no markdown, no explanation outside the JSON
 {
