@@ -7,6 +7,7 @@ Reads from the SQLite DB and computes:
   - Fatigue: sessions in the last 7 days
   - Latest bodyweight from Withings (if available)
   - Suggested session type for today (based on balance + recovery)
+  - Exercise priority list for today's session (days_since / target_freq_days)
 """
 import sqlite3
 import json
@@ -145,6 +146,19 @@ def bodyweight_trend(days: int = 30) -> Optional[float]:
 
 # ── Suggested session type ─────────────────────────────────────────────────
 
+def days_since_session_type(stype: str) -> Optional[int]:
+    """Days since the last session of the given type, or None if never."""
+    con = _con()
+    row = con.execute("""
+        SELECT MAX(date) FROM sets WHERE session_type = ?
+    """, (stype,)).fetchone()
+    con.close()
+    val = row[0] if row else None
+    if not val:
+        return None
+    return (date.today() - date.fromisoformat(val)).days
+
+
 def suggest_session_type() -> str:
     """
     Heuristic: pick the most underrepresented session type that is
@@ -182,6 +196,197 @@ def suggest_session_type() -> str:
     return min(recovered, key=lambda t: balance.get(t, 0))
 
 
+# ── Exercise priority roster ──────────────────────────────────────────────
+
+def exercise_priorities(session_type: str) -> list[dict]:
+    """
+    Returns exercises for session_type sorted by priority (highest first).
+    priority = days_since_last / target_freq_days  (>1.0 = overdue)
+
+    Sources last-trained date from both sets table and prescribed_sessions.
+    Applies any active block overrides (suspend / add / priority_bump).
+    Returns [] gracefully if exercise_roster tables haven't been created yet.
+    """
+    today = date.today()
+    today_iso = today.isoformat()
+
+    try:
+        con = _con()
+        roster = con.execute("""
+            SELECT exercise_name, is_main_lift, target_freq_days
+            FROM exercise_roster
+            WHERE session_type = ? AND active = 1
+        """, (session_type,)).fetchall()
+    except sqlite3.OperationalError:
+        return []
+
+    # Active block (if any)
+    block_id: Optional[int] = None
+    try:
+        row = con.execute("""
+            SELECT id FROM blocks
+            WHERE status = 'active'
+              AND (start_date IS NULL OR start_date <= ?)
+              AND (end_date   IS NULL OR end_date   >= ?)
+            ORDER BY id DESC LIMIT 1
+        """, (today_iso, today_iso)).fetchone()
+        block_id = row["id"] if row else None
+    except sqlite3.OperationalError:
+        pass
+
+    suspended: set[str] = set()
+    additions: list[tuple[str, float]] = []   # (exercise_name, priority_bump)
+
+    if block_id:
+        try:
+            overrides = con.execute("""
+                SELECT suspend_exercise, add_exercise, priority_bump
+                FROM block_overrides
+                WHERE block_id = ?
+                  AND (session_type IS NULL OR session_type = ?)
+            """, (block_id, session_type)).fetchall()
+            for o in overrides:
+                if o["suspend_exercise"]:
+                    suspended.add(o["suspend_exercise"])
+                if o["add_exercise"]:
+                    additions.append((o["add_exercise"], float(o["priority_bump"] or 0)))
+        except sqlite3.OperationalError:
+            pass
+
+    def _days_since(name: str) -> Optional[int]:
+        last_sets = con.execute("""
+            SELECT MAX(date) FROM sets WHERE exercise = ? AND is_warmup != 1
+        """, (name,)).fetchone()[0]
+        try:
+            last_prescribed = con.execute("""
+                SELECT MAX(date) FROM prescribed_sessions
+                WHERE EXISTS (
+                    SELECT 1 FROM json_each(exercises_json)
+                    WHERE json_extract(value, '$.exercise_name') = ?
+                )
+            """, (name,)).fetchone()[0]
+        except sqlite3.OperationalError:
+            last_prescribed = None
+        candidates = [d for d in [last_sets, last_prescribed] if d]
+        if not candidates:
+            return None
+        return (today - date.fromisoformat(max(candidates))).days
+
+    result: list[dict] = []
+    seen: set[str] = set()
+
+    for ex in roster:
+        name = ex["exercise_name"]
+        if name in suspended:
+            continue
+        days = _days_since(name)
+        days_val = days if days is not None else 999
+        raw = days_val / ex["target_freq_days"]
+        result.append({
+            "exercise_name":    name,
+            "is_main_lift":     bool(ex["is_main_lift"]),
+            "target_freq_days": ex["target_freq_days"],
+            "days_since_last":  days,
+            "priority":         round(min(raw, 3.0), 2),
+        })
+        seen.add(name)
+
+    for add_name, bump in additions:
+        if add_name in suspended:
+            continue
+        if add_name in seen:
+            for item in result:
+                if item["exercise_name"] == add_name:
+                    # bump can push above the normal 3.0 cap to signal explicit override intent
+                    item["priority"] = round(min(item["priority"] + bump, 5.0), 2)
+            continue
+        # Exercise not in base roster — add it
+        try:
+            entry = con.execute("""
+                SELECT target_freq_days FROM exercise_roster WHERE exercise_name = ?
+            """, (add_name,)).fetchone()
+            freq = entry["target_freq_days"] if entry else 7.0
+        except sqlite3.OperationalError:
+            freq = 7.0
+        days = _days_since(add_name)
+        days_val = days if days is not None else 999
+        raw = days_val / freq
+        result.append({
+            "exercise_name":    add_name,
+            "is_main_lift":     False,
+            "target_freq_days": freq,
+            "days_since_last":  days,
+            "priority":         round(min(raw, 3.0) + bump, 2),
+        })
+        seen.add(add_name)
+
+    con.close()
+    result.sort(key=lambda x: x["priority"], reverse=True)
+    return result
+
+
+# ── Prescription logging ──────────────────────────────────────────────────
+
+def active_block_id() -> Optional[int]:
+    """Return the id of the currently active block, or None."""
+    today_iso = date.today().isoformat()
+    try:
+        con = _con()
+        row = con.execute("""
+            SELECT id FROM blocks
+            WHERE status = 'active'
+              AND (start_date IS NULL OR start_date <= ?)
+              AND (end_date   IS NULL OR end_date   >= ?)
+            ORDER BY id DESC LIMIT 1
+        """, (today_iso, today_iso)).fetchone()
+        con.close()
+        return row["id"] if row else None
+    except sqlite3.OperationalError:
+        return None
+
+
+def log_prescription(workout: dict, block_id: Optional[int] = None) -> int:
+    """
+    Save a Claude-prescribed workout to prescribed_sessions.
+    Returns the new row id.
+    """
+    today_iso     = date.today().isoformat()
+    session_type  = workout.get("session_type", "unknown")
+    exercises_json = json.dumps(workout.get("exercises", []))
+    reasoning     = workout.get("reasoning", "")
+
+    con = _con()
+    try:
+        cur = con.execute("""
+            INSERT INTO prescribed_sessions
+                (block_id, date, session_type, exercises_json, reasoning, posted_to_hevy)
+            VALUES (?, ?, ?, ?, ?, 0)
+        """, (block_id, today_iso, session_type, exercises_json, reasoning))
+        row_id = cur.lastrowid
+        con.commit()
+    except sqlite3.OperationalError as e:
+        print(f"[context] Could not log prescription (run migrate.py first): {e}")
+        row_id = -1
+    finally:
+        con.close()
+    return row_id
+
+
+def mark_posted_to_hevy(prescribed_session_id: int) -> None:
+    """Mark a prescribed session as posted to Hevy."""
+    if prescribed_session_id < 0:
+        return
+    try:
+        con = _con()
+        con.execute("""
+            UPDATE prescribed_sessions SET posted_to_hevy = 1 WHERE id = ?
+        """, (prescribed_session_id,))
+        con.commit()
+        con.close()
+    except sqlite3.OperationalError:
+        pass
+
+
 # ── Main context builder ───────────────────────────────────────────────────
 
 def build_context() -> dict:
@@ -215,6 +420,8 @@ def build_context() -> dict:
     bw_trend = bodyweight_trend()
     balance = session_balance(days=28)
     recent_sessions = recent_session_dates(days=7)
+    priorities = exercise_priorities(session_type)
+    days_since_this_type = days_since_session_type(session_type)
 
     return {
         "today": today,
@@ -227,6 +434,8 @@ def build_context() -> dict:
         "session_balance_last_28_days": balance,
         "last_session_type": last_session_type(),
         "main_lifts": lifts_context,
+        "exercise_priorities": priorities,
+        "days_since_last_session_of_type": days_since_this_type,
     }
 
 
