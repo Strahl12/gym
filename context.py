@@ -210,12 +210,15 @@ def exercise_priorities(session_type: str) -> list[dict]:
     today = date.today()
     today_iso = today.isoformat()
 
+    # priority ceiling per star — lower-starred exercises can never outcompete higher ones
+    STAR_CAP = {5: 3.0, 4: 2.5, 3: 2.0, 2: 1.0, 1: 0.5, 0: 0.0}
+
     try:
         con = _con()
         roster = con.execute("""
-            SELECT exercise_name, is_main_lift, target_freq_days
+            SELECT exercise_name, is_main_lift, target_freq_days, star_rating
             FROM exercise_roster
-            WHERE session_type = ? AND active = 1
+            WHERE session_type = ? AND active = 1 AND star_rating > 0
         """, (session_type,)).fetchall()
     except sqlite3.OperationalError:
         return []
@@ -281,13 +284,16 @@ def exercise_priorities(session_type: str) -> list[dict]:
             continue
         days = _days_since(name)
         days_val = days if days is not None else 999
-        raw = days_val / ex["target_freq_days"]
+        star  = int(ex["star_rating"])
+        raw   = days_val / ex["target_freq_days"]
+        cap   = STAR_CAP.get(star, 1.0)
         result.append({
             "exercise_name":    name,
             "is_main_lift":     bool(ex["is_main_lift"]),
             "target_freq_days": ex["target_freq_days"],
             "days_since_last":  days,
-            "priority":         round(min(raw, 3.0), 2),
+            "star_rating":      star,
+            "priority":         round(min(raw, cap), 2),
         })
         seen.add(name)
 

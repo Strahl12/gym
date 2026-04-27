@@ -49,7 +49,7 @@ based on the athlete's training history, goals, and current context.
 ## Exercise selection — use the priority list
 You will receive a pre-ranked exercise priority list for today's session.
 priority = days_since_last / target_freq_days. Values > 1.0 are overdue.
-- Always include all main lifts (is_main=True) with priority > 0.3 unless recovery rules say otherwise.
+- Always include all main lifts (is_main=True) regardless of priority, unless progression rules require skipping (e.g. insufficient recovery).
 - Pick accessories from the TOP of the priority list — prefer exercises most overdue.
 - Select 2–4 accessories total; skip any that duplicate a main lift's muscle pattern.
 - If you skip a high-priority exercise for a valid reason, note it in reasoning.
