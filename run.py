@@ -63,10 +63,15 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
     from context import build_context
     ctx = build_context()
 
+    from context import recent_session_types
     stype      = ctx['suggested_session_type']
     days_since = ctx.get('days_since_last_session_of_type')
     days_str   = f"{days_since}d" if days_since is not None else "never"
+    recent     = recent_session_types()
+    yesterday  = recent[0] if recent else "?"
+    history    = " / ".join(recent)
     log.info(f"Session type today: {stype} (last {stype}: {days_str} ago)")
+    log.info(f"Yesterday: {yesterday}  |  Recent: {history}")
     log.info(f"Bodyweight: {ctx.get('bodyweight_kg')}kg")
     log.info(f"Sessions last 7 days: {ctx['sessions_last_7_days']}")
 

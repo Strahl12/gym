@@ -109,6 +109,24 @@ def last_session_type() -> Optional[str]:
     return row["session_type"] if row else None
 
 
+def recent_session_types(n: int = 6) -> list[str]:
+    """Last N distinct sessions in reverse-chronological order, as short labels."""
+    _abbrev = {"push": "Push", "pull": "Pull", "legs": "Legs", "arms": "Arms"}
+    con = _con()
+    rows = con.execute("""
+        SELECT session_type FROM (
+            SELECT date, session_type
+            FROM sets
+            WHERE session_type != 'unknown'
+            GROUP BY date
+            ORDER BY date DESC
+            LIMIT ?
+        )
+    """, (n,)).fetchall()
+    con.close()
+    return [_abbrev.get(r["session_type"], r["session_type"].title()) for r in rows]
+
+
 # ── Bodyweight ─────────────────────────────────────────────────────────────
 
 def latest_bodyweight() -> Optional[dict]:
