@@ -10,6 +10,7 @@ import json
 import sqlite3
 import requests
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 import config
 
@@ -228,19 +229,71 @@ def build_routine_payload(workout: dict) -> dict:
     return {
         "routine": {
             "title":     title,
-            "notes":     workout.get("reasoning", ""),
+            "notes":     workout.get("reasoning") or "AI prescribed",
             "folder_id": config.HEVY_ROUTINE_FOLDER_ID,
             "exercises": exercises,
         }
     }
 
 
+ROUTINE_ID_FILE = Path.home() / "gym_ai" / "hevy_routine_id.txt"
+
+
+def _load_pinned_routine_id() -> Optional[str]:
+    if ROUTINE_ID_FILE.exists():
+        return ROUTINE_ID_FILE.read_text().strip() or None
+    return None
+
+
+def _save_pinned_routine_id(routine_id: str) -> None:
+    ROUTINE_ID_FILE.parent.mkdir(parents=True, exist_ok=True)
+    ROUTINE_ID_FILE.write_text(routine_id)
+
+
+def _update_routine(routine_id: str, payload: dict) -> dict:
+    """PUT an updated routine onto an existing routine ID."""
+    resp = requests.put(
+        f"{BASE_URL}/routines/{routine_id}",
+        headers=_headers(),
+        json=payload,
+    )
+    if not resp.ok:
+        print(f"[hevy] PUT routine failed {resp.status_code}: {resp.text}")
+        resp.raise_for_status()
+    result  = resp.json()
+    key     = list(result.keys())[0] if result else "routine"
+    wrapped = result.get(key, [])
+    obj     = wrapped[0] if isinstance(wrapped, list) and wrapped else wrapped
+    return {"routine": obj}
+
+
 def post_routine(workout: dict) -> dict:
-    """POST the prescription as a Hevy routine (start it at the gym)."""
+    """
+    Always write to the same pinned routine slot (stored in ~/gym_ai/hevy_routine_id.txt).
+    PUT to update if the slot exists, POST to create it on first run.
+    This keeps exactly one routine in the Dynamic folder — no deletion needed.
+    """
     payload = build_routine_payload(workout)
+    put_payload = {"routine": {k: v for k, v in payload["routine"].items() if k != "folder_id"}}
+
+    pinned_id = _load_pinned_routine_id()
+    if pinned_id:
+        try:
+            result = _update_routine(pinned_id, put_payload)
+            print(f"[hevy] Updated pinned routine: {payload['routine']['title']}")
+            print(f"[hevy] {len(payload['routine']['exercises'])} exercises")
+            return result
+        except Exception as e:
+            print(f"[hevy] PUT failed ({e}), creating new routine")
+
     print(f"[hevy] Creating routine: {payload['routine']['title']}")
     print(f"[hevy] {len(payload['routine']['exercises'])} exercises")
-    return _post("routines", payload, "routine")
+    result = _post("routines", payload, "routine")
+    new_id = result.get("routine", {}).get("id")
+    if new_id:
+        _save_pinned_routine_id(new_id)
+        print(f"[hevy] Pinned routine ID saved: {new_id}")
+    return result
 
 
 def post_workout(workout: dict) -> dict:

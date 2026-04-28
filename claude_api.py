@@ -54,7 +54,7 @@ priority = days_since_last / target_freq_days. Values > 1.0 are overdue.
 - Select 2–4 accessories total; skip any that duplicate a main lift's muscle pattern.
 - If you skip a high-priority exercise for a valid reason, note it in reasoning.
 - If no priority list is provided, fall back to the session type defaults above.
-- IMPORTANT: use exercise names EXACTLY as they appear in the priority list. Do not paraphrase, abbreviate, or invent names.
+- CRITICAL: use exercise names EXACTLY as they appear in the priority list. Copy the name character-for-character. Do NOT paraphrase, abbreviate, rename, or invent any exercise name. If you use a name not in the priority list, the exercise will be silently dropped from the session.
 
 ## Output format — return ONLY valid JSON, no markdown, no explanation outside the JSON
 {
@@ -137,9 +137,13 @@ def _build_user_message(context: dict) -> str:
 
     priorities = context.get("exercise_priorities", [])
     if priorities:
+        from hevy import _resolve_template_id
+        # Only show exercises that can actually be posted to Hevy
+        postable = [p for p in priorities if p["is_main_lift"] or _resolve_template_id(p["exercise_name"])]
         lines.append("\n## Exercise priority list (pick accessories from the top)")
         lines.append("  (* = main lift)  format: name | days_since | target_freq | priority")
-        for p in priorities[:20]:
+        lines.append("  These are the ONLY valid exercise names. Use them verbatim.")
+        for p in postable[:20]:
             marker = "*" if p["is_main_lift"] else " "
             days   = p["days_since_last"] if p["days_since_last"] is not None else "never"
             lines.append(
@@ -182,6 +186,16 @@ def get_workout(context: dict) -> Optional[dict]:
     except json.JSONDecodeError as e:
         print(f"[claude_api] JSON parse error: {e}\nRaw response:\n{raw}")
         return None
+
+    # Validate exercise names resolve to known templates
+    from hevy import _resolve_template_id
+    priority_names = {p["exercise_name"] for p in context.get("exercise_priorities", [])}
+    for ex in workout.get("exercises", []):
+        name = ex.get("exercise_name", "")
+        if not _resolve_template_id(name):
+            closest = next((n for n in priority_names if name.lower() in n.lower() or n.lower() in name.lower()), None)
+            print(f"[claude_api] WARNING: '{name}' has no template ID — will be dropped. "
+                  f"{'Did you mean: ' + repr(closest) + '?' if closest else 'Not in priority list.'}")
 
     return workout
 
