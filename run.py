@@ -52,6 +52,13 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
     except Exception as e:
         log.warning(f"Withings sync failed (continuing without bodyweight): {e}")
 
+    # ── 1b. Sync Hevy workouts → sets table ────────────────────────────────
+    try:
+        from hevy_sync import sync_to_db as hevy_sync
+        hevy_sync(days=14)
+    except Exception as e:
+        log.warning(f"Hevy sync failed (continuing with existing data): {e}")
+
     # ── 2. Build context ───────────────────────────────────────────────────
     from context import build_context
     ctx = build_context()
