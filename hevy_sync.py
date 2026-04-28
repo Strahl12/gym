@@ -18,6 +18,35 @@ import config
 
 BASE_URL = "https://api.hevyapp.com/v1"
 
+# Map Hevy exercise titles → canonical names used throughout the DB.
+# Keeps Hevy data consistent with Strong-imported history.
+HEVY_ALIASES = {
+    "Bench Press (Barbell)":               "Barbell Bench Press",
+    "Bench Press - Close Grip (Barbell)":  "Close Grip Bench Press",
+    "Overhead Press (Barbell)":            "Strict Military Press",
+    "Chest Dip":                           "Weighted Dip",
+    "Chest Dip (Weighted)":                "Weighted Dip",
+    "Triceps Dip":                         "Weighted Dip",
+    "Triceps Dip (Weighted)":              "Weighted Dip",
+    "Front Squat (Barbell)":               "Front Squat",
+    "Squat (Barbell)":                     "Barbell Back Squat",
+    "Deadlift (Barbell)":                  "Deadlift",
+    "Bent Over Row (Barbell)":             "Barbell Row",
+    "Lat Pulldown (Cable)":                "Lat Pulldown",
+    "Seated Row (Cable)":                  "Cable Row",
+    "Lateral Raise (Dumbbell)":            "Lateral Raise",
+    "Bicep Curl (Barbell)":                "Barbell Curl",
+    "Bicep Curl (Dumbbell)":               "Dumbbell Curl",
+    "Hammer Curl (Dumbbell)":              "Hammer Curl",
+    "Triceps Extension (Cable)":           "Cable Triceps Extension",
+    "Triceps Pushdown (Cable - Straight Bar)": "Triceps Pushdown",
+    "Leg Press (Machine)":                 "Leg Press",
+    "Leg Curl (Machine)":                  "Leg Curl",
+    "Leg Extension (Machine)":             "Leg Extension",
+    "Romanian Deadlift (Barbell)":         "Romanian Deadlift",
+    "Calf Raise (Machine)":                "Calf Raise",
+}
+
 MUSCLE_TO_SESSION = {
     "chest": "push", "shoulders": "push", "triceps": "push",
     "biceps": "arms", "forearms": "arms",
@@ -121,20 +150,31 @@ def sync_to_db(days: int = 14) -> int:
         if con.execute("SELECT 1 FROM sets WHERE session_id = ? LIMIT 1", (session_id,)).fetchone():
             continue
 
-        # Determine session_type by majority muscle-group vote (weighted by set count)
-        type_votes: dict[str, int] = {}
-        for ex in exercises:
-            tid    = ex.get("exercise_template_id", "")
-            muscle = lib.get(tid, {}).get("muscle", "")
-            stype  = MUSCLE_TO_SESSION.get(muscle)
-            if stype:
-                type_votes[stype] = type_votes.get(stype, 0) + len(ex.get("sets") or [])
-        session_type = max(type_votes, key=type_votes.get) if type_votes else "unknown"
+        # Determine session_type: title keywords first, fall back to muscle-group vote
+        def _parse_title(name: str) -> str:
+            n = name.lower()
+            if any(x in n for x in ["push", "chest"]):        return "push"
+            if any(x in n for x in ["pull", "back", "bicep"]): return "pull"
+            if "leg" in n:                                      return "legs"
+            if "arm" in n:                                      return "arms"
+            return "unknown"
+
+        session_type = _parse_title(workout_name)
+        if session_type == "unknown":
+            type_votes: dict[str, int] = {}
+            for ex in exercises:
+                tid    = ex.get("exercise_template_id", "")
+                muscle = lib.get(tid, {}).get("muscle", "")
+                stype  = MUSCLE_TO_SESSION.get(muscle)
+                if stype:
+                    type_votes[stype] = type_votes.get(stype, 0) + len(ex.get("sets") or [])
+            session_type = max(type_votes, key=type_votes.get) if type_votes else "unknown"
 
         set_number = 0
         for ex in exercises:
             tid       = ex.get("exercise_template_id", "")
-            ex_name   = ex.get("title") or tid          # title is on the workout exercise object
+            raw_name  = ex.get("title") or tid
+            ex_name   = HEVY_ALIASES.get(raw_name, raw_name)
             ex_info   = lib.get(tid, {})
             muscle    = ex_info.get("muscle", "")
             ex_type   = ex_info.get("type", "")
