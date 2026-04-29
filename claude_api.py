@@ -165,6 +165,22 @@ def _build_user_message(context: dict) -> str:
     balance        = context.get("session_balance_last_28_days", {})
     last_type      = context.get("last_session_type")
 
+    phase = context.get("focus_phase")
+    phase_lines = []
+    if phase:
+        if phase["phase"] == "complement" and phase["complement_lift"]:
+            phase_lines = [
+                f"Focus lift: {phase['focus_lift']} (progressing well — currently in complement phase)",
+                f"Emphasis this session: {phase['complement_lift']} — choose accessories that build "
+                f"supporting strength for {phase['complement_lift']}, which feeds back into {phase['focus_lift']}",
+                f"Complement phase day {phase['phase_age_days']} of {config.COMPLEMENT_PHASE_DAYS}",
+            ]
+        else:
+            phase_lines = [
+                f"Focus lift: {phase['focus_lift']} — this is the primary lift to progress",
+                f"Choose accessories that directly support {phase['focus_lift']} strength",
+            ]
+
     lines = [
         f"Date: {today}",
         f"Target session duration: {config.TARGET_DURATION_MINUTES} minutes",
@@ -173,6 +189,10 @@ def _build_user_message(context: dict) -> str:
         f"Sessions in last 7 days: {sessions_7d}",
         f"Session balance (last 28 days): {balance}",
     ]
+
+    if phase_lines:
+        lines.append("\n## Focus lift phase")
+        lines.extend(f"  {l}" for l in phase_lines)
 
     if bw:
         lines.append(f"Bodyweight: {bw}kg")

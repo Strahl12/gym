@@ -95,6 +95,34 @@ PLATEAU_SESSIONS = 4
 # Fixed cycle order for session type rotation
 SESSION_CYCLE = ["push", "pull", "legs", "arms"]
 
+# ── Focus lift system ──────────────────────────────────────────────────────
+# Primary lift to progress per session type. Override with --set-focus.
+DEFAULT_FOCUS_LIFTS = {
+    "push": "Barbell Bench Press",
+    "pull": "Pull Up",
+    "legs": "Front Squat",
+    "arms": "Close Grip Bench Press",
+}
+
+# Complementary lifts: when focus lift is progressing well, shift emphasis
+# to these to build supporting strength before returning to the focus lift.
+LIFT_COMPLEMENTS = {
+    "Barbell Bench Press":    ["Weighted Dip", "Strict Military Press"],
+    "Strict Military Press":  ["Barbell Bench Press", "Weighted Dip"],
+    "Weighted Dip":           ["Close Grip Bench Press", "Barbell Bench Press"],
+    "Pull Up":                ["Barbell Row", "Deadlift"],
+    "Deadlift":               ["Romanian Deadlift", "Barbell Row"],
+    "Front Squat":            ["Romanian Deadlift", "Leg Press"],
+    "Romanian Deadlift":      ["Front Squat", "Good Morning (Barbell)"],
+    "Close Grip Bench Press": ["Weighted Dip", "Triceps Pushdown"],
+    "Barbell Curl":           ["Hammer Curl", "Chin Up"],
+}
+
+# Sessions of consecutive e1RM improvement before entering complement phase
+COMPLEMENT_TRIGGER_SESSIONS = 3
+# Days to stay in complement phase before returning to focus
+COMPLEMENT_PHASE_DAYS = 21
+
 # Minimum days between training the same muscle group
 MIN_RECOVERY_DAYS = 2
 

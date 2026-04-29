@@ -16,6 +16,7 @@ Usage:
   python run.py --context-only         # just print today's context, no Claude call
   python run.py --find-templates       # print Hevy template IDs for main lifts then exit
   python run.py --note "left shoulder felt tight"  # log a session note, then exit
+  python run.py --set-focus push "Strict Military Press"  # override focus lift
 """
 import sys
 import json
@@ -40,7 +41,8 @@ log = logging.getLogger(__name__)
 
 
 def main(dry_run: bool = False, context_only: bool = False, find_templates: bool = False,
-         as_workout: bool = False, confirm: bool = False, note: str = ""):
+         as_workout: bool = False, confirm: bool = False, note: str = "",
+         set_focus: tuple = ()):
 
     # ── Template lookup helper ─────────────────────────────────────────────
     if find_templates:
@@ -52,6 +54,13 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
     if note:
         from feedback import add_session_note
         add_session_note(note)
+        return
+
+    # ── Focus lift override (--set-focus push "Strict Military Press") ─────
+    if set_focus:
+        session_t, lift_name = set_focus
+        from focus import set_focus_lift
+        set_focus_lift(session_t, lift_name)
         return
 
     # ── 1. Sync Withings ───────────────────────────────────────────────────
@@ -88,7 +97,9 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
     recent     = recent_session_types()
     yesterday  = recent[0] if recent else "?"
     history    = " / ".join(recent)
+    from focus import phase_summary
     log.info(f"Session type today: {stype} (last {stype}: {days_str} ago)")
+    log.info(f"Focus phases: {phase_summary()}")
     log.info(f"Yesterday: {yesterday}  |  Recent: {history}")
     log.info(f"Bodyweight: {ctx.get('bodyweight_kg')}kg")
     log.info(f"Sessions last 7 days: {ctx['sessions_last_7_days']}")
@@ -190,5 +201,11 @@ if __name__ == "__main__":
         idx  = sys.argv.index("--note")
         note = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else ""
 
+    set_focus: tuple = ()
+    if "--set-focus" in sys.argv:
+        idx = sys.argv.index("--set-focus")
+        if idx + 2 < len(sys.argv):
+            set_focus = (sys.argv[idx + 1], sys.argv[idx + 2])
+
     main(dry_run=dry_run, context_only=context_only, find_templates=find_templates,
-         as_workout=as_workout, confirm=confirm, note=note)
+         as_workout=as_workout, confirm=confirm, note=note, set_focus=set_focus)

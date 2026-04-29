@@ -444,6 +444,12 @@ def build_context() -> dict:
         feedback = []
         notes    = []
 
+    try:
+        from focus import get_phase
+        phase = get_phase(session_type)
+    except Exception:
+        phase = None
+
     return {
         "today": today,
         "suggested_session_type": session_type,
@@ -459,6 +465,7 @@ def build_context() -> dict:
         "days_since_last_session_of_type": days_since_this_type,
         "recent_workout_feedback":         feedback,
         "session_notes":                   notes,
+        "focus_phase":                     phase,
     }
 
 
