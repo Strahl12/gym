@@ -233,10 +233,12 @@ def _build_user_message(context: dict) -> str:
 
     notes = context.get("session_notes", [])
     if notes:
-        lines.append("\n## Session notes (injury signs / observations)")
-        lines.append("  Factor these into load selection and exercise choice.")
+        lines.append("\n## Session notes (injury signs / observations from Hevy and manual logs)")
+        lines.append("  Reduce load or substitute exercises for any flagged movements.")
+        SOURCE_LABEL = {"manual": "note", "hevy_workout": "hevy", "hevy_exercise": "hevy"}
         for n in notes:
-            lines.append(f"  {n['date']}: {n['note']}")
+            label = SOURCE_LABEL.get(n.get("source", "manual"), "note")
+            lines.append(f"  [{label}] {n['date']}: {n['note']}")
 
     feedback = context.get("recent_workout_feedback", [])
     if feedback:

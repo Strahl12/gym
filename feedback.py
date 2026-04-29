@@ -237,7 +237,7 @@ def add_session_note(note: str, session_date: Optional[str] = None) -> None:
     """Store a free-text note for a session (injury signs, observations, etc.)."""
     d = session_date or date.today().isoformat()
     con = _con()
-    con.execute("INSERT INTO session_notes (date, note) VALUES (?, ?)", (d, note))
+    con.execute("INSERT INTO session_notes (date, note, source) VALUES (?, ?, 'manual')", (d, note))
     con.commit()
     con.close()
     print(f"[feedback] Note saved for {d}: {note}")
@@ -247,11 +247,11 @@ def recent_notes(n: int = 5) -> list[dict]:
     """Returns the last N session notes for Claude's context."""
     con = _con()
     rows = con.execute("""
-        SELECT date, note FROM session_notes
+        SELECT date, note, source FROM session_notes
         ORDER BY date DESC, id DESC LIMIT ?
     """, (n,)).fetchall()
     con.close()
-    return [{"date": r["date"], "note": r["note"]} for r in rows]
+    return [{"date": r["date"], "note": r["note"], "source": r["source"]} for r in rows]
 
 
 def recent_feedback(n: int = 3) -> list[dict]:

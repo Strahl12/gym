@@ -146,8 +146,12 @@ def sync_to_db(days: int = 14) -> int:
         workout_name = workout.get("title") or "Hevy Workout"
         exercises    = workout.get("exercises") or []
 
-        # Skip already-synced sessions
-        if con.execute("SELECT 1 FROM sets WHERE session_id = ? LIMIT 1", (session_id,)).fetchone():
+        # For already-synced sessions: still check for new notes
+        already_synced = con.execute(
+            "SELECT 1 FROM sets WHERE session_id = ? LIMIT 1", (session_id,)
+        ).fetchone()
+        if already_synced:
+            _store_hevy_notes(con, workout_date, workout, exercises)
             continue
 
         # Determine session_type: title keywords first, fall back to muscle-group vote
@@ -205,12 +209,49 @@ def sync_to_db(days: int = 14) -> int:
                 set_number += 1
                 total_sets += 1
 
+        # ── Extract and store workout / exercise notes ─────────────────────
+        _store_hevy_notes(con, workout_date, workout, exercises)
+
         new_sessions += 1
 
     con.commit()
     con.close()
     print(f"[hevy_sync] {new_sessions} new sessions, {total_sets} sets written to DB.")
     return total_sets
+
+
+def _store_hevy_notes(con: sqlite3.Connection, workout_date: str, workout: dict, exercises: list) -> None:
+    """
+    Extract any notes from the completed Hevy workout and store in session_notes.
+    Captures both the workout-level description and per-exercise notes.
+    Skips empty notes and avoids duplicates (same date + note text).
+    """
+    def _insert(date: str, note: str, source: str) -> None:
+        note = note.strip()
+        if not note:
+            return
+        existing = con.execute(
+            "SELECT 1 FROM session_notes WHERE date = ? AND note = ?", (date, note)
+        ).fetchone()
+        if not existing:
+            con.execute(
+                "INSERT INTO session_notes (date, note, source) VALUES (?, ?, ?)",
+                (date, note, source),
+            )
+            print(f"[hevy_sync] Note ({source}): {note}")
+
+    # Workout-level description (user's overall session note)
+    description = (workout.get("description") or "").strip()
+    if description:
+        _insert(workout_date, description, "hevy_workout")
+
+    # Per-exercise notes
+    for ex in exercises:
+        ex_note = (ex.get("notes") or "").strip()
+        if ex_note:
+            raw_name = ex.get("title") or ex.get("exercise_template_id", "")
+            ex_name  = HEVY_ALIASES.get(raw_name, raw_name)
+            _insert(workout_date, f"{ex_name}: {ex_note}", "hevy_exercise")
 
 
 if __name__ == "__main__":
