@@ -9,11 +9,13 @@ Runs each morning (e.g. 07:30 via crontab):
   5. Log everything to ~/gym_ai/logs/
 
 Usage:
-  python run.py                    # post as routine (default — start at the gym)
-  python run.py --as-workout       # post as a completed workout instead
-  python run.py --dry-run          # build context + call Claude, don't post to Hevy
-  python run.py --context-only     # just print today's context, no Claude call
-  python run.py --find-templates   # print Hevy template IDs for main lifts then exit
+  python run.py                        # post as routine (default — start at the gym)
+  python run.py --as-workout           # post as a completed workout instead
+  python run.py --dry-run              # build context + call Claude, don't post to Hevy
+  python run.py --confirm              # print workout and ask y/n before posting
+  python run.py --context-only         # just print today's context, no Claude call
+  python run.py --find-templates       # print Hevy template IDs for main lifts then exit
+  python run.py --note "left shoulder felt tight"  # log a session note, then exit
 """
 import sys
 import json
@@ -37,12 +39,19 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
-def main(dry_run: bool = False, context_only: bool = False, find_templates: bool = False, as_workout: bool = False):
+def main(dry_run: bool = False, context_only: bool = False, find_templates: bool = False,
+         as_workout: bool = False, confirm: bool = False, note: str = ""):
 
     # ── Template lookup helper ─────────────────────────────────────────────
     if find_templates:
         from hevy import print_template_ids_for_main_lifts
         print_template_ids_for_main_lifts()
+        return
+
+    # ── Session note (--note "...") ────────────────────────────────────────
+    if note:
+        from feedback import add_session_note
+        add_session_note(note)
         return
 
     # ── 1. Sync Withings ───────────────────────────────────────────────────
@@ -120,6 +129,38 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
         print(json.dumps(workout, indent=2))
         return
 
+    # ── 3c. Confirm before posting ─────────────────────────────────────────
+    if confirm:
+        print("\n── Proposed workout ──────────────────────────────────────────")
+        for ex in workout.get("exercises", []):
+            sets = ex.get("sets", [])
+            working = [s for s in sets if not s.get("is_warmup")]
+            warmups = [s for s in sets if s.get("is_warmup")]
+            w_str = f"{len(warmups)} warm-up + " if warmups else ""
+            if working:
+                top = max(s["weight_kg"] for s in working)
+                reps = working[0]["reps"]
+                print(f"  {ex['exercise_name']}: {w_str}{len(working)}×{reps} @ {top}kg")
+            notes = ex.get("notes", "")
+            if notes:
+                print(f"    → {notes}")
+        print(f"\nReasoning: {workout.get('reasoning')}")
+        print("──────────────────────────────────────────────────────────────")
+        answer = input("Post to Hevy? [y/n]: ").strip().lower()
+        if answer != "y":
+            log.info("Aborted by user.")
+            return
+
+    # ── 3d. Template diff: capture edits made in Hevy app before session ───
+    try:
+        from hevy import _load_pinned_routine_id
+        from feedback import diff_hevy_template_vs_prescription
+        pinned_id = _load_pinned_routine_id()
+        if pinned_id:
+            diff_hevy_template_vs_prescription(pinned_id, date.today().isoformat())
+    except Exception as e:
+        log.warning(f"Template diff failed (non-critical): {e}")
+
     # ── 4. Post to Hevy ────────────────────────────────────────────────────
     if as_workout:
         log.info("Posting to Hevy as completed workout...")
@@ -138,8 +179,16 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
 
 
 if __name__ == "__main__":
-    dry_run       = "--dry-run"       in sys.argv
-    context_only  = "--context-only"  in sys.argv
-    find_templates= "--find-templates" in sys.argv
-    as_workout    = "--as-workout"    in sys.argv
-    main(dry_run=dry_run, context_only=context_only, find_templates=find_templates, as_workout=as_workout)
+    dry_run        = "--dry-run"        in sys.argv
+    context_only   = "--context-only"   in sys.argv
+    find_templates = "--find-templates" in sys.argv
+    as_workout     = "--as-workout"     in sys.argv
+    confirm        = "--confirm"        in sys.argv
+
+    note = ""
+    if "--note" in sys.argv:
+        idx  = sys.argv.index("--note")
+        note = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else ""
+
+    main(dry_run=dry_run, context_only=context_only, find_templates=find_templates,
+         as_workout=as_workout, confirm=confirm, note=note)

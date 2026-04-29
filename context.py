@@ -437,10 +437,12 @@ def build_context() -> dict:
     days_since_this_type = days_since_session_type(session_type)
 
     try:
-        from feedback import recent_feedback
+        from feedback import recent_feedback, recent_notes
         feedback = recent_feedback(n=3)
+        notes    = recent_notes(n=5)
     except Exception:
         feedback = []
+        notes    = []
 
     return {
         "today": today,
@@ -456,6 +458,7 @@ def build_context() -> dict:
         "exercise_priorities": priorities,
         "days_since_last_session_of_type": days_since_this_type,
         "recent_workout_feedback":         feedback,
+        "session_notes":                   notes,
     }
 
 

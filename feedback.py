@@ -1,9 +1,13 @@
 """
-feedback.py — Diffs prescribed workouts against what was actually logged in Hevy.
+feedback.py — Two feedback signals:
 
-Runs after hevy_sync to detect: skipped exercises, added exercises, and
-weight/rep adjustments. Stores structured diffs in workout_feedback so
-Claude can learn from them in future sessions.
+1. Template diff: before overwriting the Hevy routine, GET the current content and
+   diff it against the prescription. Captures edits made in the Hevy app before the session.
+
+2. Completed-workout diff: after hevy_sync, diff the prescribed exercises against
+   what was actually logged. Captures in-session changes.
+
+Both are stored in workout_feedback and surfaced to Claude.
 """
 import json
 import sqlite3
@@ -171,6 +175,83 @@ def _print_diff(session_date: str, session_type: str, diff: dict) -> None:
         print(f"  weight:   {w['exercise']} {w['prescribed_kg']}→{w['actual_kg']}kg ({sign}{w['delta_pct']}%)")
     for r in diff.get("reps_adjustments", []):
         print(f"  reps:     {r['exercise']} {r['prescribed_reps']}→{r['actual_reps']} reps")
+
+
+def diff_hevy_template_vs_prescription(routine_id: str, today_iso: str) -> Optional[dict]:
+    """
+    GET the current Hevy routine content and diff it against the most recent
+    prescription for today. Captures edits the user made in the Hevy app
+    before starting the session. Stores result in workout_feedback.
+    Returns the diff, or None if no changes or no prescription found.
+    """
+    import requests
+    headers = {"api-key": config.HEVY_API_KEY, "Content-Type": "application/json"}
+    resp = requests.get(f"https://api.hevyapp.com/v1/routines/{routine_id}", headers=headers)
+    if not resp.ok:
+        return None
+
+    data     = resp.json()
+    routines = data.get("routine", data)
+    routine  = routines[0] if isinstance(routines, list) and routines else routines
+    hevy_exercises = routine.get("exercises") or []
+
+    con = _con()
+    row = con.execute("""
+        SELECT id, session_type, exercises_json FROM prescribed_sessions
+        WHERE date = ? ORDER BY id DESC LIMIT 1
+    """, (today_iso,)).fetchone()
+    con.close()
+
+    if not row:
+        return None
+
+    # Build actual-like dict from the Hevy template exercises
+    template_actual: dict[str, dict] = {}
+    for ex in hevy_exercises:
+        name = ex.get("title") or ex.get("exercise_template_id", "")
+        sets = [s for s in (ex.get("sets") or []) if s.get("type") != "warmup"]
+        if not sets:
+            continue
+        weights  = [float(s.get("weight_kg") or 0) for s in sets]
+        reps_all = [int(s.get("reps") or 0) for s in sets]
+        template_actual[name] = {
+            "top_weight": max(weights),
+            "avg_reps":   round(sum(reps_all) / len(reps_all), 1) if reps_all else 0,
+            "set_count":  len(sets),
+        }
+
+    prescription = {"exercises": json.loads(row["exercises_json"])}
+    diff = compute_diff(prescription, template_actual)
+
+    if not diff_is_empty(diff):
+        store_diff(today_iso, row["id"], row["session_type"], diff)
+        print(f"[feedback] Template edits detected:")
+        _print_diff(today_iso, row["session_type"], diff)
+
+    return diff if not diff_is_empty(diff) else None
+
+
+# ── Session notes ──────────────────────────────────────────────────────────
+
+def add_session_note(note: str, session_date: Optional[str] = None) -> None:
+    """Store a free-text note for a session (injury signs, observations, etc.)."""
+    d = session_date or date.today().isoformat()
+    con = _con()
+    con.execute("INSERT INTO session_notes (date, note) VALUES (?, ?)", (d, note))
+    con.commit()
+    con.close()
+    print(f"[feedback] Note saved for {d}: {note}")
+
+
+def recent_notes(n: int = 5) -> list[dict]:
+    """Returns the last N session notes for Claude's context."""
+    con = _con()
+    rows = con.execute("""
+        SELECT date, note FROM session_notes
+        ORDER BY date DESC, id DESC LIMIT ?
+    """, (n,)).fetchall()
+    con.close()
+    return [{"date": r["date"], "note": r["note"]} for r in rows]
 
 
 def recent_feedback(n: int = 3) -> list[dict]:

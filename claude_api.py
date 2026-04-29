@@ -102,6 +102,13 @@ priority = days_since_last / target_freq_days. Values > 1.0 are overdue.
 - If no priority list is provided, fall back to the session type defaults above.
 - CRITICAL: use exercise names EXACTLY as they appear in the priority list. Copy the name character-for-character. Do NOT paraphrase, abbreviate, rename, or invent any exercise name. If you use a name not in the priority list, the exercise will be silently dropped from the session.
 
+## Exercise variant preference
+When choosing between exercise variants for a slot, prefer in this order:
+1. Barbell > dumbbell > machine > cable > bodyweight
+   Exception: designated bodyweight main lifts (Pull Up, Weighted Dip) are always preferred.
+2. Never choose a bodyweight version if a loaded equivalent exists in the priority list.
+3. "Weighted" or "(Machine)" variants should rank above their unloaded counterparts.
+
 ## Session duration and rest times
 You will be given a target session duration. Use these estimates to fill it:
 - General warm-up: 10 min (not counted as an exercise)
@@ -223,6 +230,13 @@ def _build_user_message(context: dict) -> str:
                 lines.append(
                     f"  {p['exercise_name']}: days={days}, freq={p['target_freq_days']}d, priority={p['priority']}"
                 )
+
+    notes = context.get("session_notes", [])
+    if notes:
+        lines.append("\n## Session notes (injury signs / observations)")
+        lines.append("  Factor these into load selection and exercise choice.")
+        for n in notes:
+            lines.append(f"  {n['date']}: {n['note']}")
 
     feedback = context.get("recent_workout_feedback", [])
     if feedback:
