@@ -16,9 +16,15 @@ WITHINGS_REFRESH_TOKEN = os.environ.get("WITHINGS_REFRESH_TOKEN", "")
 WITHINGS_CLIENT_ID     = os.environ.get("WITHINGS_CLIENT_ID", "")
 WITHINGS_CLIENT_SECRET = os.environ.get("WITHINGS_CLIENT_SECRET", "")
 
+# ── Training mode ──────────────────────────────────────────────────────────
+# Options: "strength" | "hypertrophy" | "powerlifting"
+#   strength:     4–6 reps, 80–90% 1RM, 2–4 min rest, linear progression
+#   hypertrophy:  8–12 reps, 65–80% 1RM, 60–90s rest, volume focus
+#   powerlifting: 1–5 reps, 85–95% 1RM, 4–6 min rest on main lifts, peaking focus
+TRAINING_MODE = "strength"
+
 # ── Training goals ─────────────────────────────────────────────────────────
 GOAL = """
-Primary goal: get stronger on the main lifts — not hypertrophy, not conditioning.
 Training split: Push / Pull / Legs / Arms (PPL+Arms).
 Target frequency: 5 sessions per week.
 All weights in kg.
@@ -86,5 +92,11 @@ HEVY_ROUTINE_FOLDER_ID = 2770378   # "Dynamic"
 # Plateau detection: flag if e1RM hasn't improved across this many sessions
 PLATEAU_SESSIONS = 4
 
+# Fixed cycle order for session type rotation
+SESSION_CYCLE = ["push", "pull", "legs", "arms"]
+
 # Minimum days between training the same muscle group
-MIN_RECOVERY_DAYS = 1
+MIN_RECOVERY_DAYS = 2
+
+# Target gym session duration in minutes
+TARGET_DURATION_MINUTES = 90

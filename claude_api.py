@@ -20,6 +20,9 @@ SYSTEM_PROMPT = """
 You are a strength programming assistant. Your job is to prescribe today's gym session
 based on the athlete's training history, goals, and current context.
 
+## Training mode: {mode}
+{mode_detail}
+
 ## Goals
 {goal}
 
@@ -39,12 +42,55 @@ based on the athlete's training history, goals, and current context.
 6. Always start the session with 2 compound movements, including on arm days.
    Follow with 2-3 isolation accessories. Compounds go first in the exercises list.
 
-## Session types
-- push: bench, OHP, weighted dips — accessories: lateral raises, triceps work
-- pull: pull ups — accessories: lat pulldown, cable row, face pulls, curls
-- legs: front squat — accessories: leg press, leg curl, calf raises
-- arms: start with 2 compounds (e.g. Close Grip Bench Press + Barbell/EZ Curl, or Dip + Chin Up),
-        then isolation work (cable curls, pushdowns, hammer curls, etc.)
+## Session templates — follow these slots exactly, in order
+
+Each session has fixed muscle-group SLOTS. Use the priority list to pick the best available
+exercise for each slot. Never skip a slot or add exercises outside the template.
+
+### PUSH
+1. Chest compound (main lift): always Barbell Bench Press
+2. Shoulder compound (main lift): always Strict Military Press
+3. Tricep compound (main lift): always Weighted Dip
+4. Lateral raise: pick highest-priority lateral raise variant from the priority list
+5. Tricep isolation: pick highest-priority tricep isolation from the priority list
+
+### PULL
+1. Hip-hinge / lower back: pick highest-priority from [Deadlift, Romanian Deadlift, Good Morning (Barbell)]
+2. Horizontal row: pick highest-priority from [Barbell Row, Pendlay Row (Barbell), Landmine Row, Cable Row]
+3. Vertical pull (main lift): always Pull Up
+4. Lat / vertical pull accessory: highest-priority lat pulldown or straight-arm pulldown variant
+5. Rear delt / upper back: highest-priority face pull, reverse fly, or rear-delt accessory
+
+### LEGS
+1. Quad compound (main lift): always Front Squat
+2. Posterior chain: highest-priority from [Romanian Deadlift, Leg Curl, Good Morning (Barbell)]
+3. Quad accessory: highest-priority from [Leg Press, Leg Extension]
+4. Calf: highest-priority calf exercise from the priority list
+
+### ARMS
+1. Tricep compound: highest-priority from [Close Grip Bench Press, Weighted Dip]
+   — NEVER use Barbell Bench Press or Strict Military Press on arms day
+2. Bicep compound: highest-priority from [Barbell Curl, Chin Up]
+3. Tricep isolation: highest-priority from [Triceps Pushdown, Cable Triceps Extension, Dumbbell Skullcrusher]
+4. Bicep isolation: highest-priority from [Hammer Curl, Preacher Curl, Incline Curl (Dumbbell)]
+5. Optional 5th if time remains: next-highest-priority isolation from the list
+
+### CORE (final slot on every session)
+Always finish every session with 1 core exercise. Pick the highest-priority from the core
+priority list. 2–3 sets. Notes field: "Rest 60s between sets."
+
+## Main lifts in context
+The context includes main lift history for push lifts (Bench, OHP, Dip) and legs (Front Squat).
+On PULL and ARMS days, ignore that data — it is shown for reference only.
+Do NOT include push or legs main lifts in pull or arms sessions.
+
+## Muscle clash rule
+The 3 mandatory template slots are always included regardless of what was trained yesterday.
+For accessory slots (4–5 only): skip exercises targeting muscles trained in the previous session.
+- After arms: skip bicep and tricep accessories (replace with a different slot-appropriate exercise)
+- After push: skip tricep isolation accessories
+- After pull: skip rear-delt accessories
+- After legs: skip posterior-chain accessories in slots 4–5
 
 ## Exercise selection — use the priority list
 You will receive a pre-ranked exercise priority list for today's session.
@@ -55,6 +101,21 @@ priority = days_since_last / target_freq_days. Values > 1.0 are overdue.
 - If you skip a high-priority exercise for a valid reason, note it in reasoning.
 - If no priority list is provided, fall back to the session type defaults above.
 - CRITICAL: use exercise names EXACTLY as they appear in the priority list. Copy the name character-for-character. Do NOT paraphrase, abbreviate, rename, or invent any exercise name. If you use a name not in the priority list, the exercise will be silently dropped from the session.
+
+## Session duration and rest times
+You will be given a target session duration. Use these estimates to fill it:
+- General warm-up: 10 min (not counted as an exercise)
+- Main barbell lift (with 2 warm-up sets + 4 working sets): ~20 min
+- Bodyweight main lift (4 working sets): ~15 min
+- Accessory compound (3–4 sets): ~12 min
+- Isolation exercise (3–4 sets): ~8 min
+Add accessories until you reach the target duration. Do not exceed it by more than 10 min.
+
+For every exercise, include a "notes" field with the recommended rest time:
+- Main barbell compound: "Rest 3–4 min between working sets"
+- Accessory compound: "Rest 2–3 min between sets"
+- Isolation: "Rest 60–90s between sets"
+- Bodyweight / core: "Rest 60s between sets"
 
 ## Output format — return ONLY valid JSON, no markdown, no explanation outside the JSON
 {
@@ -99,6 +160,7 @@ def _build_user_message(context: dict) -> str:
 
     lines = [
         f"Date: {today}",
+        f"Target session duration: {config.TARGET_DURATION_MINUTES} minutes",
         f"Suggested session type: {stype}",
         f"Last session type: {last_type or 'unknown'}",
         f"Sessions in last 7 days: {sessions_7d}",
@@ -114,7 +176,7 @@ def _build_user_message(context: dict) -> str:
     lines.append("\n## Main lift status")
 
     for lift, data in context["main_lifts"].items():
-        if data["session_type"] != stype and stype != "arms":
+        if data["session_type"] != stype:
             continue   # only show lifts relevant to today's session
 
         days_ago = data["days_since_last_session"]
@@ -138,6 +200,7 @@ def _build_user_message(context: dict) -> str:
     priorities = context.get("exercise_priorities", [])
     if priorities:
         from hevy import _resolve_template_id
+        from context import exercise_priorities as _core_priorities
         # Only show exercises that can actually be posted to Hevy
         postable = [p for p in priorities if p["is_main_lift"] or _resolve_template_id(p["exercise_name"])]
         lines.append("\n## Exercise priority list (pick accessories from the top)")
@@ -150,6 +213,37 @@ def _build_user_message(context: dict) -> str:
                 f"  {marker} {p['exercise_name']}: "
                 f"days={days}, freq={p['target_freq_days']}d, priority={p['priority']}"
             )
+        # Core priority list (separate — always appended)
+        core = [p for p in _core_priorities("core") if _resolve_template_id(p["exercise_name"])]
+        if core:
+            lines.append("\n## Core priority list (pick 1 for the final slot)")
+            lines.append("  These are the ONLY valid core names. Use them verbatim.")
+            for p in core[:8]:
+                days = p["days_since_last"] if p["days_since_last"] is not None else "never"
+                lines.append(
+                    f"  {p['exercise_name']}: days={days}, freq={p['target_freq_days']}d, priority={p['priority']}"
+                )
+
+    feedback = context.get("recent_workout_feedback", [])
+    if feedback:
+        lines.append("\n## Recent workout feedback (what athlete actually did vs prescription)")
+        lines.append("  Use this to calibrate weights, rep ranges, and exercise selection.")
+        for fb in feedback:
+            d    = fb["date"]
+            st   = fb["session_type"]
+            diff = fb["diff"]
+            parts = []
+            for name in diff.get("skipped", []):
+                parts.append(f"skipped '{name}'")
+            for name in diff.get("added", []):
+                parts.append(f"added '{name}'")
+            for w in diff.get("weight_adjustments", []):
+                sign = "+" if w["delta_pct"] > 0 else ""
+                parts.append(f"'{w['exercise']}' weight {w['prescribed_kg']}→{w['actual_kg']}kg ({sign}{w['delta_pct']}%)")
+            for r in diff.get("reps_adjustments", []):
+                parts.append(f"'{r['exercise']}' reps {r['prescribed_reps']}→{r['actual_reps']}")
+            if parts:
+                lines.append(f"  {d} ({st}): " + "; ".join(parts))
 
     lines.append("\nPrescribe today's full session as JSON.")
     return "\n".join(lines)
@@ -159,7 +253,15 @@ def get_workout(context: dict) -> Optional[dict]:
     """
     Calls Claude with the training context. Returns parsed workout dict or None on failure.
     """
-    system = SYSTEM_PROMPT.replace("{goal}", config.GOAL)  # ← change this line
+    MODE_DETAILS = {
+        "strength":     "Rep range 4–6, load 80–90% 1RM, rest 2–4 min between sets. Prioritise adding weight over adding reps.",
+        "hypertrophy":  "Rep range 8–12, load 65–80% 1RM, rest 60–90s. Prioritise volume and time under tension.",
+        "powerlifting": "Rep range 1–5 on main lifts, load 85–95% 1RM, rest 4–6 min on compounds. Accessories at 6–8 reps.",
+    }
+    system = (SYSTEM_PROMPT
+              .replace("{goal}", config.GOAL)
+              .replace("{mode}", config.TRAINING_MODE)
+              .replace("{mode_detail}", MODE_DETAILS.get(config.TRAINING_MODE, "")))
     user   = _build_user_message(context)
 
     payload = {

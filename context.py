@@ -179,39 +179,26 @@ def days_since_session_type(stype: str) -> Optional[int]:
 
 def suggest_session_type() -> str:
     """
-    Heuristic: pick the most underrepresented session type that is
-    sufficiently recovered (last session of that type was >1 day ago).
-    Falls back to 'push' if no clear signal.
+    Follows a fixed cycle (config.SESSION_CYCLE) from the last completed session type.
+    Skips a step only if that type was trained within MIN_RECOVERY_DAYS.
+    Falls back to the next step in cycle regardless if all types need rest.
     """
-    balance = session_balance(days=28)
+    cycle     = config.SESSION_CYCLE
     last_type = last_session_type()
 
-    # Don't repeat same type back-to-back
-    candidates = [t for t in ["push", "pull", "legs", "arms"] if t != last_type]
+    if last_type not in cycle:
+        return cycle[0]
 
-    # Check recovery per type
-    def last_date_for_type(stype):
-        con = _con()
-        row = con.execute("""
-            SELECT MAX(date) FROM sets WHERE session_type = ?
-        """, (stype,)).fetchone()
-        con.close()
-        val = row[0] if row else None
-        if not val:
-            return None
-        return date.fromisoformat(val)
+    start = cycle.index(last_type)
 
-    recovered = []
-    for t in candidates:
-        last = last_date_for_type(t)
-        if last is None or (date.today() - last).days >= config.MIN_RECOVERY_DAYS:
-            recovered.append(t)
+    for i in range(1, len(cycle) + 1):
+        candidate = cycle[(start + i) % len(cycle)]
+        days = days_since_session_type(candidate)
+        if days is None or days >= config.MIN_RECOVERY_DAYS:
+            return candidate
 
-    if not recovered:
-        recovered = candidates  # override if everything needs rest
-
-    # Pick most underrepresented among recovered candidates
-    return min(recovered, key=lambda t: balance.get(t, 0))
+    # All types within recovery window — just advance one step
+    return cycle[(start + 1) % len(cycle)]
 
 
 # ── Exercise priority roster ──────────────────────────────────────────────
@@ -301,7 +288,9 @@ def exercise_priorities(session_type: str) -> list[dict]:
         if name in suspended:
             continue
         days = _days_since(name)
-        days_val = days if days is not None else 999
+        # Never-trained exercises get priority 1.0 (due, not overdue) rather than
+        # 999/freq which would make them dominate over exercises actually in rotation.
+        days_val = days if days is not None else ex["target_freq_days"]
         star  = int(ex["star_rating"])
         raw   = days_val / ex["target_freq_days"]
         cap   = STAR_CAP.get(star, 1.0)
@@ -447,6 +436,12 @@ def build_context() -> dict:
     priorities = exercise_priorities(session_type)
     days_since_this_type = days_since_session_type(session_type)
 
+    try:
+        from feedback import recent_feedback
+        feedback = recent_feedback(n=3)
+    except Exception:
+        feedback = []
+
     return {
         "today": today,
         "suggested_session_type": session_type,
@@ -460,6 +455,7 @@ def build_context() -> dict:
         "main_lifts": lifts_context,
         "exercise_priorities": priorities,
         "days_since_last_session_of_type": days_since_this_type,
+        "recent_workout_feedback":         feedback,
     }
 
 

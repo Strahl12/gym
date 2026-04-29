@@ -59,6 +59,15 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
     except Exception as e:
         log.warning(f"Hevy sync failed (continuing with existing data): {e}")
 
+    # ── 1c. Diff yesterday's prescription vs what was actually done ─────────
+    try:
+        from feedback import run_feedback_for_date
+        from datetime import date as _date, timedelta
+        yesterday = (_date.today() - timedelta(days=1)).isoformat()
+        run_feedback_for_date(yesterday)
+    except Exception as e:
+        log.warning(f"Feedback diff failed (non-critical): {e}")
+
     # ── 2. Build context ───────────────────────────────────────────────────
     from context import build_context
     ctx = build_context()
