@@ -85,6 +85,22 @@ def session_balance(days: int = 28) -> dict[str, int]:
     return base
 
 
+def consecutive_training_days() -> int:
+    """Count consecutive days with sessions ending yesterday (today not yet trained)."""
+    con = _con()
+    rows = con.execute("""
+        SELECT DISTINCT date FROM sets ORDER BY date DESC LIMIT 14
+    """).fetchall()
+    con.close()
+    dates = {date.fromisoformat(r["date"]) for r in rows}
+    count = 0
+    check = date.today() - timedelta(days=1)
+    while check in dates:
+        count += 1
+        check -= timedelta(days=1)
+    return count
+
+
 def recent_session_dates(days: int = 7) -> list[str]:
     """Dates of all sessions in the last N days."""
     since = (date.today() - timedelta(days=days)).isoformat()

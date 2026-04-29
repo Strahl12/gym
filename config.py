@@ -126,5 +126,8 @@ COMPLEMENT_PHASE_DAYS = 21
 # Minimum days between training the same muscle group
 MIN_RECOVERY_DAYS = 2
 
+# Maximum consecutive training days before a mandatory rest day
+MAX_CONSECUTIVE_DAYS = 4
+
 # Target gym session duration in minutes
 TARGET_DURATION_MINUTES = 90

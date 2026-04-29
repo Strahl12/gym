@@ -17,6 +17,7 @@ Usage:
   python run.py --find-templates       # print Hevy template IDs for main lifts then exit
   python run.py --note "left shoulder felt tight"  # log a session note, then exit
   python run.py --set-focus push "Strict Military Press"  # override focus lift
+  python run.py --force                # override rest day and generate anyway
 """
 import sys
 import json
@@ -42,7 +43,7 @@ log = logging.getLogger(__name__)
 
 def main(dry_run: bool = False, context_only: bool = False, find_templates: bool = False,
          as_workout: bool = False, confirm: bool = False, note: str = "",
-         set_focus: tuple = ()):
+         set_focus: tuple = (), force: bool = False):
 
     # ── Template lookup helper ─────────────────────────────────────────────
     if find_templates:
@@ -85,6 +86,21 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
         run_feedback_for_date(yesterday)
     except Exception as e:
         log.warning(f"Feedback diff failed (non-critical): {e}")
+
+    # ── 1d. Rest day check ─────────────────────────────────────────────────
+    from context import consecutive_training_days
+    import config as _cfg
+    consecutive = consecutive_training_days()
+    if consecutive >= _cfg.MAX_CONSECUTIVE_DAYS:
+        if force:
+            log.warning(f"Rest day overridden (--force). {consecutive} consecutive days trained.")
+        else:
+            print("\n💤  REST DAY  💤")
+            print(f"   {consecutive} consecutive days trained — recovery required.")
+            print("   Run with --force to override.\n")
+            return
+    elif consecutive == _cfg.MAX_CONSECUTIVE_DAYS - 1:
+        log.warning(f"Tomorrow is a rest day ({consecutive} consecutive days trained today).")
 
     # ── 2. Build context ───────────────────────────────────────────────────
     from context import build_context
@@ -195,6 +211,7 @@ if __name__ == "__main__":
     find_templates = "--find-templates" in sys.argv
     as_workout     = "--as-workout"     in sys.argv
     confirm        = "--confirm"        in sys.argv
+    force          = "--force"          in sys.argv
 
     note = ""
     if "--note" in sys.argv:
@@ -208,4 +225,4 @@ if __name__ == "__main__":
             set_focus = (sys.argv[idx + 1], sys.argv[idx + 2])
 
     main(dry_run=dry_run, context_only=context_only, find_templates=find_templates,
-         as_workout=as_workout, confirm=confirm, note=note, set_focus=set_focus)
+         as_workout=as_workout, confirm=confirm, note=note, set_focus=set_focus, force=force)
