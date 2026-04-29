@@ -120,23 +120,35 @@ def _resolve_template_id(exercise_name: str) -> Optional[str]:
     except Exception:
         rows = []
 
+    # Equipment qualifiers to deprioritise when not mentioned in the query
+    EQUIPMENT_WORDS = {"band", "machine", "smith", "cable", "dumbbell", "assisted", "suspension"}
+
     query_norm = _norm(exercise_name)
-    exact_match = None
-    fuzzy_match = None
+    q_words    = set(query_norm.split())
+    exact_match       = None
+    fuzzy_preferred   = None   # fuzzy match without unwanted equipment qualifier
+    fuzzy_fallback    = None   # fuzzy match with equipment qualifier
 
     for row in rows:
         title_norm = _norm(row["title"])
-        if row["title"].lower() == exercise_name.lower():
-            return row["hevy_id"]                    # exact
-        if title_norm == query_norm and not exact_match:
-            exact_match = row["hevy_id"]             # normalised exact
-        # Fuzzy: all words in query appear in title or vice versa
-        q_words = set(query_norm.split())
-        t_words = set(title_norm.split())
-        if (q_words <= t_words or t_words <= q_words) and not fuzzy_match:
-            fuzzy_match = row["hevy_id"]
+        t_words    = set(title_norm.split())
 
-    return exact_match or fuzzy_match
+        if row["title"].lower() == exercise_name.lower():
+            return row["hevy_id"]                        # exact string match
+
+        if title_norm == query_norm and not exact_match:
+            exact_match = row["hevy_id"]                 # normalised exact
+
+        # Fuzzy: query words are a subset of title words (or vice versa)
+        if q_words <= t_words or t_words <= q_words:
+            extra_words = t_words - q_words
+            has_unwanted_equipment = bool(extra_words & EQUIPMENT_WORDS - q_words)
+            if not has_unwanted_equipment and not fuzzy_preferred:
+                fuzzy_preferred = row["hevy_id"]
+            elif has_unwanted_equipment and not fuzzy_fallback:
+                fuzzy_fallback = row["hevy_id"]
+
+    return exact_match or fuzzy_preferred or fuzzy_fallback
 
 
 def build_hevy_payload(workout: dict) -> dict:
