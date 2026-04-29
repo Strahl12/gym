@@ -196,25 +196,30 @@ def diff_hevy_template_vs_prescription(routine_id: str, today_iso: str) -> Optio
     hevy_exercises = routine.get("exercises") or []
 
     con = _con()
+    # Compare against the last prescription that was actually pushed to Hevy —
+    # that's what the routine currently contains (before any user edits).
     row = con.execute("""
         SELECT id, session_type, exercises_json FROM prescribed_sessions
-        WHERE date = ? ORDER BY id DESC LIMIT 1
-    """, (today_iso,)).fetchone()
+        WHERE posted_to_hevy = 1
+        ORDER BY date DESC, id DESC LIMIT 1
+    """).fetchone()
     con.close()
 
     if not row:
         return None
 
     # Build actual-like dict from the Hevy template exercises
+    from hevy_sync import HEVY_ALIASES
     template_actual: dict[str, dict] = {}
     for ex in hevy_exercises:
-        name = ex.get("title") or ex.get("exercise_template_id", "")
+        raw_name = ex.get("title") or ex.get("exercise_template_id", "")
+        name = HEVY_ALIASES.get(raw_name, raw_name)
         sets = [s for s in (ex.get("sets") or []) if s.get("type") != "warmup"]
         if not sets:
             continue
         weights  = [float(s.get("weight_kg") or 0) for s in sets]
         reps_all = [int(s.get("reps") or 0) for s in sets]
-        template_actual[name] = {
+        template_actual[name] = {  # keyed by canonical name
             "top_weight": max(weights),
             "avg_reps":   round(sum(reps_all) / len(reps_all), 1) if reps_all else 0,
             "set_count":  len(sets),
