@@ -305,6 +305,18 @@ def get_workout(context: dict) -> Optional[dict]:
         print(f"[claude_api] JSON parse error: {e}\nRaw response:\n{raw}")
         return None
 
+    # Deduplicate exercises (keep first occurrence)
+    seen: set[str] = set()
+    deduped = []
+    for ex in workout.get("exercises", []):
+        name = ex.get("exercise_name", "")
+        if name.lower() in seen:
+            print(f"[claude_api] Removed duplicate exercise: '{name}'")
+            continue
+        seen.add(name.lower())
+        deduped.append(ex)
+    workout["exercises"] = deduped
+
     # Validate exercise names resolve to known templates
     from hevy import _resolve_template_id
     priority_names = {p["exercise_name"] for p in context.get("exercise_priorities", [])}
