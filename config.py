@@ -35,7 +35,7 @@ All weights in kg.
 # and filled in here after first run.
 MAIN_LIFTS = {
     "Barbell Bench Press": {
-        "hevy_template_id": None,   # fill after fetching
+        "hevy_template_id": "79D0BB3A",
         "hevy_name": "Barbell Bench Press",
         "session_type": "push",
         "target_sets": 4,
@@ -51,7 +51,7 @@ MAIN_LIFTS = {
         "progression_kg": 2.5,
     },
     "Pull Up": {
-        "hevy_template_id": None,
+        "hevy_template_id": "1B2B1E7C",
         "hevy_name": "Pull Up",
         "session_type": "pull",
         "target_sets": 4,
@@ -60,8 +60,8 @@ MAIN_LIFTS = {
         "is_bodyweight": True,
     },
     "Weighted Dip": {
-        "hevy_template_id": None,
-        "hevy_name": "Dip",
+        "hevy_template_id": "29472BE1",
+        "hevy_name": "Chest Dip (Weighted)",
         "session_type": "push",
         "target_sets": 4,
         "rep_range": (6, 10),
@@ -69,8 +69,8 @@ MAIN_LIFTS = {
         "is_bodyweight": True,
     },
     "Front Squat": {
-        "hevy_template_id": None,
-        "hevy_name": "Front Squat (Barbell)",
+        "hevy_template_id": "5046D0A9",
+        "hevy_name": "Front Squat",
         "session_type": "legs",
         "target_sets": 4,
         "rep_range": (4, 6),
