@@ -230,8 +230,8 @@ def diff_hevy_template_vs_prescription(routine_id: str, today_iso: str) -> Optio
 
     if not diff_is_empty(diff):
         store_diff(today_iso, row["id"], row["session_type"], diff)
-        print(f"[feedback] Template edits detected:")
-        _print_diff(today_iso, row["session_type"], diff)
+        print(f"[feedback] Template edits from previous {row['session_type']} session:")
+        _print_diff(row["date"], row["session_type"], diff)
 
     return diff if not diff_is_empty(diff) else None
 

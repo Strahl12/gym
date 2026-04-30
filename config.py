@@ -43,7 +43,7 @@ MAIN_LIFTS = {
         "progression_kg": 2.5,      # increment when progressing
     },
     "Strict Military Press": {
-        "hevy_template_id": None,
+        "hevy_template_id": "7B8D84E8",
         "hevy_name": "Overhead Press (Barbell)",
         "session_type": "push",
         "target_sets": 4,
@@ -124,10 +124,10 @@ COMPLEMENT_TRIGGER_SESSIONS = 3
 COMPLEMENT_PHASE_DAYS = 21
 
 # Minimum days between training the same muscle group
-MIN_RECOVERY_DAYS = 2
+MIN_RECOVERY_DAYS = 3
 
 # Maximum consecutive training days before a mandatory rest day
-MAX_CONSECUTIVE_DAYS = 4
+MAX_CONSECUTIVE_DAYS = 5
 
 # Target gym session duration in minutes
 TARGET_DURATION_MINUTES = 90
