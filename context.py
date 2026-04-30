@@ -195,26 +195,33 @@ def days_since_session_type(stype: str) -> Optional[int]:
 
 def suggest_session_type() -> str:
     """
-    Follows a fixed cycle (config.SESSION_CYCLE) from the last completed session type.
-    Skips a step only if that type was trained within MIN_RECOVERY_DAYS.
-    Falls back to the next step in cycle regardless if all types need rest.
+    Picks the most overdue recovered session type, using cycle order as a tiebreaker.
+    'Recovered' means days_since >= MIN_RECOVERY_DAYS (or never trained).
+    Excludes the last session type to avoid back-to-back repeats.
+    Falls back to the next in cycle if nothing is recovered yet.
     """
     cycle     = config.SESSION_CYCLE
     last_type = last_session_type()
 
-    if last_type not in cycle:
-        return cycle[0]
+    candidates = [t for t in cycle if t != last_type]
 
-    start = cycle.index(last_type)
-
-    for i in range(1, len(cycle) + 1):
-        candidate = cycle[(start + i) % len(cycle)]
-        days = days_since_session_type(candidate)
+    recovered = []
+    for t in candidates:
+        days = days_since_session_type(t)
         if days is None or days >= config.MIN_RECOVERY_DAYS:
-            return candidate
+            recovered.append(t)
 
-    # All types within recovery window — just advance one step
-    return cycle[(start + 1) % len(cycle)]
+    if not recovered:
+        recovered = candidates  # nothing fully recovered — pick least-recently-trained
+
+    # Sort: most days since last session first; use cycle position as tiebreaker
+    def _sort_key(t):
+        days = days_since_session_type(t)
+        days_val = days if days is not None else 9999
+        cycle_pos = cycle.index(t) if t in cycle else 99
+        return (-days_val, cycle_pos)
+
+    return sorted(recovered, key=_sort_key)[0]
 
 
 # ── Exercise priority roster ──────────────────────────────────────────────
