@@ -119,6 +119,33 @@ def migrate(reseed: bool = False) -> None:
             reasoning      TEXT,
             posted_to_hevy INTEGER NOT NULL DEFAULT 0
         );
+
+        CREATE TABLE IF NOT EXISTS creators (
+            channel_id   TEXT PRIMARY KEY,
+            name         TEXT NOT NULL,
+            weight       REAL NOT NULL DEFAULT 1.0,
+            active       INTEGER NOT NULL DEFAULT 1
+        );
+
+        CREATE TABLE IF NOT EXISTS creator_videos (
+            video_id          TEXT PRIMARY KEY,
+            channel_id        TEXT NOT NULL REFERENCES creators(channel_id),
+            title             TEXT NOT NULL,
+            published_at      TEXT NOT NULL,
+            transcript_text   TEXT,
+            analyzed_at       TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS creator_exercise_mentions (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_id          TEXT NOT NULL REFERENCES creator_videos(video_id),
+            exercise_name     TEXT NOT NULL,
+            hevy_id           TEXT,
+            sentiment         TEXT NOT NULL,
+            recommendation    TEXT NOT NULL,
+            context_snippet   TEXT,
+            mention_count     INTEGER NOT NULL DEFAULT 1
+        );
     """)
 
     # Add star_rating column if it was missing from a previous schema version
