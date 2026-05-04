@@ -114,6 +114,25 @@ def recent_session_dates(days: int = 7) -> list[str]:
     return [r["date"] for r in rows]
 
 
+def last_session_exercises() -> list[str]:
+    """Exercises (working sets only) from the most recently completed session."""
+    con = _con()
+    row = con.execute("""
+        SELECT MAX(date) FROM sets WHERE session_type != 'unknown'
+    """).fetchone()
+    if not row or not row[0]:
+        con.close()
+        return []
+    last_date = row[0]
+    rows = con.execute("""
+        SELECT DISTINCT exercise FROM sets
+        WHERE date = ? AND is_warmup = 0
+        ORDER BY exercise
+    """, (last_date,)).fetchall()
+    con.close()
+    return [r["exercise"] for r in rows]
+
+
 def last_session_type() -> Optional[str]:
     con = _con()
     row = con.execute("""
@@ -148,13 +167,18 @@ def recent_session_types(n: int = 6) -> list[str]:
 def latest_bodyweight() -> Optional[dict]:
     con = _con()
     row = con.execute("""
-        SELECT date, weight_kg FROM bodyweight
+        SELECT date, weight_kg, muscle_mass_kg, body_fat_pct FROM bodyweight
         ORDER BY date DESC LIMIT 1
     """).fetchone()
     con.close()
     if not row:
         return None
-    return {"date": row["date"], "weight_kg": row["weight_kg"]}
+    return {
+        "date":           row["date"],
+        "weight_kg":      row["weight_kg"],
+        "muscle_mass_kg": row["muscle_mass_kg"],
+        "body_fat_pct":   row["body_fat_pct"],
+    }
 
 
 def bodyweight_trend(days: int = 30) -> Optional[float]:
@@ -357,7 +381,163 @@ def exercise_priorities(session_type: str) -> list[dict]:
         seen.add(add_name)
 
     con.close()
+    excluded = {e.lower() for e in getattr(config, "EXCLUDED_EXERCISES", [])}
+    result = [r for r in result if r["exercise_name"].lower() not in excluded]
     result.sort(key=lambda x: x["priority"], reverse=True)
+    return result
+
+
+# ── All-time exercise statistics ─────────────────────────────────────────
+
+def exercise_stats_all_time() -> dict[str, dict]:
+    """
+    Compute per-exercise statistics from the full training history.
+    Returns {exercise_name: {best_e1rm, current_e1rm, best_weight_kg, total_sessions, trend}}
+    trend: "↑" | "↓" | "→" | None  (compares last 4w e1RM vs prior 4w)
+    """
+    con = _con()
+
+    # All-time: best e1RM, best weight, session count
+    all_time = {
+        r["exercise"]: {
+            "best_e1rm":     round(r["best_e1rm"], 1) if r["best_e1rm"] else None,
+            "best_weight_kg": r["best_weight_kg"],
+            "total_sessions": r["total_sessions"],
+        }
+        for r in con.execute("""
+            SELECT exercise,
+                   MAX(e1rm)           AS best_e1rm,
+                   MAX(weight_kg)      AS best_weight_kg,
+                   COUNT(DISTINCT date) AS total_sessions
+            FROM sets WHERE is_warmup = 0
+            GROUP BY exercise
+        """).fetchall()
+    }
+
+    # Most recent e1RM per exercise
+    for r in con.execute("""
+        SELECT s.exercise, MAX(s.e1rm) AS current_e1rm
+        FROM sets s
+        INNER JOIN (
+            SELECT exercise, MAX(date) AS last_date
+            FROM sets WHERE is_warmup = 0
+            GROUP BY exercise
+        ) latest ON s.exercise = latest.exercise AND s.date = latest.last_date
+        WHERE s.is_warmup = 0
+        GROUP BY s.exercise
+    """).fetchall():
+        if r["exercise"] in all_time:
+            all_time[r["exercise"]]["current_e1rm"] = (
+                round(r["current_e1rm"], 1) if r["current_e1rm"] else None
+            )
+
+    # 4-week trend: compare best e1RM in last 28 days vs prior 28 days
+    cutoff_recent = (date.today() - timedelta(days=28)).isoformat()
+    cutoff_prior  = (date.today() - timedelta(days=56)).isoformat()
+
+    recent_e1rm = {
+        r["exercise"]: r["best_e1rm"]
+        for r in con.execute("""
+            SELECT exercise, MAX(e1rm) AS best_e1rm FROM sets
+            WHERE is_warmup = 0 AND date >= ? GROUP BY exercise
+        """, (cutoff_recent,)).fetchall()
+        if r["best_e1rm"]
+    }
+    prior_e1rm = {
+        r["exercise"]: r["best_e1rm"]
+        for r in con.execute("""
+            SELECT exercise, MAX(e1rm) AS best_e1rm FROM sets
+            WHERE is_warmup = 0 AND date >= ? AND date < ? GROUP BY exercise
+        """, (cutoff_prior, cutoff_recent)).fetchall()
+        if r["best_e1rm"]
+    }
+
+    con.close()
+
+    for ex, stats in all_time.items():
+        recent = recent_e1rm.get(ex)
+        prior  = prior_e1rm.get(ex)
+        if recent and prior:
+            delta_pct = (recent - prior) / prior * 100
+            stats["trend"] = "↑" if delta_pct > 2 else ("↓" if delta_pct < -2 else "→")
+        else:
+            stats["trend"] = None
+        stats.setdefault("current_e1rm", None)
+
+    return all_time
+
+
+# ── Recent workout history ────────────────────────────────────────────────
+
+def recent_workouts(days: int = 28) -> list[dict]:
+    """
+    Returns all sessions in the last N days, each with full exercise data (working sets only).
+    Sorted newest first.
+    """
+    since = (date.today() - timedelta(days=days)).isoformat()
+    con = _con()
+    date_rows = con.execute("""
+        SELECT date, session_type
+        FROM sets
+        WHERE session_type != 'unknown' AND date >= ?
+        GROUP BY date
+        ORDER BY date DESC
+    """, (since,)).fetchall()
+
+    sessions = []
+    for dr in date_rows:
+        ex_rows = con.execute("""
+            SELECT exercise,
+                   MAX(weight_kg)       AS top_weight_kg,
+                   ROUND(AVG(reps), 1)  AS avg_reps,
+                   COUNT(*)             AS sets
+            FROM sets
+            WHERE date = ? AND is_warmup = 0 AND session_type != 'unknown'
+            GROUP BY exercise
+            ORDER BY MAX(set_number)
+        """, (dr["date"],)).fetchall()
+        sessions.append({
+            "date":         dr["date"],
+            "session_type": dr["session_type"],
+            "exercises":    [dict(r) for r in ex_rows],
+        })
+    con.close()
+    return sessions
+
+
+# ── e1RM trend ────────────────────────────────────────────────────────────
+
+def e1rm_trends(weeks: int = 4) -> dict[str, dict]:
+    """
+    For each main lift, compare most-recent e1RM to the oldest session in the window.
+    Returns {lift_name: {current_e1rm, baseline_e1rm, delta_kg, delta_pct, trend}}
+    trend: "↑" | "↓" | "→" | "?"
+    """
+    cutoff = (date.today() - timedelta(days=weeks * 7)).isoformat()
+    result = {}
+    for lift_name in config.MAIN_LIFTS:
+        history = lift_history(lift_name, n=20)
+        window = [h for h in history if h["date"] >= cutoff and h["best_e1rm"]]
+        if not window:
+            result[lift_name] = {"trend": "?", "current_e1rm": None, "baseline_e1rm": None,
+                                 "delta_kg": None, "delta_pct": None}
+            continue
+        current_e1rm = window[0]["best_e1rm"]   # most recent (history is DESC)
+        if len(window) < 2:
+            result[lift_name] = {"trend": "?", "current_e1rm": current_e1rm,
+                                 "baseline_e1rm": None, "delta_kg": None, "delta_pct": None}
+            continue
+        baseline_e1rm = window[-1]["best_e1rm"]  # oldest in window
+        delta_kg = round(current_e1rm - baseline_e1rm, 1)
+        delta_pct = round(delta_kg / baseline_e1rm * 100, 1) if baseline_e1rm else 0
+        trend = "↑" if delta_kg > 1 else ("↓" if delta_kg < -1 else "→")
+        result[lift_name] = {
+            "trend": trend,
+            "current_e1rm": current_e1rm,
+            "baseline_e1rm": baseline_e1rm,
+            "delta_kg": delta_kg,
+            "delta_pct": delta_pct,
+        }
     return result
 
 
@@ -430,7 +610,8 @@ def build_context() -> dict:
     Returns a dict with all context needed by Claude to prescribe today's workout.
     Also serialisable to JSON for logging / debugging.
     """
-    today = date.today().isoformat()
+    today      = date.today().isoformat()
+    is_weekend = date.today().weekday() >= 5
     session_type = suggest_session_type()
 
     # Build per-lift context for main lifts
@@ -473,22 +654,35 @@ def build_context() -> dict:
     except Exception:
         phase = None
 
+    try:
+        from creators import top_recommendations
+        creator_recs = top_recommendations(session_type=session_type, n=10)
+    except Exception:
+        creator_recs = []
+
     return {
         "today": today,
+        "is_weekend": is_weekend,
         "suggested_session_type": session_type,
-        "bodyweight_kg": bw["weight_kg"] if bw else None,
-        "bodyweight_date": bw["date"] if bw else None,
+        "bodyweight_kg":      bw["weight_kg"]      if bw else None,
+        "bodyweight_date":    bw["date"]           if bw else None,
+        "muscle_mass_kg":     bw["muscle_mass_kg"] if bw else None,
+        "body_fat_pct":       bw["body_fat_pct"]   if bw else None,
         "bodyweight_trend_kg_per_week": bw_trend,
         "sessions_last_7_days": len(recent_sessions),
         "session_dates_last_7_days": recent_sessions,
         "session_balance_last_28_days": balance,
         "last_session_type": last_session_type(),
+        "last_session_exercises": last_session_exercises(),
+        "recent_workouts":        recent_workouts(days=28),
+        "exercise_stats":         exercise_stats_all_time(),
         "main_lifts": lifts_context,
         "exercise_priorities": priorities,
         "days_since_last_session_of_type": days_since_this_type,
         "recent_workout_feedback":         feedback,
         "session_notes":                   notes,
         "focus_phase":                     phase,
+        "creator_recommendations":         creator_recs,
     }
 
 
