@@ -81,19 +81,26 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
     except Exception as e:
         log.warning(f"Hevy sync failed (continuing with existing data): {e}")
 
-    # ── 1c. Diff yesterday's prescription vs what was actually done ─────────
+    # ── 1c. Diff most-recently completed workout vs its prescription ───────────
+    import config as _cfg
     print("\n===== PREVIOUS =====")
     try:
         from feedback import run_feedback_for_date
-        from datetime import date as _date, timedelta
-        yesterday = (_date.today() - timedelta(days=1)).isoformat()
-        run_feedback_for_date(yesterday)
+        import sqlite3 as _sqlite3
+        _fcon = _sqlite3.connect(_cfg.DB_PATH)
+        _fcon.row_factory = _sqlite3.Row
+        _last = _fcon.execute(
+            "SELECT MAX(date) AS d FROM sets WHERE session_type != 'unknown'"
+        ).fetchone()
+        _fcon.close()
+        _last_date = _last["d"] if _last else None
+        if _last_date:
+            run_feedback_for_date(_last_date)
     except Exception as e:
         log.warning(f"Feedback diff failed (non-critical): {e}")
 
     # ── 1d. Rest day check ─────────────────────────────────────────────────
     from context import consecutive_training_days
-    import config as _cfg
     consecutive = consecutive_training_days()
     if consecutive >= _cfg.MAX_CONSECUTIVE_DAYS:
         if force:
