@@ -5,9 +5,7 @@ Two responsibilities:
   1. Fetch exercise template IDs (run once to populate config.MAIN_LIFTS)
   2. Write a Claude-prescribed workout as a Hevy workout session
 """
-import re
 import json
-import sqlite3
 import requests
 from datetime import datetime, timezone
 from pathlib import Path
@@ -90,65 +88,67 @@ def print_template_ids_for_main_lifts():
 
 # ── Template resolution ────────────────────────────────────────────────────
 
-def _norm(name: str) -> str:
-    """Lowercase, strip punctuation, collapse spaces — for fuzzy matching."""
-    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", " ", name.lower())).strip()
 
-
-def _resolve_template_id(exercise_name: str) -> Optional[str]:
+def _resolve_template_id(exercise_name: str, ex_meta: dict | None = None) -> Optional[str]:
     """
-    Look up a Hevy template ID for the given exercise name.
+    Resolve a Hevy template ID for the given exercise name.
 
-    Order of precedence:
-      1. Hardcoded ID in config.MAIN_LIFTS (fastest, guaranteed correct)
-      2. Exact title match in hevy_exercise_library DB table
-      3. Normalised fuzzy match (strips punctuation, case-insensitive)
+    Order:
+      1. Hardcoded config.MAIN_LIFTS IDs
+      2. exercises.json lookup (canonical / hevy_title / alias)
+      3. Close-match dedup: same muscle+equipment, normalised name similarity ≥ 0.6
+         → adds the name as an alias on the matching entry and returns its ID
+      4. Auto-create via Hevy API, saves to exercises.json
+         (only if ex_meta provides muscle_group, equipment_category, exercise_type)
     """
-    # 1. Hardcoded config IDs
+    import exercise_lib
+
+    # 1. Config main lifts
     for lift_name, cfg in config.MAIN_LIFTS.items():
         if (lift_name.lower() == exercise_name.lower() or
                 cfg.get("hevy_name", "").lower() == exercise_name.lower()):
             if cfg.get("hevy_template_id"):
                 return cfg["hevy_template_id"]
 
-    # 2 & 3. DB lookup
-    try:
-        con = sqlite3.connect(config.DB_PATH)
-        con.row_factory = sqlite3.Row
-        rows = con.execute("SELECT hevy_id, title FROM hevy_exercise_library").fetchall()
-        con.close()
-    except Exception:
-        rows = []
+    # 2. exercises.json
+    tid = exercise_lib.resolve_id(exercise_name)
+    if tid:
+        return tid
 
-    # Equipment qualifiers to deprioritise when not mentioned in the query
-    EQUIPMENT_WORDS = {"band", "machine", "smith", "cable", "dumbbell", "assisted", "suspension"}
+    # 3 & 4 require metadata from Claude's output
+    meta = ex_meta or {}
+    muscle    = meta.get("muscle_group", "")
+    equipment = meta.get("equipment_category", "")
+    ex_type   = meta.get("exercise_type", "weight_reps")
+    if not muscle:
+        return None
 
-    query_norm = _norm(exercise_name)
-    q_words    = set(query_norm.split())
-    exact_match       = None
-    fuzzy_preferred   = None   # fuzzy match without unwanted equipment qualifier
-    fuzzy_fallback    = None   # fuzzy match with equipment qualifier
+    # 3. Close-match dedup — wire as alias rather than create a duplicate
+    close_id = exercise_lib.find_close_match(exercise_name, muscle, equipment)
+    if close_id:
+        print(f"[hevy] '{exercise_name}' matches existing exercise — adding as alias")
+        exercise_lib.add_alias(close_id, exercise_name)
+        return close_id
 
-    for row in rows:
-        title_norm = _norm(row["title"])
-        t_words    = set(title_norm.split())
-
-        if row["title"].lower() == exercise_name.lower():
-            return row["hevy_id"]                        # exact string match
-
-        if title_norm == query_norm and not exact_match:
-            exact_match = row["hevy_id"]                 # normalised exact
-
-        # Fuzzy: query words are a subset of title words (or vice versa)
-        if q_words <= t_words or t_words <= q_words:
-            extra_words = t_words - q_words
-            has_unwanted_equipment = bool(extra_words & EQUIPMENT_WORDS - q_words)
-            if not has_unwanted_equipment and not fuzzy_preferred:
-                fuzzy_preferred = row["hevy_id"]
-            elif has_unwanted_equipment and not fuzzy_fallback:
-                fuzzy_fallback = row["hevy_id"]
-
-    return exact_match or fuzzy_preferred or fuzzy_fallback
+    # 4. Create new custom exercise template
+    print(f"[hevy] Creating custom exercise: '{exercise_name}'")
+    resp = requests.post(
+        f"{BASE_URL}/exercise_templates",
+        headers=_headers(),
+        json={"exercise": {
+            "title":              exercise_name,
+            "muscle_group":       muscle,
+            "equipment_category": equipment,
+            "exercise_type":      ex_type,
+        }},
+    )
+    if not resp.ok:
+        print(f"[hevy] Failed to create '{exercise_name}': {resp.text}")
+        return None
+    new_id = resp.text.strip()
+    print(f"[hevy] Custom exercise created: {new_id}")
+    exercise_lib.save_exercise(new_id, exercise_name, exercise_name, muscle, equipment, ex_type)
+    return new_id
 
 
 def build_hevy_payload(workout: dict) -> dict:
@@ -165,7 +165,7 @@ def build_hevy_payload(workout: dict) -> dict:
 
     for ex in workout.get("exercises", []):
         name = ex["exercise_name"]
-        tid  = _resolve_template_id(name)
+        tid  = _resolve_template_id(name, ex)
 
         if not tid:
             print(f"[hevy] WARNING: no template ID found for '{name}' — skipping")
@@ -220,7 +220,7 @@ def build_routine_payload(workout: dict) -> dict:
     exercises = []
     for ex in workout.get("exercises", []):
         name = ex["exercise_name"]
-        tid  = _resolve_template_id(name)
+        tid  = _resolve_template_id(name, ex)
         if not tid:
             print(f"[hevy] WARNING: no template ID found for '{name}' — skipping")
             continue
@@ -233,6 +233,8 @@ def build_routine_payload(workout: dict) -> dict:
         entry: dict = {"exercise_template_id": tid, "sets": sets}
         if ex.get("notes"):
             entry["notes"] = ex["notes"]
+        if ex.get("rest_seconds") is not None:
+            entry["rest_seconds"] = int(ex["rest_seconds"])
         exercises.append(entry)
 
     date_prefix = datetime.now().strftime("[%d-%m-%Y]")

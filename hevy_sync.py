@@ -18,33 +18,12 @@ import config
 
 BASE_URL = "https://api.hevyapp.com/v1"
 
-# Map Hevy exercise titles → canonical names used throughout the DB.
-# Keeps Hevy data consistent with Strong-imported history.
-HEVY_ALIASES = {
-    "Bench Press (Barbell)":               "Barbell Bench Press",
-    "Bench Press - Close Grip (Barbell)":  "Close Grip Bench Press",
-    "Overhead Press (Barbell)":            "Strict Military Press",
-    "Chest Dip":                           "Weighted Dip",
-    "Chest Dip (Weighted)":                "Weighted Dip",
-    "Triceps Dip":                         "Weighted Dip",
-    "Triceps Dip (Weighted)":              "Weighted Dip",
-    "Front Squat (Barbell)":               "Front Squat",
-    "Squat (Barbell)":                     "Barbell Back Squat",
-    "Deadlift (Barbell)":                  "Deadlift",
-    "Bent Over Row (Barbell)":             "Barbell Row",
-    "Lat Pulldown (Cable)":                "Lat Pulldown",
-    "Seated Row (Cable)":                  "Cable Row",
-    "Lateral Raise (Dumbbell)":            "Lateral Raise",
-    "Bicep Curl (Barbell)":                "Barbell Curl",
-    "Bicep Curl (Dumbbell)":               "Dumbbell Curl",
-    "Hammer Curl (Dumbbell)":              "Hammer Curl",
-    "Triceps Extension (Cable)":           "Cable Triceps Extension",
-    "Triceps Pushdown (Cable - Straight Bar)": "Triceps Pushdown",
-    "Leg Press (Machine)":                 "Leg Press",
-    "Leg Curl (Machine)":                  "Leg Curl",
-    "Leg Extension (Machine)":             "Leg Extension",
-    "Romanian Deadlift (Barbell)":         "Romanian Deadlift",
-    "Calf Raise (Machine)":                "Calf Raise",
+# Hevy title → canonical name. Derived from exercises.json — edit that file, not this.
+import exercise_lib as _elib
+HEVY_ALIASES: dict[str, str] = {
+    ex["hevy_title"]: ex["canonical"]
+    for ex in _elib.all_exercises().values()
+    if ex["hevy_title"] != ex["canonical"]
 }
 
 MUSCLE_TO_SESSION = {
@@ -251,7 +230,8 @@ def _store_hevy_notes(con: sqlite3.Connection, workout_date: str, workout: dict,
         if ex_note:
             raw_name = ex.get("title") or ex.get("exercise_template_id", "")
             ex_name  = HEVY_ALIASES.get(raw_name, raw_name)
-            _insert(workout_date, f"{ex_name}: {ex_note}", "hevy_exercise")
+            source = "user_directive" if ex_note.upper().startswith("NOTE:") else "hevy_exercise"
+            _insert(workout_date, f"{ex_name}: {ex_note}", source)
 
 
 if __name__ == "__main__":
