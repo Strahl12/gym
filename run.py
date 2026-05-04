@@ -171,9 +171,10 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
 
     # ── 3. Call Claude ─────────────────────────────────────────────────────
     print("\n===== PRESCRIPTION =====")
+    from claude_api import get_workout, check_mode_change
+    block_directive = check_mode_change(ctx)
     log.info("Calling Claude for workout prescription...")
-    from claude_api import get_workout
-    workout = get_workout(ctx)
+    workout = get_workout(ctx, block_directive=block_directive)
 
     if not workout:
         log.error("Claude returned no workout. Aborting.")

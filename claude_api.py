@@ -9,8 +9,85 @@ Returns a validated dict matching the Hevy write schema.
 """
 import json
 import requests
+from pathlib import Path
 from typing import Optional
 import config
+
+_STATE_FILE = Path(config.DB_PATH).parent / "app_state.json"
+
+
+def _load_state() -> dict:
+    return json.loads(_STATE_FILE.read_text()) if _STATE_FILE.exists() else {}
+
+
+def _save_state(state: dict) -> None:
+    _STATE_FILE.write_text(json.dumps(state, indent=2))
+
+
+def generate_block_directive(context: dict) -> str:
+    """
+    Called when TRAINING_MODE changes. Uses Sonnet to synthesise a strategic
+    block directive from the athlete's history. Stored and injected into every
+    subsequent prescription until the mode changes again.
+    """
+    from datetime import date
+    lifts_summary = "\n".join(
+        f"  {lift}: last {data['days_since_last_session']}d ago, "
+        f"plateau={data['plateau_detected']}, "
+        f"recent e1RMs: {[h['best_e1rm'] for h in data['recent_sessions'][:4]]}"
+        for lift, data in context.get("main_lifts", {}).items()
+    )
+    prompt = (
+        f"An athlete is switching their training mode to: {config.TRAINING_MODE}\n\n"
+        f"Training goal:\n{config.GOAL.strip()}\n\n"
+        f"Current main lift status:\n{lifts_summary}\n\n"
+        f"Session balance (last 28 days): {context.get('session_balance_last_28_days', {})}\n\n"
+        f"Write a concise block directive (150-200 words) for the AI programming this athlete. Cover:\n"
+        f"1. Given the mode change to {config.TRAINING_MODE}, what's the strategic priority for the next 8-12 weeks?\n"
+        f"2. Which lifts need the most attention and why?\n"
+        f"3. Any red flags in the current data that should shape programming?\n"
+        f"4. Suggested progression structure for this block.\n"
+        f"Be specific to the data. This will be injected into every prescription prompt for this block."
+    )
+    try:
+        resp = requests.post(
+            ANTHROPIC_URL,
+            headers=_headers(),
+            json={
+                "model": CLAUDE_MODEL,
+                "max_tokens": 400,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        directive = resp.json()["content"][0]["text"].strip()
+        print(f"[claude_api] Block directive generated for {config.TRAINING_MODE} mode.")
+        return directive
+    except Exception as e:
+        print(f"[claude_api] Block directive generation failed: {e}")
+        return ""
+
+
+def check_mode_change(context: dict) -> Optional[str]:
+    """
+    Returns the active block directive. Regenerates it if TRAINING_MODE changed
+    since the last run. Call after build_context() and before get_workout().
+    """
+    from datetime import date
+    state = _load_state()
+    directive = state.get("block_directive", "")
+
+    if state.get("last_training_mode") != config.TRAINING_MODE or not directive:
+        print(f"[claude_api] Training mode {'changed' if state.get('last_training_mode') else 'initialised'} "
+              f"→ {config.TRAINING_MODE}. Generating block directive...")
+        directive = generate_block_directive(context)
+        state["last_training_mode"]    = config.TRAINING_MODE
+        state["block_directive"]       = directive
+        state["block_directive_date"]  = date.today().isoformat()
+        _save_state(state)
+
+    return directive or None
 
 CLAUDE_MODEL   = "claude-sonnet-4-20250514"
 ANTHROPIC_URL  = "https://api.anthropic.com/v1/messages"
@@ -189,7 +266,7 @@ exercise_type:
 """.strip()
 
 
-def _build_system_prompt() -> str:
+def _build_system_prompt(block_directive: Optional[str] = None) -> str:
     """Build the system prompt from config data structures."""
     pr  = config.PROGRESSION
     inc = config.EQUIPMENT_INCREMENTS
@@ -201,6 +278,22 @@ def _build_system_prompt() -> str:
         "powerlifting": "Rep range 1–5 on main lifts, load 85–95% 1RM, rest 4–6 min. Accessories 6–8 reps.",
     }
     mode_detail = MODE_DETAILS.get(config.TRAINING_MODE, "")
+
+    # ── Block directive (generated on mode change) ─────────────────────────
+    directive_section = ""
+    if block_directive:
+        directive_section = f"\n## Block directive\n{block_directive}\n"
+
+    # ── Skill work ─────────────────────────────────────────────────────────
+    skill_section = ""
+    if config.SKILL_WORK:
+        skill_list = ", ".join(config.SKILL_WORK)
+        skill_section = (
+            f"\n## Skill work (optional, after core)\n"
+            f"If time remains after the core slot, add one skill item as a duration exercise.\n"
+            f"Available: {skill_list}\n"
+            f"Prescribe as exercise_type=duration, ~{config.SESSION_TIME_ESTIMATES.get('skill', 5)} min."
+        )
 
     # ── Session slot tables ────────────────────────────────────────────────
     slot_lines = []
@@ -248,6 +341,7 @@ def _build_system_prompt() -> str:
 
 ## Training mode: {config.TRAINING_MODE}
 {mode_detail}
+{directive_section}
 
 ## Goal
 {config.GOAL.strip()}
@@ -274,11 +368,18 @@ Rest seconds per exercise type are provided in the user message — set rest_sec
 FIXED slots are always included regardless of last session. For PICK slots only: skip any
 exercise whose primary muscle was already trained last session.
 
+## RPE interpretation
+If RPE data is shown in the session history, use it to calibrate load:
+- RPE ≤7: athlete had capacity remaining — consider progressing weight
+- RPE 8-9: appropriate training stimulus — maintain or small increment
+- RPE 10 / no more reps possible: reduce volume or weight next session
+
 ## Exercise selection
 - Names VERBATIM from the priority list — character-for-character. Names not in the list will be silently dropped.
 - Pick accessories from the top of the priority list (highest priority = most overdue).
 - Prefer loaded variants over unloaded (e.g. Machine Calf Raise > Standing Calf Raise).
 - Compounds prefer barbell; isolations use priority score and history — no blanket barbell preference.
+{skill_section}
 
 ## Output — return ONLY valid JSON
 {{
@@ -412,9 +513,10 @@ def _build_user_message(context: dict) -> str:
             lines.append("  Recent sessions (newest first):")
             for h in history[:5]:
                 e1rm_str = f"e1RM={h['best_e1rm']}kg" if h.get('best_e1rm') else "bodyweight"
-                lines.append(f"    {h['date']}: {h['top_weight']}kg × {h['max_reps']} reps — {e1rm_str}")
+                rpe_str  = f"  RPE {h['avg_rpe']}" if h.get('avg_rpe') else ""
+                lines.append(f"    {h['date']}: {h['top_weight']}kg × {h['max_reps']} reps — {e1rm_str}{rpe_str}")
         else:
-            lines.append("  No recent history.")
+            lines.append("  No history — treat as first session: start conservative (≈60% estimated 1RM, 4×8), no warm-up sets, note in reasoning.")
 
     recent_workouts = context.get("recent_workouts", [])
     if recent_workouts:
@@ -424,7 +526,8 @@ def _build_user_message(context: dict) -> str:
             for ex in session["exercises"]:
                 w = ex["top_weight_kg"]
                 weight_str = f"{w}kg × " if w else "BW × "
-                lines.append(f"    {ex['exercise']}: {weight_str}{ex['avg_reps']} reps × {ex['sets']} sets")
+                rpe_str = f"  RPE {ex['avg_rpe']}" if ex.get("avg_rpe") else ""
+                lines.append(f"    {ex['exercise']}: {weight_str}{ex['avg_reps']} reps × {ex['sets']} sets{rpe_str}")
 
     priorities = context.get("exercise_priorities", [])
     ex_stats = context.get("exercise_stats", {})
@@ -535,7 +638,8 @@ def _build_user_message(context: dict) -> str:
     return "\n".join(lines)
 
 
-def get_workout(context: dict, legacy: bool = False) -> Optional[dict]:
+def get_workout(context: dict, legacy: bool = False,
+                block_directive: Optional[str] = None) -> Optional[dict]:
     """
     Calls Claude with the training context. Returns parsed workout dict or None on failure.
     Pass legacy=True to use the old hardcoded system prompt instead of the data-driven one.
@@ -551,7 +655,7 @@ def get_workout(context: dict, legacy: bool = False) -> Optional[dict]:
                   .replace("{mode}", config.TRAINING_MODE)
                   .replace("{mode_detail}", MODE_DETAILS.get(config.TRAINING_MODE, "")))
     else:
-        system = _build_system_prompt()
+        system = _build_system_prompt(block_directive=block_directive)
     user   = _build_user_message(context)
 
     payload = {

@@ -209,7 +209,13 @@ SESSION_TIME_ESTIMATES = {
     "accessory_compound": 12,
     "isolation":           8,
     "core":                6,
+    "skill":               5,
 }
+
+# ── Skill / practice work ─────────────────────────────────────────────────
+# Added after the core slot if time allows. Prescribed as duration-type sets.
+# Examples: "Headstand Practice", "Handstand Hold", "L-Sit", "Ring Support Hold"
+SKILL_WORK: list[str] = []
 
 # ── Rest seconds per exercise category ────────────────────────────────────
 REST_SECONDS: dict[str, dict[str, int]] = {
