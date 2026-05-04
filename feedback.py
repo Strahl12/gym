@@ -67,7 +67,7 @@ def compute_diff(prescription: dict, actual: dict[str, dict]) -> dict:
 
         aex = actual[name]
         p_sets   = [s for s in pex.get("sets", []) if not s.get("is_warmup")]
-        p_weight = max((s["weight_kg"] for s in p_sets), default=0)
+        p_weight = max((s.get("weight_kg", 0) for s in p_sets), default=0)
         p_reps   = round(sum(s["reps"] for s in p_sets) / len(p_sets), 1) if p_sets else 0
 
         a_weight = aex["top_weight"]
@@ -120,18 +120,73 @@ def diff_is_empty(diff: dict) -> bool:
     ])
 
 
+def _store_review(session_date: str, analysis: str, source: str) -> None:
+    con = _con()
+    con.execute(
+        "INSERT OR IGNORE INTO session_notes (date, note, source) VALUES (?, ?, ?)",
+        (session_date, analysis, source),
+    )
+    con.commit()
+    con.close()
+
+
+def _print_stored_review(session_date: str, source: str) -> None:
+    con = _con()
+    row = con.execute(
+        "SELECT note FROM session_notes WHERE date = ? AND source = ? ORDER BY id DESC LIMIT 1",
+        (session_date, source),
+    ).fetchone()
+    con.close()
+    if row:
+        print(f"[feedback] Review: {row['note']}")
+
+
 def run_feedback_for_date(session_date: str) -> Optional[dict]:
     """
     Find the prescription for session_date, pull actual sets, compute and store diff.
-    Returns the diff dict, or None if no prescription found.
+    Actual sets are searched on session_date and the following day (workout may be
+    completed the day after the prescription was created).
+    Returns the diff dict, or None if no prescription found or already processed.
     """
+    from datetime import date as _d, timedelta
+
+    # Find actual sets — check session_date, then next day
+    actual      = _actual_sets(session_date)
+    actual_date = session_date
+    if not actual:
+        next_day = (_d.fromisoformat(session_date) + timedelta(days=1)).isoformat()
+        actual   = _actual_sets(next_day)
+        actual_date = next_day if actual else session_date
+    if not actual:
+        return None
+
+    # Determine actual session type
+    con2 = _con()
+    actual_type_row = con2.execute("""
+        SELECT session_type FROM sets
+        WHERE date = ? AND session_type != 'unknown'
+        GROUP BY session_type ORDER BY COUNT(*) DESC LIMIT 1
+    """, (actual_date,)).fetchone()
+    con2.close()
+    actual_session_type = actual_type_row["session_type"] if actual_type_row else None
+
+    # Find prescription: prefer one matching the actual session type (avoids cross-matching
+    # when the user does a different session than was prescribed)
     con = _con()
-    row = con.execute("""
-        SELECT id, session_type, exercises_json
-        FROM prescribed_sessions
-        WHERE date = ?
-        ORDER BY id DESC LIMIT 1
-    """, (session_date,)).fetchone()
+    if actual_session_type:
+        row = con.execute("""
+            SELECT id, session_type, exercises_json
+            FROM prescribed_sessions
+            WHERE date = ? AND posted_to_hevy = 1
+            ORDER BY CASE WHEN session_type = ? THEN 0 ELSE 1 END, id DESC LIMIT 1
+        """, (session_date, actual_session_type)).fetchone()
+    else:
+        row = con.execute("""
+            SELECT id, session_type, exercises_json
+            FROM prescribed_sessions
+            WHERE date = ? AND posted_to_hevy = 1
+            ORDER BY id DESC LIMIT 1
+        """, (session_date,)).fetchone()
     con.close()
 
     if not row:
@@ -141,14 +196,32 @@ def run_feedback_for_date(session_date: str) -> Optional[dict]:
     session_type    = row["session_type"]
     prescription    = {"exercises": json.loads(row["exercises_json"])}
 
-    actual = _actual_sets(session_date)
-    if not actual:
-        return None
+    # If already stored, print the existing diff + any stored analysis and return
+    con3 = _con()
+    existing_row = con3.execute(
+        "SELECT diff_json, session_type FROM workout_feedback WHERE prescription_id = ?",
+        (prescription_id,)
+    ).fetchone()
+    con3.close()
+    if existing_row:
+        stored_diff = json.loads(existing_row["diff_json"])
+        if not diff_is_empty(stored_diff):
+            label = (f"prescribed: {existing_row['session_type']} → actual: {actual_session_type}"
+                     if actual_session_type != existing_row["session_type"] else existing_row["session_type"])
+            _print_diff(session_date, label, stored_diff)
+            _print_stored_review(session_date, "completed_review")
+        return stored_diff
 
     diff = compute_diff(prescription, actual)
     if not diff_is_empty(diff):
         store_diff(session_date, prescription_id, session_type, diff)
-        _print_diff(session_date, session_type, diff)
+        label = (f"prescribed: {session_type} → actual: {actual_session_type}"
+                 if actual_session_type != session_type else session_type)
+        _print_diff(session_date, label, diff)
+        analysis = analyze_diff(diff, prescription, session_type, context="completed")
+        if analysis:
+            print(f"[feedback] Review: {analysis}")
+            _store_review(session_date, analysis, "completed_review")
 
     return diff
 
@@ -175,6 +248,69 @@ def _print_diff(session_date: str, session_type: str, diff: dict) -> None:
         print(f"  weight:   {w['exercise']} {w['prescribed_kg']}→{w['actual_kg']}kg ({sign}{w['delta_pct']}%)")
     for r in diff.get("reps_adjustments", []):
         print(f"  reps:     {r['exercise']} {r['prescribed_reps']}→{r['actual_reps']} reps")
+
+
+def analyze_diff(diff: dict, prescription: dict, session_type: str,
+                 context: str = "pre_session") -> str:
+    """
+    Call Claude Haiku to assess a workout diff.
+    context: "pre_session" (user edited before starting) | "completed" (what was actually done).
+    Returns a short analysis string, or "" on failure.
+    """
+    import requests
+    prescribed_names = [ex["exercise_name"] for ex in prescription.get("exercises", [])]
+
+    diff_lines = []
+    for name in diff.get("skipped", []):
+        diff_lines.append(f"  REMOVED: {name}")
+    for name in diff.get("added", []):
+        diff_lines.append(f"  ADDED: {name}")
+    for w in diff.get("weight_adjustments", []):
+        sign = "+" if w["delta_pct"] > 0 else ""
+        diff_lines.append(
+            f"  WEIGHT: {w['exercise']} {w['prescribed_kg']}→{w['actual_kg']}kg ({sign}{w['delta_pct']}%)")
+    for r in diff.get("reps_adjustments", []):
+        diff_lines.append(
+            f"  REPS: {r['exercise']} {r['prescribed_reps']}→{r['actual_reps']}")
+
+    if context == "pre_session":
+        situation = f"Before starting, the athlete edited the {session_type} routine:"
+    else:
+        situation = f"This is what the athlete actually completed vs the {session_type} prescription:"
+
+    prompt = (
+        f"A strength AI prescribed this {session_type} session:\n"
+        + "\n".join(f"  {n}" for n in prescribed_names)
+        + f"\n\n{situation}\n"
+        + "\n".join(diff_lines)
+        + "\n\nAnalyse in 3–4 sentences. Cover:\n"
+        "1. Were the changes sensible for this session type?\n"
+        "2. Were any important movement patterns dropped or doubled up?\n"
+        "3. Does this look like a personal preference or avoidance of something necessary?\n"
+        "4. Should these changes be considered going forward?\n"
+        "Be direct and specific."
+    )
+
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": config.ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 350,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()["content"][0]["text"].strip()
+    except Exception as e:
+        print(f"[feedback] Diff analysis failed: {e}")
+        return ""
 
 
 def diff_hevy_template_vs_prescription(routine_id: str, today_iso: str) -> Optional[dict]:
@@ -232,6 +368,11 @@ def diff_hevy_template_vs_prescription(routine_id: str, today_iso: str) -> Optio
         store_diff(today_iso, row["id"], row["session_type"], diff)
         print(f"[feedback] Template edits from previous {row['session_type']} session:")
         _print_diff(row["date"], row["session_type"], diff)
+
+        analysis = analyze_diff(diff, prescription, row["session_type"], context="pre_session")
+        if analysis:
+            print(f"[feedback] Review: {analysis}")
+            _store_review(row["date"], analysis, "overwrite_review")
 
     return diff if not diff_is_empty(diff) else None
 
