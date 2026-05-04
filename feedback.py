@@ -91,11 +91,18 @@ def compute_diff(prescription: dict, actual: dict[str, dict]) -> dict:
     prescribed_names = set(prescribed_exercises.keys())
     added = [name for name in actual if name not in prescribed_names]
 
+    # Detect significant reordering of exercises that were both prescribed and completed
+    prescribed_order = [ex["exercise_name"] for ex in prescription.get("exercises", [])]
+    common_prescribed = [n for n in prescribed_order if n in actual]
+    common_actual     = [n for n in actual if n in prescribed_names]
+    reordered = common_actual if common_prescribed != common_actual and len(common_prescribed) > 2 else []
+
     return {
         "skipped":            skipped,
         "added":              added,
         "weight_adjustments": weight_adjustments,
         "reps_adjustments":   reps_adjustments,
+        "reordered":          reordered,
     }
 
 
@@ -117,6 +124,7 @@ def diff_is_empty(diff: dict) -> bool:
         diff.get("added"),
         diff.get("weight_adjustments"),
         diff.get("reps_adjustments"),
+        diff.get("reordered"),
     ])
 
 
@@ -213,6 +221,7 @@ def run_feedback_for_date(session_date: str) -> Optional[dict]:
     prescription    = {"exercises": json.loads(row["exercises_json"])}
 
     notes = _get_session_notes(actual_date)
+    handle_debug_notes(actual_date)
 
     # If already stored, print diff + regenerate review if missing or notes have arrived since
     con3 = _con()
@@ -276,6 +285,8 @@ def _print_diff(session_date: str, session_type: str, diff: dict) -> None:
         print(f"  weight:   {w['exercise']} {w['prescribed_kg']}→{w['actual_kg']}kg ({sign}{w['delta_pct']}%)")
     for r in diff.get("reps_adjustments", []):
         print(f"  reps:     {r['exercise']} {r['prescribed_reps']}→{r['actual_reps']} reps")
+    if diff.get("reordered"):
+        print(f"  reorder:  actual order was: {' → '.join(diff['reordered'])}")
 
 
 def analyze_diff(diff: dict, prescription: dict, session_type: str,
@@ -418,6 +429,74 @@ def diff_hevy_template_vs_prescription(routine_id: str, today_iso: str) -> Optio
             _store_review(row["date"], analysis, "overwrite_review")
 
     return diff if not diff_is_empty(diff) else None
+
+
+# ── Debug note handling ───────────────────────────────────────────────────
+
+def handle_debug_notes(session_date: str) -> None:
+    """
+    Process any DEBUG: notes for a session. Looks up relevant DB data and calls
+    Claude Haiku to investigate the issue, printing and storing the finding.
+    """
+    import requests
+    from context import lift_history as _lift_history
+
+    con = _con()
+    rows = con.execute(
+        "SELECT id, note FROM session_notes WHERE date = ? AND source = 'debug_request'",
+        (session_date,)
+    ).fetchall()
+    con.close()
+
+    for row in rows:
+        note_text = row["note"]
+        # Parse "ExerciseName: DEBUG: question text"
+        parts = note_text.split(":", 2)
+        ex_name  = parts[0].strip() if len(parts) >= 2 else ""
+        question = ":".join(parts[2:]).strip() if len(parts) >= 3 else note_text
+
+        # Gather context: exercise history from DB
+        history = _lift_history(ex_name, n=10) if ex_name else []
+        history_text = (
+            "\n".join(f"  {h['date']}: {h['top_weight']}kg × {h['max_reps']} reps  e1RM={h['best_e1rm']}kg"
+                      for h in history)
+            or "  (no history in DB)"
+        )
+
+        prompt = (
+            f"An athlete left this debug note after their session:\n"
+            f"  Exercise: {ex_name or '(unspecified)'}\n"
+            f"  Question: {question}\n\n"
+            f"Exercise history in the training DB for '{ex_name}':\n{history_text}\n\n"
+            "Investigate the issue directly. In 3-5 sentences:\n"
+            "1. What's the most likely explanation based on the data?\n"
+            "2. Is there a data/tracking problem, and if so what's the fix?\n"
+            "3. What should change in the next prescription for this exercise?\n"
+            "Be specific. If history is empty, say so and recommend a conservative starting weight."
+        )
+
+        try:
+            resp = requests.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": config.ANTHROPIC_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 400,
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            finding = resp.json()["content"][0]["text"].strip()
+            print(f"[debug] {ex_name}: {finding}")
+            # Store as a manual note so it surfaces to Claude in future sessions
+            _store_review(session_date, f"[DEBUG finding — {ex_name}] {finding}", "debug_finding")
+        except Exception as e:
+            print(f"[debug] Investigation failed: {e}")
 
 
 # ── Session notes ──────────────────────────────────────────────────────────
