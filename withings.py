@@ -80,18 +80,23 @@ def get_access_token() -> str:
 
 # ── Measurement fetch ──────────────────────────────────────────────────────
 
-def fetch_weight_measurements(days: int = 7) -> list[dict]:
+def fetch_body_measurements(days: int = 7) -> list[dict]:
     """
-    Fetch weight measurements from the last N days.
-    Returns list of {date, weight_kg}.
+    Fetch weight, muscle mass, and body fat from the last N days.
+    Returns list of {date, weight_kg, muscle_mass_kg, body_fat_pct} — fields may be None.
+
+    Withings measure types:
+      1  = weight (kg)
+      6  = fat ratio (%)
+      76 = muscle mass (kg)
     """
     access_token = get_access_token()
     startdate    = int((datetime.now() - timedelta(days=days)).timestamp())
 
     resp = requests.post(MEASURE_URL, data={
         "action":       "getmeas",
-        "meastypes":    1,            # 1 = body weight
-        "category":     1,            # real measurements only
+        "meastypes":    "1,6,76",     # weight, fat ratio, muscle mass
+        "category":     1,
         "startdate":    startdate,
         "access_token": access_token,
     })
@@ -101,19 +106,21 @@ def fetch_weight_measurements(days: int = 7) -> list[dict]:
     if body.get("status") != 0:
         raise RuntimeError(f"Withings measure fetch failed: {body}")
 
-    results = []
+    by_date: dict[str, dict] = {}
     for group in body["body"].get("measuregrps", []):
-        ts = group["date"]
+        d = datetime.fromtimestamp(group["date"]).date().isoformat()
+        if d not in by_date:
+            by_date[d] = {"date": d, "weight_kg": None, "muscle_mass_kg": None, "body_fat_pct": None}
         for m in group["measures"]:
-            if m["type"] == 1:   # weight
-                # Withings returns value * 10^unit
-                weight_kg = m["value"] * (10 ** m["unit"])
-                results.append({
-                    "date":      datetime.fromtimestamp(ts).date().isoformat(),
-                    "weight_kg": round(weight_kg, 2),
-                })
+            val = round(m["value"] * (10 ** m["unit"]), 2)
+            if m["type"] == 1:
+                by_date[d]["weight_kg"] = val
+            elif m["type"] == 6:
+                by_date[d]["body_fat_pct"] = val
+            elif m["type"] == 76:
+                by_date[d]["muscle_mass_kg"] = val
 
-    return sorted(results, key=lambda x: x["date"])
+    return sorted(by_date.values(), key=lambda x: x["date"])
 
 
 # ── DB write ───────────────────────────────────────────────────────────────
@@ -123,7 +130,7 @@ def sync_to_db(days: int = 30) -> int:
     Fetch recent Withings measurements and upsert into bodyweight table.
     Returns number of rows inserted/updated.
     """
-    measurements = fetch_weight_measurements(days=days)
+    measurements = fetch_body_measurements(days=days)
     if not measurements:
         print("[withings] No measurements fetched.")
         return 0
@@ -132,16 +139,24 @@ def sync_to_db(days: int = 30) -> int:
     count = 0
     for m in measurements:
         con.execute("""
-            INSERT INTO bodyweight (date, weight_kg, source)
-            VALUES (?, ?, 'withings')
-            ON CONFLICT(date) DO UPDATE SET weight_kg = excluded.weight_kg
-        """, (m["date"], m["weight_kg"]))
+            INSERT INTO bodyweight (date, weight_kg, muscle_mass_kg, body_fat_pct, source)
+            VALUES (?, ?, ?, ?, 'withings')
+            ON CONFLICT(date) DO UPDATE SET
+                weight_kg      = COALESCE(excluded.weight_kg,      weight_kg),
+                muscle_mass_kg = COALESCE(excluded.muscle_mass_kg, muscle_mass_kg),
+                body_fat_pct   = COALESCE(excluded.body_fat_pct,   body_fat_pct)
+        """, (m["date"], m["weight_kg"], m["muscle_mass_kg"], m["body_fat_pct"]))
         count += 1
     con.commit()
     con.close()
 
-    print(f"[withings] Synced {count} measurements to DB.")
-    print(f"           Latest: {measurements[-1]['date']} — {measurements[-1]['weight_kg']}kg")
+    latest = measurements[-1]
+    parts  = [f"{latest['weight_kg']}kg"]
+    if latest["muscle_mass_kg"]:
+        parts.append(f"muscle {latest['muscle_mass_kg']}kg")
+    if latest["body_fat_pct"]:
+        parts.append(f"BF {latest['body_fat_pct']}%")
+    print(f"[withings] Synced {count} measurements. Latest ({latest['date']}): {' | '.join(parts)}")
     return count
 
 
