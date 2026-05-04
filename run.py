@@ -18,6 +18,8 @@ Usage:
   python run.py --note "left shoulder felt tight"  # log a session note, then exit
   python run.py --set-focus push "Strict Military Press"  # override focus lift
   python run.py --force                # override rest day and generate anyway
+  python run.py --creator-recs         # include creator recommendations in prescription
+  python run.py --exclude "Calf Raise (Barbell)"  # add exercise to permanent exclusion list
 """
 import sys
 import json
@@ -43,7 +45,7 @@ log = logging.getLogger(__name__)
 
 def main(dry_run: bool = False, context_only: bool = False, find_templates: bool = False,
          as_workout: bool = False, confirm: bool = False, note: str = "",
-         set_focus: tuple = (), force: bool = False):
+         set_focus: tuple = (), force: bool = False, creator_recs: bool = False):
 
     # ── Template lookup helper ─────────────────────────────────────────────
     if find_templates:
@@ -65,6 +67,7 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
         return
 
     # ── 1. Sync Withings ───────────────────────────────────────────────────
+    print("\n===== SYNC =====")
     try:
         from withings import sync_to_db
         sync_to_db(days=7)
@@ -79,6 +82,7 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
         log.warning(f"Hevy sync failed (continuing with existing data): {e}")
 
     # ── 1c. Diff yesterday's prescription vs what was actually done ─────────
+    print("\n===== PREVIOUS =====")
     try:
         from feedback import run_feedback_for_date
         from datetime import date as _date, timedelta
@@ -103,22 +107,52 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
         log.warning(f"Tomorrow is a rest day ({consecutive} consecutive days trained today).")
 
     # ── 2. Build context ───────────────────────────────────────────────────
+    print("\n===== CURRENT =====")
     from context import build_context
     ctx = build_context()
 
     from context import recent_session_types
+    import sqlite3 as _sqlite3
     stype      = ctx['suggested_session_type']
     days_since = ctx.get('days_since_last_session_of_type')
     days_str   = f"{days_since}d" if days_since is not None else "never"
     recent     = recent_session_types()
-    yesterday  = recent[0] if recent else "?"
     history    = " / ".join(recent)
     from focus import phase_summary
+    _last = _sqlite3.connect(_cfg.DB_PATH).execute(
+        "SELECT date, session_type FROM sets WHERE session_type != 'unknown' ORDER BY date DESC LIMIT 1"
+    ).fetchone()
+    if _last:
+        _days_ago = (date.today() - date.fromisoformat(_last[0])).days
+        _last_label = "today" if _days_ago == 0 else f"{_days_ago}d ago"
+        last_str = f"{_last[1].title()} ({_last_label})"
+    else:
+        last_str = "?"
     log.info(f"Session type today: {stype} (last {stype}: {days_str} ago)")
     log.info(f"Focus phases: {phase_summary()}")
-    log.info(f"Yesterday: {yesterday}  |  Recent: {history}")
+    log.info(f"Last session: {last_str}  |  Recent: {history}")
     log.info(f"Bodyweight: {ctx.get('bodyweight_kg')}kg")
     log.info(f"Sessions last 7 days: {ctx['sessions_last_7_days']}")
+
+    from context import e1rm_trends
+    _SHORT = {
+        "Incline Barbell Bench Press": "Incline Bench",
+        "Strict Military Press":       "OHP",
+        "Pull Up":                     "Pull Up",
+        "Weighted Dip":                "Dip",
+        "Front Squat":                 "Front Squat",
+    }
+    trends = e1rm_trends(weeks=4)
+    for lift, t in trends.items():
+        short = _SHORT.get(lift, lift)
+        if t["current_e1rm"]:
+            delta_str = f"  {t['delta_kg']:+.1f}kg" if t["delta_kg"] is not None else ""
+            log.info(f"  {t['trend']} {short}: {t['current_e1rm']}kg e1RM{delta_str}")
+        else:
+            log.info(f"  {t['trend']} {short}: no data")
+
+    if not creator_recs:
+        ctx["creator_recommendations"] = []
 
     # Save context to log
     ctx_file = LOG_DIR / f"{date.today().isoformat()}_context.json"
@@ -129,6 +163,7 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
         return
 
     # ── 3. Call Claude ─────────────────────────────────────────────────────
+    print("\n===== PRESCRIPTION =====")
     log.info("Calling Claude for workout prescription...")
     from claude_api import get_workout
     workout = get_workout(ctx)
@@ -189,6 +224,7 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
         log.warning(f"Template diff failed (non-critical): {e}")
 
     # ── 4. Post to Hevy ────────────────────────────────────────────────────
+    print("\n===== HEVY =====")
     if as_workout:
         log.info("Posting to Hevy as completed workout...")
         from hevy import post_workout
@@ -212,6 +248,7 @@ if __name__ == "__main__":
     as_workout     = "--as-workout"     in sys.argv
     confirm        = "--confirm"        in sys.argv
     force          = "--force"          in sys.argv
+    creator_recs   = "--creator-recs"   in sys.argv
 
     note = ""
     if "--note" in sys.argv:
@@ -224,5 +261,24 @@ if __name__ == "__main__":
         if idx + 2 < len(sys.argv):
             set_focus = (sys.argv[idx + 1], sys.argv[idx + 2])
 
+    if "--exclude" in sys.argv:
+        idx  = sys.argv.index("--exclude")
+        name = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else ""
+        if name:
+            import config as _cfg
+            import re as _re
+            cfg_path = Path(__file__).parent / "config.py"
+            cfg_text = cfg_path.read_text()
+            # Insert the new entry before the closing bracket of EXCLUDED_EXERCISES
+            cfg_text = _re.sub(
+                r'(EXCLUDED_EXERCISES: list\[str\] = \[)(.*?)(\])',
+                lambda m: m.group(1) + m.group(2) + f'    "{name}",\n' + m.group(3),
+                cfg_text, flags=_re.DOTALL
+            )
+            cfg_path.write_text(cfg_text)
+            print(f"Added '{name}' to EXCLUDED_EXERCISES in config.py")
+        sys.exit(0)
+
     main(dry_run=dry_run, context_only=context_only, find_templates=find_templates,
-         as_workout=as_workout, confirm=confirm, note=note, set_focus=set_focus, force=force)
+         as_workout=as_workout, confirm=confirm, note=note, set_focus=set_focus, force=force,
+         creator_recs=creator_recs)
