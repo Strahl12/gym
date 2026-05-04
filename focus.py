@@ -113,6 +113,14 @@ def get_phase(session_type: str) -> dict:
         _upsert_phase(session_type, focus_lift, "focus", None, today)
         row = _get_phase_row(session_type)
 
+    # Sync config → DB: if focus phase and DEFAULT_FOCUS_LIFTS changed, update
+    if row["phase"] == "focus":
+        config_default = config.DEFAULT_FOCUS_LIFTS.get(session_type, "")
+        if config_default and row["focus_lift"] != config_default:
+            print(f"[focus] {session_type}: focus lift updated {row['focus_lift']} → {config_default} (config change)")
+            _upsert_phase(session_type, config_default, "focus", None, today)
+            row = _get_phase_row(session_type)
+
     focus_lift      = row["focus_lift"]
     current_phase   = row["phase"]
     complement_lift = row["complement_lift"]
