@@ -5,7 +5,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "barbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "B4F2FF72": {
     "hevy_title": "Ab Scissors",
@@ -13,7 +18,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "99D5F10E": {
     "hevy_title": "Ab Wheel",
@@ -21,7 +29,13 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "other",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "chest"
+    ]
   },
   "5E0DDACE": {
     "hevy_title": "Aerobics",
@@ -29,7 +43,15 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ]
   },
   "43573BB8": {
     "hevy_title": "Air Bike",
@@ -37,7 +59,15 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ]
   },
   "A69FF221": {
     "hevy_title": "Arnold Press (Dumbbell)",
@@ -45,7 +75,14 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "chest",
+      "traps"
+    ]
   },
   "D4A2FE7E": {
     "hevy_title": "Around The World",
@@ -53,7 +90,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ]
   },
   "5BFF35BA": {
     "hevy_title": "Assisted Pistol Squats",
@@ -61,7 +104,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "4F5866F8": {
     "hevy_title": "Back Extension (Hyperextension)",
@@ -69,7 +119,13 @@
     "aliases": [],
     "muscle": "lower_back",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "A05C064D": {
     "hevy_title": "Back Extension (Machine)",
@@ -77,7 +133,13 @@
     "aliases": [],
     "muscle": "lower_back",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "091737FA": {
     "hevy_title": "Back Extension (Weighted Hyperextension)",
@@ -85,7 +147,13 @@
     "aliases": [],
     "muscle": "lower_back",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "F51D9080": {
     "hevy_title": "Ball Slams",
@@ -93,7 +161,15 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "other",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "shoulders",
+      "chest",
+      "triceps"
+    ]
   },
   "E8D86EE8": {
     "hevy_title": "Band Pullaparts",
@@ -101,7 +177,13 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "resistance_band",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": false,
+    "secondary_muscles": [
+      "upper_back",
+      "traps"
+    ]
   },
   "084A67CA": {
     "hevy_title": "Battle Ropes",
@@ -109,7 +191,14 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "shoulders",
+      "triceps"
+    ]
   },
   "DDB29047": {
     "hevy_title": "Behind the Back Bicep Wrist Curl (Barbell)",
@@ -117,7 +206,12 @@
     "aliases": [],
     "muscle": "forearms",
     "equipment": "barbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "biceps"
+    ]
   },
   "2DBCA395": {
     "hevy_title": "Behind the Back Curl (Cable)",
@@ -125,7 +219,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "machine",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "3D1CDC75": {
     "hevy_title": "Belt Squat (Machine)",
@@ -133,7 +232,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "CD6DC8E5": {
     "hevy_title": "Bench Dip",
@@ -141,7 +247,13 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "other",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ]
   },
   "79D0BB3A": {
     "hevy_title": "Bench Press (Barbell)",
@@ -149,7 +261,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "barbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "99C1F2AD": {
     "hevy_title": "Bench Press (Cable)",
@@ -157,7 +275,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "3601968B": {
     "hevy_title": "Bench Press (Dumbbell)",
@@ -165,7 +289,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "0FBF7195": {
     "hevy_title": "Bench Press (Smith Machine)",
@@ -173,7 +303,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "35B51B87": {
     "hevy_title": "Bench Press - Close Grip (Barbell)",
@@ -181,7 +317,13 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "barbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "chest"
+    ]
   },
   "E644F828": {
     "hevy_title": "Bench Press - Wide Grip (Barbell)",
@@ -189,7 +331,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "barbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "chest"
+    ]
   },
   "EA820646": {
     "hevy_title": "Bent Over Row (Band)",
@@ -197,7 +345,13 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "resistance_band",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "lower_back"
+    ]
   },
   "55E6546F": {
     "hevy_title": "Bent Over Row (Barbell)",
@@ -205,7 +359,13 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "barbell",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "lower_back"
+    ]
   },
   "23E92538": {
     "hevy_title": "Bent Over Row (Dumbbell)",
@@ -213,7 +373,13 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "dumbbell",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "lower_back"
+    ]
   },
   "A5AC6449": {
     "hevy_title": "Bicep Curl (Barbell)",
@@ -221,7 +387,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "barbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "ADA8623C": {
     "hevy_title": "Bicep Curl (Cable)",
@@ -229,7 +400,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "machine",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "37FCC2BB": {
     "hevy_title": "Bicep Curl (Dumbbell)",
@@ -237,7 +413,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "dumbbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "AF328E3D": {
     "hevy_title": "Bicep Curl (Machine)",
@@ -245,7 +426,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "machine",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "0B4C1902": {
     "hevy_title": "Bicep Curl (Suspension)",
@@ -253,7 +439,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "suspension",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": true,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "A41C7261": {
     "hevy_title": "Bicycle Crunch",
@@ -261,7 +452,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "594450D2": {
     "hevy_title": "Bicycle Crunch Raised Legs",
@@ -269,7 +463,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "BD0AD077": {
     "hevy_title": "Bird Dog",
@@ -277,7 +474,12 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": false,
+    "secondary_muscles": [
+      "lower_back"
+    ]
   },
   "56092DD1": {
     "hevy_title": "Box Jump",
@@ -285,7 +487,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "other",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "calves",
+      "cardio"
+    ]
   },
   "38FC1AB9": {
     "hevy_title": "Box Squat (Barbell)",
@@ -293,7 +502,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "A0D8FA1B": {
     "hevy_title": "Boxing",
@@ -301,7 +517,14 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "shoulders",
+      "triceps"
+    ]
   },
   "B5D3A742": {
     "hevy_title": "Bulgarian Split Squat",
@@ -309,7 +532,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "dumbbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "BB792A36": {
     "hevy_title": "Burpee",
@@ -317,7 +547,17 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "chest",
+      "shoulders",
+      "triceps",
+      "quadriceps",
+      "glutes"
+    ]
   },
   "86B00DDE": {
     "hevy_title": "Burpee Over the Bar",
@@ -325,7 +565,17 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "chest",
+      "shoulders",
+      "triceps",
+      "quadriceps",
+      "glutes"
+    ]
   },
   "9DCE2D64": {
     "hevy_title": "Butterfly (Pec Deck)",
@@ -333,7 +583,10 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "CC55119B": {
     "hevy_title": "Cable Core Palloff Press",
@@ -341,7 +594,13 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ]
   },
   "23A48484": {
     "hevy_title": "Cable Crunch",
@@ -349,7 +608,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "651F844C": {
     "hevy_title": "Cable Fly Crossovers",
@@ -357,7 +619,10 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "8C331CD8": {
     "hevy_title": "Cable Pull Through",
@@ -365,7 +630,13 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "92D858EA": {
     "hevy_title": "Cable Twist (Down to up)",
@@ -373,7 +644,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "A2D838BD": {
     "hevy_title": "Cable Twist (Up to down)",
@@ -381,7 +655,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "47B9DF13": {
     "hevy_title": "Calf Extension (Machine)",
@@ -389,7 +666,10 @@
     "aliases": [],
     "muscle": "calves",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "ankle_plantarflexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "91237BDD": {
     "hevy_title": "Calf Press (Machine)",
@@ -397,7 +677,10 @@
     "aliases": [],
     "muscle": "calves",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "ankle_plantarflexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "6FCD7755": {
     "hevy_title": "Chest Dip",
@@ -405,7 +688,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ]
   },
   "E9E4089F": {
     "hevy_title": "Chest Dip (Assisted)",
@@ -413,7 +702,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ]
   },
   "29472BE1": {
     "hevy_title": "Chest Dip (Weighted)",
@@ -421,7 +716,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ]
   },
   "DDB7C19F": {
     "hevy_title": "Chest Fly (Band)",
@@ -429,7 +730,12 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "resistance_band",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders"
+    ]
   },
   "12017185": {
     "hevy_title": "Chest Fly (Dumbbell)",
@@ -437,7 +743,12 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders"
+    ]
   },
   "78683336": {
     "hevy_title": "Chest Fly (Machine)",
@@ -445,7 +756,12 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders"
+    ]
   },
   "720B0D70": {
     "hevy_title": "Chest Fly (Suspension)",
@@ -453,7 +769,12 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "suspension",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders"
+    ]
   },
   "EAC7D9C5": {
     "hevy_title": "Chest Press (Band)",
@@ -461,7 +782,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "resistance_band",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "7EB3F7C3": {
     "hevy_title": "Chest Press (Machine)",
@@ -469,7 +796,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "914F3A96": {
     "hevy_title": "Chest Supported Incline Row (Dumbbell)",
@@ -477,7 +810,13 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "dumbbell",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "shoulders"
+    ]
   },
   "B582299E": {
     "hevy_title": "Chest Supported Reverse Fly (Dumbbell)",
@@ -485,7 +824,13 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "upper_back",
+      "traps"
+    ]
   },
   "F21D5693": {
     "hevy_title": "Chest Supported Y Raise (Dumbbell)",
@@ -493,7 +838,13 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "upper_back",
+      "traps"
+    ]
   },
   "29083183": {
     "hevy_title": "Chin Up",
@@ -501,7 +852,13 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "shoulders"
+    ]
   },
   "D23C609B": {
     "hevy_title": "Chin Up (Assisted)",
@@ -509,7 +866,13 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "shoulders"
+    ]
   },
   "023943F1": {
     "hevy_title": "Chin Up (Weighted)",
@@ -517,7 +880,13 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "shoulders"
+    ]
   },
   "CC016611": {
     "hevy_title": "Clamshell",
@@ -525,7 +894,12 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "resistance_band",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "glutes"
+    ]
   },
   "10D76E8F": {
     "hevy_title": "Clap Push Ups",
@@ -533,7 +907,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "none",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "ABB00838": {
     "hevy_title": "Clean",
@@ -541,7 +921,14 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "barbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "full_body",
+      "traps",
+      "shoulders"
+    ]
   },
   "652FEA39": {
     "hevy_title": "Clean Pull",
@@ -549,7 +936,14 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "barbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "full_body",
+      "traps",
+      "shoulders"
+    ]
   },
   "9E09CEC3": {
     "hevy_title": "Clean and Jerk",
@@ -557,7 +951,13 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "barbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "full_body",
+      "traps"
+    ]
   },
   "D3095577": {
     "hevy_title": "Clean and Press",
@@ -565,7 +965,13 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "barbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "full_body",
+      "traps"
+    ]
   },
   "E23F1F2B": {
     "hevy_title": "Climbing",
@@ -573,7 +979,14 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "lower_back",
+      "quadriceps"
+    ]
   },
   "724CDE60": {
     "hevy_title": "Concentration Curl",
@@ -581,7 +994,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "dumbbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "32C4D4A2": {
     "hevy_title": "Cross Body Hammer Curl",
@@ -589,7 +1007,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "dumbbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "DCF3B31B": {
     "hevy_title": "Crunch",
@@ -597,7 +1020,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "EB43ADD4": {
     "hevy_title": "Crunch (Machine)",
@@ -605,7 +1031,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "D928C232": {
     "hevy_title": "Crunch (Weighted)",
@@ -613,7 +1042,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "D39EC9EB": {
     "hevy_title": "Curtsy Lunge (Dumbbell)",
@@ -621,7 +1053,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "dumbbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "adductors"
+    ]
   },
   "D8F7F851": {
     "hevy_title": "Cycling",
@@ -629,7 +1067,14 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "glutes",
+      "hamstrings"
+    ]
   },
   "D8911FC4": {
     "hevy_title": "Dead Bug",
@@ -637,7 +1082,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "B9380898": {
     "hevy_title": "Dead Hang",
@@ -645,7 +1093,13 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "none",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders",
+      "forearms"
+    ]
   },
   "99507114": {
     "hevy_title": "Deadlift (Band)",
@@ -653,7 +1107,14 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "resistance_band",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "quadriceps",
+      "lower_back",
+      "hamstrings"
+    ]
   },
   "C6272009": {
     "hevy_title": "Deadlift (Barbell)",
@@ -661,7 +1122,14 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "quadriceps",
+      "lower_back",
+      "hamstrings"
+    ]
   },
   "5F4E6DD3": {
     "hevy_title": "Deadlift (Dumbbell)",
@@ -669,7 +1137,14 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "dumbbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "quadriceps",
+      "lower_back",
+      "hamstrings"
+    ]
   },
   "20870ED5": {
     "hevy_title": "Deadlift (Smith Machine)",
@@ -677,7 +1152,14 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "quadriceps",
+      "lower_back",
+      "hamstrings"
+    ]
   },
   "B923B230": {
     "hevy_title": "Deadlift (Trap bar)",
@@ -685,7 +1167,14 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "quadriceps",
+      "lower_back",
+      "hamstrings"
+    ]
   },
   "FA5D0DE1": {
     "hevy_title": "Deadlift High Pull",
@@ -693,7 +1182,14 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "barbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "traps",
+      "shoulders",
+      "hamstrings"
+    ]
   },
   "DA0F0470": {
     "hevy_title": "Decline Bench Press (Barbell)",
@@ -701,7 +1197,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "barbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "18487FA7": {
     "hevy_title": "Decline Bench Press (Dumbbell)",
@@ -709,7 +1211,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "FAF31231": {
     "hevy_title": "Decline Bench Press (Machine)",
@@ -717,7 +1225,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "FFC106CB": {
     "hevy_title": "Decline Bench Press (Smith Machine)",
@@ -725,7 +1239,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "A351AED7": {
     "hevy_title": "Decline Chest Fly (Dumbbell)",
@@ -733,7 +1253,12 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders"
+    ]
   },
   "BC10A922": {
     "hevy_title": "Decline Crunch",
@@ -741,7 +1266,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "B2398CD1": {
     "hevy_title": "Decline Crunch (Weighted)",
@@ -749,7 +1277,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "C43825EA": {
     "hevy_title": "Decline Push Up",
@@ -757,7 +1288,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "other",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "6575F52D": {
     "hevy_title": "Diamond Push Up",
@@ -765,7 +1302,13 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "none",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ]
   },
   "7DA843A3": {
     "hevy_title": "Downward Dog",
@@ -773,7 +1316,14 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "hamstrings",
+      "calves"
+    ]
   },
   "D950429E": {
     "hevy_title": "Drag Curl",
@@ -781,7 +1331,13 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "barbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "forearms"
+    ]
   },
   "AFC29472": {
     "hevy_title": "Dragon Flag",
@@ -789,7 +1345,12 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": false,
+    "secondary_muscles": [
+      "lower_back"
+    ]
   },
   "B7192800": {
     "hevy_title": "Dragonfly",
@@ -797,7 +1358,13 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": false,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "F1E57334": {
     "hevy_title": "Dumbbell Row",
@@ -805,7 +1372,14 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "dumbbell",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "upper_back",
+      "biceps",
+      "shoulders"
+    ]
   },
   "F3717B0E": {
     "hevy_title": "Dumbbell Snatch",
@@ -813,7 +1387,16 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "dumbbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "full_body",
+      "glutes",
+      "hamstrings",
+      "shoulders",
+      "triceps"
+    ]
   },
   "F72FA239": {
     "hevy_title": "Dumbbell Squeeze Press",
@@ -821,7 +1404,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "BF6ECE89": {
     "hevy_title": "Dumbbell Step Up",
@@ -829,7 +1418,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "dumbbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "01A35BF9": {
     "hevy_title": "EZ Bar Biceps Curl",
@@ -837,7 +1432,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "barbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "A01BE509": {
     "hevy_title": "Elbow to Knee",
@@ -845,7 +1445,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": true,
+    "secondary_muscles": []
   },
   "3303376C": {
     "hevy_title": "Elliptical Trainer",
@@ -853,7 +1456,14 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "glutes",
+      "hamstrings"
+    ]
   },
   "BE640BA0": {
     "hevy_title": "Face Pull",
@@ -861,7 +1471,13 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "upper_back",
+      "shoulders"
+    ]
   },
   "50C613D0": {
     "hevy_title": "Farmers Walk",
@@ -869,7 +1485,14 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "other",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "full_body",
+      "forearms",
+      "traps"
+    ]
   },
   "867AC3B6": {
     "hevy_title": "Feet Up Bench Press (Barbell)",
@@ -877,7 +1500,14 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "barbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders",
+      "abdominals"
+    ]
   },
   "2AF8B552": {
     "hevy_title": "Fire Hydrants",
@@ -885,7 +1515,12 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": false,
+    "secondary_muscles": [
+      "abductors"
+    ]
   },
   "D53F2886": {
     "hevy_title": "Floor Press (Barbell)",
@@ -893,7 +1528,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "barbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "756EE329": {
     "hevy_title": "Floor Press (Dumbbell)",
@@ -901,7 +1542,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "A57D38D5": {
     "hevy_title": "Floor Triceps Dip",
@@ -909,7 +1556,13 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "none",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ]
   },
   "2FA77B28": {
     "hevy_title": "Flutter Kicks",
@@ -917,7 +1570,12 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "quadriceps"
+    ]
   },
   "207DC636": {
     "hevy_title": "Frog Jumps",
@@ -925,7 +1583,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "calves",
+      "cardio"
+    ]
   },
   "F6948F17": {
     "hevy_title": "Frog Pumps (Dumbbell)",
@@ -933,7 +1598,13 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "dumbbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "0E608350": {
     "hevy_title": "Front Lever Hold",
@@ -941,7 +1612,15 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "full_body",
+      "shoulders",
+      "chest",
+      "lats"
+    ]
   },
   "30F03BF0": {
     "hevy_title": "Front Lever Raise",
@@ -949,7 +1628,15 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "full_body",
+      "shoulders",
+      "chest",
+      "lats"
+    ]
   },
   "47B036EF": {
     "hevy_title": "Front Raise (Band)",
@@ -957,7 +1644,12 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "resistance_band",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders"
+    ]
   },
   "BD86EFD5": {
     "hevy_title": "Front Raise (Barbell)",
@@ -965,7 +1657,12 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "barbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders"
+    ]
   },
   "DBB91A3C": {
     "hevy_title": "Front Raise (Cable)",
@@ -973,7 +1670,12 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders"
+    ]
   },
   "8293E554": {
     "hevy_title": "Front Raise (Dumbbell)",
@@ -981,7 +1683,12 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders"
+    ]
   },
   "796E8E2C": {
     "hevy_title": "Front Raise (Suspension)",
@@ -989,7 +1696,12 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "suspension",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders"
+    ]
   },
   "5046D0A9": {
     "hevy_title": "Front Squat",
@@ -997,7 +1709,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "upper_back"
+    ]
   },
   "1283BBA6": {
     "hevy_title": "Full Squat",
@@ -1005,7 +1723,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "CDA23948": {
     "hevy_title": "Glute Bridge",
@@ -1013,7 +1738,13 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "68B83EE0": {
     "hevy_title": "Glute Ham Raise",
@@ -1021,7 +1752,13 @@
     "aliases": [],
     "muscle": "hamstrings",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "knee_flexion",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "lower_back"
+    ]
   },
   "CBA02382": {
     "hevy_title": "Glute Kickback (Machine)",
@@ -1029,7 +1766,12 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": false,
+    "secondary_muscles": [
+      "lower_back"
+    ]
   },
   "987234AB": {
     "hevy_title": "Glute Kickback on Floor",
@@ -1037,7 +1779,12 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": false,
+    "secondary_muscles": [
+      "lower_back"
+    ]
   },
   "3D0C7C75": {
     "hevy_title": "Goblet Squat",
@@ -1045,7 +1792,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "dumbbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "4180C405": {
     "hevy_title": "Good Morning (Barbell)",
@@ -1053,7 +1806,13 @@
     "aliases": [],
     "muscle": "hamstrings",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "lower_back",
+      "glutes"
+    ]
   },
   "05487216": {
     "hevy_title": "Gorilla Row (Kettlebell)",
@@ -1061,7 +1820,13 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "kettlebell",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "lats",
+      "biceps"
+    ]
   },
   "023947AB": {
     "hevy_title": "HIIT",
@@ -1069,7 +1834,13 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "full_body"
+    ]
   },
   "AC5A4C58": {
     "hevy_title": "Hack Squat",
@@ -1077,7 +1848,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "1E42FD5F": {
     "hevy_title": "Hack Squat (Machine)",
@@ -1085,7 +1862,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "1D4B3D6B": {
     "hevy_title": "Hammer Curl (Band)",
@@ -1093,7 +1876,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "resistance_band",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "36E8F14E": {
     "hevy_title": "Hammer Curl (Cable)",
@@ -1101,7 +1889,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "machine",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "7E3BC8B6": {
     "hevy_title": "Hammer Curl (Dumbbell)",
@@ -1109,7 +1902,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "dumbbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "BE3615CF": {
     "hevy_title": "Handstand Hold",
@@ -1117,7 +1915,14 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "chest",
+      "traps"
+    ]
   },
   "90B04F96": {
     "hevy_title": "Handstand Push Up",
@@ -1125,7 +1930,13 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "none",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "traps"
+    ]
   },
   "BD4E7E53": {
     "hevy_title": "Hang Clean",
@@ -1133,7 +1944,15 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "barbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "full_body",
+      "glutes",
+      "hamstrings",
+      "shoulders"
+    ]
   },
   "F4E77594": {
     "hevy_title": "Hang Snatch",
@@ -1141,7 +1960,15 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "barbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "full_body",
+      "glutes",
+      "hamstrings",
+      "shoulders"
+    ]
   },
   "08590920": {
     "hevy_title": "Hanging Knee Raise",
@@ -1149,7 +1976,12 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": true,
+    "secondary_muscles": [
+      "lats"
+    ]
   },
   "F8356514": {
     "hevy_title": "Hanging Leg Raise",
@@ -1157,7 +1989,12 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": true,
+    "secondary_muscles": [
+      "lats"
+    ]
   },
   "567FB505": {
     "hevy_title": "Heel Taps",
@@ -1165,7 +2002,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "BE89C631": {
     "hevy_title": "Hex Press (Dumbbell)",
@@ -1173,7 +2013,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "C9CCB878": {
     "hevy_title": "High Knee Skips",
@@ -1181,7 +2027,14 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "full_body",
+      "calves"
+    ]
   },
   "150E076B": {
     "hevy_title": "High Knees",
@@ -1189,7 +2042,14 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "full_body",
+      "calves"
+    ]
   },
   "1C34A172": {
     "hevy_title": "Hiking",
@@ -1197,7 +2057,15 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ]
   },
   "F4B4C6EE": {
     "hevy_title": "Hip Abduction (Machine)",
@@ -1205,7 +2073,10 @@
     "aliases": [],
     "muscle": "abductors",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "8BEBFED6": {
     "hevy_title": "Hip Adduction (Machine)",
@@ -1213,7 +2084,10 @@
     "aliases": [],
     "muscle": "adductors",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "92B8C7E1": {
     "hevy_title": "Hip Thrust",
@@ -1221,7 +2095,13 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "quadriceps",
+      "lower_back"
+    ]
   },
   "D57C2EC7": {
     "hevy_title": "Hip Thrust (Barbell)",
@@ -1229,7 +2109,13 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "quadriceps",
+      "lower_back"
+    ]
   },
   "68CE0B9B": {
     "hevy_title": "Hip Thrust (Machine)",
@@ -1237,7 +2123,13 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "quadriceps",
+      "lower_back"
+    ]
   },
   "291ABA92": {
     "hevy_title": "Hip Thrust (Smith Machine)",
@@ -1245,7 +2137,13 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "quadriceps",
+      "lower_back"
+    ]
   },
   "970ADF87": {
     "hevy_title": "Hollow Rock",
@@ -1253,7 +2151,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "50DFDFAB": {
     "hevy_title": "Incline Bench Press (Barbell)",
@@ -1261,7 +2162,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "barbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ]
   },
   "07B38369": {
     "hevy_title": "Incline Bench Press (Dumbbell)",
@@ -1269,7 +2176,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ]
   },
   "3A6FA3D1": {
     "hevy_title": "Incline Bench Press (Smith Machine)",
@@ -1277,7 +2190,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ]
   },
   "D3E2AB55": {
     "hevy_title": "Incline Chest Fly (Dumbbell)",
@@ -1285,7 +2204,12 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders"
+    ]
   },
   "FBF92739": {
     "hevy_title": "Incline Chest Press (Machine)",
@@ -1293,7 +2217,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ]
   },
   "39C99849": {
     "hevy_title": "Incline Push Ups",
@@ -1301,7 +2231,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "none",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ]
   },
   "425805F4": {
     "hevy_title": "Inverted Row",
@@ -1309,7 +2245,12 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps"
+    ]
   },
   "24706DCD": {
     "hevy_title": "Iso-Lateral Chest Press (Machine)",
@@ -1317,7 +2258,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ]
   },
   "BC3492DA": {
     "hevy_title": "Iso-Lateral High Row (Machine)",
@@ -1325,7 +2272,12 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps"
+    ]
   },
   "91FAFBA3": {
     "hevy_title": "Iso-Lateral Low Row",
@@ -1333,7 +2285,12 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps"
+    ]
   },
   "AA1EB7D8": {
     "hevy_title": "Iso-Lateral Row (Machine)",
@@ -1341,7 +2298,12 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps"
+    ]
   },
   "74103F24": {
     "hevy_title": "JM Press (Barbell)",
@@ -1349,7 +2311,13 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "barbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ]
   },
   "D410F649": {
     "hevy_title": "Jack Knife (Suspension)",
@@ -1357,7 +2325,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "suspension",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "32B0B590": {
     "hevy_title": "Jackknife Sit Up",
@@ -1365,7 +2336,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "040BA2E3": {
     "hevy_title": "Jump Rope",
@@ -1373,7 +2347,13 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "other",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "ankle_plantarflexion",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "calves"
+    ]
   },
   "BA3DE542": {
     "hevy_title": "Jump Shrug",
@@ -1381,7 +2361,14 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "barbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "traps",
+      "calves",
+      "cardio"
+    ]
   },
   "70D4EBBF": {
     "hevy_title": "Jump Squat",
@@ -1389,7 +2376,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "calves",
+      "cardio"
+    ]
   },
   "991833C2": {
     "hevy_title": "Jumping Jack",
@@ -1397,7 +2391,13 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "calves"
+    ]
   },
   "5CC07A1F": {
     "hevy_title": "Jumping Lunge",
@@ -1405,7 +2405,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "cardio"
+    ]
   },
   "55BA475A": {
     "hevy_title": "Kettlebell Around the World",
@@ -1413,7 +2420,12 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "kettlebell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "chest"
+    ]
   },
   "F99C211D": {
     "hevy_title": "Kettlebell Clean",
@@ -1421,7 +2433,15 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "kettlebell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "quadriceps",
+      "shoulders",
+      "traps",
+      "cardio"
+    ]
   },
   "4E239ED8": {
     "hevy_title": "Kettlebell Curl",
@@ -1429,7 +2449,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "kettlebell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "A127DA73": {
     "hevy_title": "Kettlebell Goblet Squat",
@@ -1437,7 +2462,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "kettlebell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "chest"
+    ]
   },
   "4288G454": {
     "hevy_title": "Kettlebell Halo",
@@ -1445,7 +2476,13 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "kettlebell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ]
   },
   "9B13BA4B": {
     "hevy_title": "Kettlebell High Pull",
@@ -1453,7 +2490,14 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "kettlebell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "traps",
+      "shoulders",
+      "biceps"
+    ]
   },
   "6433CD93": {
     "hevy_title": "Kettlebell Shoulder Press",
@@ -1461,7 +2505,13 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "kettlebell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "chest"
+    ]
   },
   "89304423": {
     "hevy_title": "Kettlebell Snatch",
@@ -1469,7 +2519,15 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "kettlebell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "traps",
+      "quadriceps",
+      "cardio"
+    ]
   },
   "F8A0FCCA": {
     "hevy_title": "Kettlebell Swing",
@@ -1477,7 +2535,15 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "kettlebell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "lower_back",
+      "cardio"
+    ]
   },
   "5F8903BF": {
     "hevy_title": "Kettlebell Turkish Get Up",
@@ -1485,7 +2551,14 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "kettlebell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "shoulders",
+      "glutes"
+    ]
   },
   "A91838C0": {
     "hevy_title": "Kipping Pull Up",
@@ -1493,7 +2566,14 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "chest",
+      "cardio"
+    ]
   },
   "98237BA2": {
     "hevy_title": "Knee Raise Parallel Bars",
@@ -1501,7 +2581,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": true,
+    "secondary_muscles": []
   },
   "D82EA543": {
     "hevy_title": "Kneeling Pulldown (band)",
@@ -1509,7 +2592,12 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps"
+    ]
   },
   "B74A95BB": {
     "hevy_title": "Kneeling Push Up",
@@ -1517,7 +2605,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "none",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ]
   },
   "6D54A050": {
     "hevy_title": "L-Sit Hold",
@@ -1525,7 +2619,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "923874CA": {
     "hevy_title": "Landmine 180",
@@ -1533,7 +2630,13 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "barbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "chest"
+    ]
   },
   "D7D7FCCE": {
     "hevy_title": "Landmine Row",
@@ -1541,7 +2644,12 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "barbell",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps"
+    ]
   },
   "983274DD": {
     "hevy_title": "Landmine Squat and Press",
@@ -1549,7 +2657,14 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "barbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "shoulders",
+      "triceps"
+    ]
   },
   "D2FE7B2E": {
     "hevy_title": "Lat Pulldown (Band)",
@@ -1557,7 +2672,12 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "resistance_band",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps"
+    ]
   },
   "6A6C31A5": {
     "hevy_title": "Lat Pulldown (Cable)",
@@ -1565,7 +2685,12 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps"
+    ]
   },
   "473CF5B8": {
     "hevy_title": "Lat Pulldown (Machine)",
@@ -1573,7 +2698,12 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps"
+    ]
   },
   "4E5257DE": {
     "hevy_title": "Lat Pulldown - Close Grip (Cable)",
@@ -1581,7 +2711,12 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps"
+    ]
   },
   "EC02979E": {
     "hevy_title": "Lateral Band Walks",
@@ -1589,7 +2724,10 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "resistance_band",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": []
   },
   "07EBC4DC": {
     "hevy_title": "Lateral Box Jump",
@@ -1597,7 +2735,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "other",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "calves",
+      "cardio"
+    ]
   },
   "DC59D143": {
     "hevy_title": "Lateral Leg Raises",
@@ -1605,7 +2750,10 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "F2A37357": {
     "hevy_title": "Lateral Lunge",
@@ -1613,7 +2761,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "adductors"
+    ]
   },
   "DF200976": {
     "hevy_title": "Lateral Raise (Band)",
@@ -1621,7 +2775,12 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "resistance_band",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "traps"
+    ]
   },
   "BE289E45": {
     "hevy_title": "Lateral Raise (Cable)",
@@ -1629,7 +2788,12 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "traps"
+    ]
   },
   "422B08F1": {
     "hevy_title": "Lateral Raise (Dumbbell)",
@@ -1637,7 +2801,12 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "traps"
+    ]
   },
   "D5D0354D": {
     "hevy_title": "Lateral Raise (Machine)",
@@ -1645,7 +2814,12 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "traps"
+    ]
   },
   "D731CCA8": {
     "hevy_title": "Lateral Squat",
@@ -1653,7 +2827,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "adductors"
+    ]
   },
   "75A4F6C4": {
     "hevy_title": "Leg Extension (Machine)",
@@ -1661,7 +2841,10 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "C7973E0E": {
     "hevy_title": "Leg Press (Machine)",
@@ -1669,7 +2852,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "0EB695C9": {
     "hevy_title": "Leg Press Horizontal (Machine)",
@@ -1677,7 +2866,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "0482DA98": {
     "hevy_title": "Leg Raise Parallel Bars",
@@ -1685,7 +2880,12 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": true,
+    "secondary_muscles": [
+      "upper_back"
+    ]
   },
   "293483AD": {
     "hevy_title": "Low Cable Fly Crossovers",
@@ -1693,7 +2893,12 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders"
+    ]
   },
   "8A2E6481": {
     "hevy_title": "Low Row (Suspension)",
@@ -1701,7 +2906,13 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "suspension",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "lats"
+    ]
   },
   "5E1A7777": {
     "hevy_title": "Lunge",
@@ -1709,7 +2920,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "6E6EE645": {
     "hevy_title": "Lunge (Barbell)",
@@ -1717,7 +2934,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "B537D09F": {
     "hevy_title": "Lunge (Dumbbell)",
@@ -1725,7 +2948,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "dumbbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "BD5935CF": {
     "hevy_title": "Lying Knee Raise",
@@ -1733,7 +2962,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "B8127AD1": {
     "hevy_title": "Lying Leg Curl (Machine)",
@@ -1741,7 +2973,10 @@
     "aliases": [],
     "muscle": "hamstrings",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "knee_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "09C9F635": {
     "hevy_title": "Lying Leg Raise",
@@ -1749,7 +2984,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "22FEDCA4": {
     "hevy_title": "Lying Neck Curls",
@@ -1757,7 +2995,10 @@
     "aliases": [],
     "muscle": "neck",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "31B8DA0F": {
     "hevy_title": "Lying Neck Curls (Weighted)",
@@ -1765,7 +3006,10 @@
     "aliases": [],
     "muscle": "neck",
     "equipment": "plate",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "0910BD28": {
     "hevy_title": "Lying Neck Extension",
@@ -1773,7 +3017,10 @@
     "aliases": [],
     "muscle": "neck",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "D6A73CF2": {
     "hevy_title": "Lying Neck Extension (Weighted)",
@@ -1781,7 +3028,10 @@
     "aliases": [],
     "muscle": "neck",
     "equipment": "plate",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "C732C341": {
     "hevy_title": "Meadows Rows (Barbell)",
@@ -1789,7 +3039,13 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "barbell",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "lats"
+    ]
   },
   "F49E31D6": {
     "hevy_title": "Mountain Climber",
@@ -1797,7 +3053,13 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "shoulders"
+    ]
   },
   "9F9C164B": {
     "hevy_title": "Muscle Up",
@@ -1805,7 +3067,14 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "triceps",
+      "shoulders"
+    ]
   },
   "F60BDDF8": {
     "hevy_title": "Negative Pull Up",
@@ -1813,7 +3082,13 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "none",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "shoulders"
+    ]
   },
   "108D7A14": {
     "hevy_title": "Nordic Hamstrings Curls",
@@ -1821,7 +3096,10 @@
     "aliases": [],
     "muscle": "hamstrings",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "knee_flexion",
+    "is_compound": true,
+    "secondary_muscles": []
   },
   "DBE341AA": {
     "hevy_title": "Oblique Crunch",
@@ -1829,7 +3107,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "B140095E": {
     "hevy_title": "One Arm Push Up",
@@ -1837,7 +3118,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "none",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "582ADA23": {
     "hevy_title": "Overhead Curl (Cable)",
@@ -1845,7 +3132,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "machine",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "4C6721B9": {
     "hevy_title": "Overhead Dumbbell Lunge",
@@ -1853,7 +3145,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "dumbbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "shoulders"
+    ]
   },
   "54E60954": {
     "hevy_title": "Overhead Plate Raise",
@@ -1861,7 +3160,13 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "plate",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders",
+      "traps"
+    ]
   },
   "7B8D84E8": {
     "hevy_title": "Overhead Press (Barbell)",
@@ -1869,7 +3174,13 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "barbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "upper_back"
+    ]
   },
   "6AC96645": {
     "hevy_title": "Overhead Press (Dumbbell)",
@@ -1877,7 +3188,13 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "upper_back"
+    ]
   },
   "B09A1304": {
     "hevy_title": "Overhead Press (Smith Machine)",
@@ -1885,7 +3202,13 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "upper_back"
+    ]
   },
   "2CFED196": {
     "hevy_title": "Overhead Squat",
@@ -1893,7 +3216,15 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "barbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "shoulders",
+      "upper_back"
+    ]
   },
   "B5EFBF9C": {
     "hevy_title": "Overhead Triceps Extension (Cable)",
@@ -1901,7 +3232,12 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders"
+    ]
   },
   "FBEE8279": {
     "hevy_title": "Partial Glute Bridge (Barbell)",
@@ -1909,7 +3245,13 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "CE1054CE": {
     "hevy_title": "Pause Squat (Barbell)",
@@ -1917,7 +3259,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "018ADC12": {
     "hevy_title": "Pendlay Row (Barbell)",
@@ -1925,7 +3273,13 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "barbell",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "lats"
+    ]
   },
   "30E293E3": {
     "hevy_title": "Pendulum Squat (Machine)",
@@ -1933,7 +3287,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "0EFE8162": {
     "hevy_title": "Pike Pushup",
@@ -1941,7 +3301,12 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "none",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps"
+    ]
   },
   "EC2510CD": {
     "hevy_title": "Pilates",
@@ -1949,7 +3314,12 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": true,
+    "secondary_muscles": [
+      "full_body"
+    ]
   },
   "942BAD12": {
     "hevy_title": "Pinwheel Curl (Dumbbell)",
@@ -1957,7 +3327,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "dumbbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "3FF6A22E": {
     "hevy_title": "Pistol Squat",
@@ -1965,7 +3340,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "C6C9B8A0": {
     "hevy_title": "Plank",
@@ -1973,7 +3354,13 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "upper_back"
+    ]
   },
   "31436F5D": {
     "hevy_title": "Plank Pushup",
@@ -1981,7 +3368,12 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "none",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps"
+    ]
   },
   "9283ABD5": {
     "hevy_title": "Plate Curl",
@@ -1989,7 +3381,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "plate",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "DBF9273A": {
     "hevy_title": "Plate Front Raise",
@@ -1997,7 +3394,12 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "plate",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders"
+    ]
   },
   "982734D4": {
     "hevy_title": "Plate Press",
@@ -2005,7 +3407,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "plate",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ]
   },
   "9373FSD1": {
     "hevy_title": "Plate Squeeze (Svend Press)",
@@ -2013,7 +3421,12 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "plate",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders"
+    ]
   },
   "C628D768": {
     "hevy_title": "Power Clean",
@@ -2021,7 +3434,15 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "barbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "quadriceps",
+      "shoulders",
+      "traps",
+      "upper_back"
+    ]
   },
   "E22F9358": {
     "hevy_title": "Power Snatch",
@@ -2029,7 +3450,15 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "barbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "quadriceps",
+      "shoulders",
+      "traps",
+      "upper_back"
+    ]
   },
   "4F942934": {
     "hevy_title": "Preacher Curl (Barbell)",
@@ -2037,7 +3466,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "barbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "FAB6EB2F": {
     "hevy_title": "Preacher Curl (Dumbbell)",
@@ -2045,7 +3479,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "dumbbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "1E9A6B8E": {
     "hevy_title": "Preacher Curl (Machine)",
@@ -2053,7 +3492,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "machine",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "84A77566": {
     "hevy_title": "Press Under",
@@ -2061,7 +3505,13 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "barbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "upper_back"
+    ]
   },
   "1B2B1E7C": {
     "hevy_title": "Pull Up",
@@ -2069,7 +3519,13 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "upper_back"
+    ]
   },
   "2C37EC5E": {
     "hevy_title": "Pull Up (Assisted)",
@@ -2077,7 +3533,13 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "upper_back"
+    ]
   },
   "56808FD2": {
     "hevy_title": "Pull Up (Band)",
@@ -2085,7 +3547,13 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "resistance_band",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "upper_back"
+    ]
   },
   "729237D1": {
     "hevy_title": "Pull Up (Weighted)",
@@ -2093,7 +3561,13 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "upper_back"
+    ]
   },
   "67280085": {
     "hevy_title": "Pullover (Dumbbell)",
@@ -2101,7 +3575,13 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "dumbbell",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ]
   },
   "B123DD01": {
     "hevy_title": "Pullover (Machine)",
@@ -2109,7 +3589,13 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ]
   },
   "542F3CD5": {
     "hevy_title": "Push Press",
@@ -2117,7 +3603,14 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "barbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "quadriceps",
+      "glutes"
+    ]
   },
   "392887AA": {
     "hevy_title": "Push Up",
@@ -2125,7 +3618,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "none",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ]
   },
   "19372ABC": {
     "hevy_title": "Push Up (Weighted)",
@@ -2133,7 +3632,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "none",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ]
   },
   "947DAC23": {
     "hevy_title": "Push Up - Close Grip",
@@ -2141,7 +3646,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "none",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "shoulders"
+    ]
   },
   "FE389074": {
     "hevy_title": "Rack Pull",
@@ -2149,7 +3660,14 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "barbell",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "traps"
+    ]
   },
   "C315DC2A": {
     "hevy_title": "Rear Delt Reverse Fly (Cable)",
@@ -2157,7 +3675,12 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "upper_back"
+    ]
   },
   "E5988A0A": {
     "hevy_title": "Rear Delt Reverse Fly (Dumbbell)",
@@ -2165,7 +3688,12 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "upper_back"
+    ]
   },
   "D8281C62": {
     "hevy_title": "Rear Delt Reverse Fly (Machine)",
@@ -2173,7 +3701,12 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "upper_back"
+    ]
   },
   "1ADF8723": {
     "hevy_title": "Rear Kick (Machine)",
@@ -2181,7 +3714,13 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": false,
+    "secondary_muscles": [
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "1B89CA1B": {
     "hevy_title": "Renegade Row (Dumbbell)",
@@ -2189,7 +3728,14 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "dumbbell",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "shoulders",
+      "triceps"
+    ]
   },
   "7952B5CD": {
     "hevy_title": "Reverse Crunch",
@@ -2197,7 +3743,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "112FC6B7": {
     "hevy_title": "Reverse Curl (Barbell)",
@@ -2205,7 +3754,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "barbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "9F48F858": {
     "hevy_title": "Reverse Curl (Cable)",
@@ -2213,7 +3767,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "machine",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "B567DD46": {
     "hevy_title": "Reverse Curl (Dumbbell)",
@@ -2221,7 +3780,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "dumbbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "9264ADA1": {
     "hevy_title": "Reverse Fly Single Arm (Cable)",
@@ -2229,7 +3793,12 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "upper_back"
+    ]
   },
   "1FF4097B": {
     "hevy_title": "Reverse Grip Concentration Curl",
@@ -2237,7 +3806,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "dumbbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "046E25A2": {
     "hevy_title": "Reverse Grip Lat Pulldown (Cable)",
@@ -2245,7 +3819,13 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "upper_back"
+    ]
   },
   "7C0028C3": {
     "hevy_title": "Reverse Hyperextension",
@@ -2253,7 +3833,13 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": false,
+    "secondary_muscles": [
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "C284D923": {
     "hevy_title": "Reverse Lunge",
@@ -2261,7 +3847,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "818BA121": {
     "hevy_title": "Reverse Lunge (Barbell)",
@@ -2269,7 +3861,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "FFDA283B": {
     "hevy_title": "Reverse Lunge (Dumbbell)",
@@ -2277,7 +3875,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "dumbbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "99B49684": {
     "hevy_title": "Reverse Plank",
@@ -2285,7 +3889,13 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": false,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "51A0EDAA": {
     "hevy_title": "Ring Dips",
@@ -2293,7 +3903,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "none",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ]
   },
   "5F09F0FC": {
     "hevy_title": "Ring Pull Up",
@@ -2301,7 +3917,13 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "other",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "upper_back"
+    ]
   },
   "AEA56BDC": {
     "hevy_title": "Ring Push Up",
@@ -2309,7 +3931,13 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "other",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ]
   },
   "2B4B7310": {
     "hevy_title": "Romanian Deadlift (Barbell)",
@@ -2317,7 +3945,14 @@
     "aliases": [],
     "muscle": "hamstrings",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "lower_back",
+      "adductors"
+    ]
   },
   "72CFFAD5": {
     "hevy_title": "Romanian Deadlift (Dumbbell)",
@@ -2325,7 +3960,14 @@
     "aliases": [],
     "muscle": "hamstrings",
     "equipment": "dumbbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "lower_back",
+      "adductors"
+    ]
   },
   "234897AB": {
     "hevy_title": "Rope Cable Curl",
@@ -2333,7 +3975,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "machine",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "9273BA17": {
     "hevy_title": "Rope Straight Arm Pulldown",
@@ -2341,7 +3988,12 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": false,
+    "secondary_muscles": [
+      "chest"
+    ]
   },
   "0222DB42": {
     "hevy_title": "Rowing Machine",
@@ -2349,7 +4001,14 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "quadriceps",
+      "hamstrings"
+    ]
   },
   "AC1BB830": {
     "hevy_title": "Running",
@@ -2357,7 +4016,15 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "hamstrings",
+      "glutes",
+      "calves"
+    ]
   },
   "BB83BDDE": {
     "hevy_title": "Russian Twist (Bodyweight)",
@@ -2365,7 +4032,13 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "abductors",
+      "adductors"
+    ]
   },
   "2982AA23": {
     "hevy_title": "Russian Twist (Weighted)",
@@ -2373,7 +4046,13 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "plate",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "abductors",
+      "adductors"
+    ]
   },
   "C7AE420A": {
     "hevy_title": "Scapular Pull Ups",
@@ -2381,7 +4060,10 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "none",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "F1D60854": {
     "hevy_title": "Seated Cable Row - Bar Grip",
@@ -2389,7 +4071,13 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "lats"
+    ]
   },
   "C3BCABB3": {
     "hevy_title": "Seated Cable Row - Bar Wide Grip",
@@ -2397,7 +4085,13 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "lats"
+    ]
   },
   "0393F233": {
     "hevy_title": "Seated Cable Row - V Grip (Cable)",
@@ -2405,7 +4099,14 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "lats",
+      "biceps",
+      "forearms"
+    ]
   },
   "062AB91A": {
     "hevy_title": "Seated Calf Raise",
@@ -2413,7 +4114,10 @@
     "aliases": [],
     "muscle": "calves",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "ankle_plantarflexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "6B4C797E": {
     "hevy_title": "Seated Chest Flys (Cable)",
@@ -2421,7 +4125,12 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders"
+    ]
   },
   "5122E7D9": {
     "hevy_title": "Seated Dip Machine",
@@ -2429,7 +4138,13 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ]
   },
   "8BAB2735": {
     "hevy_title": "Seated Incline Curl (Dumbbell)",
@@ -2437,7 +4152,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "dumbbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "9372FFAA": {
     "hevy_title": "Seated Lateral Raise (Dumbbell)",
@@ -2445,7 +4165,12 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "traps"
+    ]
   },
   "11A123F3": {
     "hevy_title": "Seated Leg Curl (Machine)",
@@ -2453,7 +4178,10 @@
     "aliases": [],
     "muscle": "hamstrings",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "knee_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "91AF29E0": {
     "hevy_title": "Seated Overhead Press (Barbell)",
@@ -2461,7 +4189,14 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "barbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "upper_back",
+      "abdominals"
+    ]
   },
   "9930DF71": {
     "hevy_title": "Seated Overhead Press (Dumbbell)",
@@ -2469,7 +4204,14 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "upper_back",
+      "abdominals"
+    ]
   },
   "1006DF48": {
     "hevy_title": "Seated Palms Up Wrist Curl",
@@ -2477,7 +4219,10 @@
     "aliases": [],
     "muscle": "forearms",
     "equipment": "dumbbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "1DF4A847": {
     "hevy_title": "Seated Row (Machine)",
@@ -2485,7 +4230,14 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "lats",
+      "biceps",
+      "forearms"
+    ]
   },
   "9237BAD1": {
     "hevy_title": "Seated Shoulder Press (Machine)",
@@ -2493,7 +4245,13 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "upper_back"
+    ]
   },
   "234BC743": {
     "hevy_title": "Seated Triceps Press",
@@ -2501,7 +4259,10 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "9202CC23": {
     "hevy_title": "Seated Wrist Extension (Barbell)",
@@ -2509,7 +4270,10 @@
     "aliases": [],
     "muscle": "forearms",
     "equipment": "barbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_extension",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "878CD1D0": {
     "hevy_title": "Shoulder Press (Dumbbell)",
@@ -2517,7 +4281,14 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "upper_back",
+      "abdominals"
+    ]
   },
   "059E835D": {
     "hevy_title": "Shoulder Press (Machine Plates)",
@@ -2525,7 +4296,13 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "upper_back"
+    ]
   },
   "502FCE31": {
     "hevy_title": "Shoulder Taps",
@@ -2533,7 +4310,13 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "none",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "abdominals",
+      "chest"
+    ]
   },
   "0B841777": {
     "hevy_title": "Shrug (Barbell)",
@@ -2541,7 +4324,12 @@
     "aliases": [],
     "muscle": "traps",
     "equipment": "barbell",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "FFABC123": {
     "hevy_title": "Shrug (Cable)",
@@ -2549,7 +4337,12 @@
     "aliases": [],
     "muscle": "traps",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "ABEC557F": {
     "hevy_title": "Shrug (Dumbbell)",
@@ -2557,7 +4350,12 @@
     "aliases": [],
     "muscle": "traps",
     "equipment": "dumbbell",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "19A38071": {
     "hevy_title": "Shrug (Machine)",
@@ -2565,7 +4363,12 @@
     "aliases": [],
     "muscle": "traps",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "742E5BD5": {
     "hevy_title": "Shrug (Smith Machine)",
@@ -2573,7 +4376,12 @@
     "aliases": [],
     "muscle": "traps",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "37F9EDA7": {
     "hevy_title": "Side Bend",
@@ -2581,7 +4389,13 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "adductors",
+      "abductors"
+    ]
   },
   "026FD047": {
     "hevy_title": "Side Bend (Dumbbell)",
@@ -2589,7 +4403,13 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "dumbbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "adductors",
+      "abductors"
+    ]
   },
   "E3EDA509": {
     "hevy_title": "Side Plank",
@@ -2597,7 +4417,14 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "glutes",
+      "abductors"
+    ]
   },
   "8372BBCC": {
     "hevy_title": "Single Arm Cable Crossover",
@@ -2605,7 +4432,10 @@
     "aliases": [],
     "muscle": "chest",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "horizontal_push",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "D0C4A899": {
     "hevy_title": "Single Arm Cable Row",
@@ -2613,7 +4443,14 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "lats",
+      "biceps",
+      "forearms"
+    ]
   },
   "B33B526E": {
     "hevy_title": "Single Arm Curl (Cable)",
@@ -2621,7 +4458,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "machine",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "1837BA23": {
     "hevy_title": "Single Arm Landmine Press (Barbell)",
@@ -2629,7 +4471,14 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "barbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "triceps",
+      "chest",
+      "abdominals"
+    ]
   },
   "2EE45F81": {
     "hevy_title": "Single Arm Lat Pulldown",
@@ -2637,7 +4486,13 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "forearms"
+    ]
   },
   "DE68C825": {
     "hevy_title": "Single Arm Lateral Raise (Cable)",
@@ -2645,7 +4500,12 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": false,
+    "secondary_muscles": [
+      "traps"
+    ]
   },
   "8347DFD1": {
     "hevy_title": "Single Arm Tricep Extension (Dumbbell)",
@@ -2653,7 +4513,10 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "552AB030": {
     "hevy_title": "Single Arm Triceps Pushdown (Cable)",
@@ -2661,7 +4524,10 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "629AE73D": {
     "hevy_title": "Single Leg Extensions",
@@ -2669,7 +4535,10 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "CBC0D834": {
     "hevy_title": "Single Leg Glute Bridge",
@@ -2677,7 +4546,14 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "hamstrings",
+      "lower_back",
+      "abdominals"
+    ]
   },
   "487B3755": {
     "hevy_title": "Single Leg Hip Thrust",
@@ -2685,7 +4561,14 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "hamstrings",
+      "lower_back",
+      "quadriceps"
+    ]
   },
   "D1CD146F": {
     "hevy_title": "Single Leg Hip Thrust (Dumbbell)",
@@ -2693,7 +4576,14 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "dumbbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "hamstrings",
+      "lower_back",
+      "quadriceps"
+    ]
   },
   "3FD83744": {
     "hevy_title": "Single Leg Press (Machine)",
@@ -2701,7 +4591,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "93472AC1": {
     "hevy_title": "Single Leg Romanian Deadlift (Barbell)",
@@ -2709,7 +4605,14 @@
     "aliases": [],
     "muscle": "hamstrings",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "lower_back",
+      "calves"
+    ]
   },
   "937292AB": {
     "hevy_title": "Single Leg Romanian Deadlift (Dumbbell)",
@@ -2717,7 +4620,14 @@
     "aliases": [],
     "muscle": "hamstrings",
     "equipment": "dumbbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "lower_back",
+      "calves"
+    ]
   },
   "238BA231": {
     "hevy_title": "Single Leg Standing Calf Raise",
@@ -2725,7 +4635,10 @@
     "aliases": [],
     "muscle": "calves",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "ankle_plantarflexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "E51CCBE5": {
     "hevy_title": "Single Leg Standing Calf Raise (Barbell)",
@@ -2733,7 +4646,10 @@
     "aliases": [],
     "muscle": "calves",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "ankle_plantarflexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "5DA40761": {
     "hevy_title": "Single Leg Standing Calf Raise (Dumbbell)",
@@ -2741,7 +4657,10 @@
     "aliases": [],
     "muscle": "calves",
     "equipment": "dumbbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "ankle_plantarflexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "B05C2C29": {
     "hevy_title": "Single Leg Standing Calf Raise (Machine)",
@@ -2749,7 +4668,10 @@
     "aliases": [],
     "muscle": "calves",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "ankle_plantarflexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "F5DEF1EB": {
     "hevy_title": "Sissy Squat (Weighted)",
@@ -2757,7 +4679,10 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": []
   },
   "022DF610": {
     "hevy_title": "Sit Up",
@@ -2765,7 +4690,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": true,
+    "secondary_muscles": []
   },
   "9237BA12": {
     "hevy_title": "Sit Up (Weighted)",
@@ -2773,7 +4701,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": true,
+    "secondary_muscles": []
   },
   "24A809EF": {
     "hevy_title": "Skating",
@@ -2781,7 +4712,15 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "glutes",
+      "quadriceps",
+      "hamstrings"
+    ]
   },
   "84325755": {
     "hevy_title": "Skiing",
@@ -2789,7 +4728,14 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "glutes",
+      "hamstrings"
+    ]
   },
   "875F585F": {
     "hevy_title": "Skullcrusher (Barbell)",
@@ -2797,7 +4743,12 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "barbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders"
+    ]
   },
   "68F8A292": {
     "hevy_title": "Skullcrusher (Dumbbell)",
@@ -2805,7 +4756,10 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "7757171F": {
     "hevy_title": "Sled Push",
@@ -2813,7 +4767,15 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "other",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "horizontal_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "quadriceps",
+      "glutes",
+      "chest",
+      "shoulders"
+    ]
   },
   "FB09C938": {
     "hevy_title": "Snatch",
@@ -2821,7 +4783,16 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "barbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "lower_back",
+      "traps",
+      "shoulders"
+    ]
   },
   "911A58D3": {
     "hevy_title": "Snowboarding",
@@ -2829,7 +4800,15 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ]
   },
   "2348AB72": {
     "hevy_title": "Spider Curl (Barbell)",
@@ -2837,7 +4816,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "barbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "90427D4A": {
     "hevy_title": "Spider Curl (Dumbbell)",
@@ -2845,7 +4829,12 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "dumbbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "C10A5AC9": {
     "hevy_title": "Spiderman",
@@ -2853,7 +4842,12 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders"
+    ]
   },
   "213AB238": {
     "hevy_title": "Spinning",
@@ -2861,7 +4855,15 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ]
   },
   "E764B907": {
     "hevy_title": "Split Jerk",
@@ -2869,7 +4871,16 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "barbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "quadriceps",
+      "hamstrings",
+      "traps",
+      "shoulders"
+    ]
   },
   "20C1A3CB": {
     "hevy_title": "Split Squat (Dumbbell)",
@@ -2877,7 +4888,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "dumbbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "9283BABA": {
     "hevy_title": "Sprints",
@@ -2885,7 +4903,15 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ]
   },
   "F1258206": {
     "hevy_title": "Squat (Band)",
@@ -2893,7 +4919,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "resistance_band",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "D04AC939": {
     "hevy_title": "Squat (Barbell)",
@@ -2901,7 +4934,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "9694DA61": {
     "hevy_title": "Squat (Bodyweight)",
@@ -2909,7 +4949,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "DCFF3E9F": {
     "hevy_title": "Squat (Dumbbell)",
@@ -2917,7 +4964,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "dumbbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "CC35A01F": {
     "hevy_title": "Squat (Machine)",
@@ -2925,7 +4979,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "DDCC3821": {
     "hevy_title": "Squat (Smith Machine)",
@@ -2933,7 +4993,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "B82D6418": {
     "hevy_title": "Squat (Suspension)",
@@ -2941,7 +5008,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "suspension",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "A8814C06": {
     "hevy_title": "Squat Row",
@@ -2949,7 +5023,15 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "lats",
+      "upper_back"
+    ]
   },
   "4377A52B": {
     "hevy_title": "Stair Machine (Floors)",
@@ -2957,7 +5039,15 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ]
   },
   "4377A52C": {
     "hevy_title": "Stair Machine (Steps)",
@@ -2965,7 +5055,15 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ]
   },
   "ACB2751D": {
     "hevy_title": "Standing Cable Glute Kickbacks",
@@ -2973,7 +5071,12 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": false,
+    "secondary_muscles": [
+      "lower_back"
+    ]
   },
   "06745E58": {
     "hevy_title": "Standing Calf Raise",
@@ -2981,7 +5084,10 @@
     "aliases": [],
     "muscle": "calves",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "ankle_plantarflexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "E53CCBE5": {
     "hevy_title": "Standing Calf Raise (Barbell)",
@@ -2989,7 +5095,10 @@
     "aliases": [],
     "muscle": "calves",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "ankle_plantarflexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "6DA40660": {
     "hevy_title": "Standing Calf Raise (Dumbbell)",
@@ -2997,7 +5106,10 @@
     "aliases": [],
     "muscle": "calves",
     "equipment": "dumbbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "ankle_plantarflexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "E05C2C38": {
     "hevy_title": "Standing Calf Raise (Machine)",
@@ -3005,7 +5117,10 @@
     "aliases": [],
     "muscle": "calves",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "ankle_plantarflexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "AA52E8D2": {
     "hevy_title": "Standing Calf Raise (Smith)",
@@ -3013,7 +5128,10 @@
     "aliases": [],
     "muscle": "calves",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "ankle_plantarflexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "6120CAAB": {
     "hevy_title": "Standing Leg Curls",
@@ -3021,7 +5139,12 @@
     "aliases": [],
     "muscle": "hamstrings",
     "equipment": "machine",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "knee_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "calves"
+    ]
   },
   "073032BB": {
     "hevy_title": "Standing Military Press (Barbell)",
@@ -3029,7 +5152,13 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "barbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "traps",
+      "upper_back"
+    ]
   },
   "128A2381": {
     "hevy_title": "Step Up",
@@ -3037,7 +5166,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "other",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "lower_back"
+    ]
   },
   "EE2938D1": {
     "hevy_title": "Sternum Pull up (Gironda)",
@@ -3045,7 +5181,14 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "upper_back",
+      "shoulders"
+    ]
   },
   "D2387AB1": {
     "hevy_title": "Straight Arm Lat Pulldown (Cable)",
@@ -3053,7 +5196,13 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": false,
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ]
   },
   "2A48E443": {
     "hevy_title": "Straight Leg Deadlift",
@@ -3061,7 +5210,14 @@
     "aliases": [],
     "muscle": "hamstrings",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "hip_hinge",
+    "is_compound": true,
+    "secondary_muscles": [
+      "lower_back",
+      "glutes",
+      "calves"
+    ]
   },
   "527DA061": {
     "hevy_title": "Stretching",
@@ -3069,7 +5225,10 @@
     "aliases": [],
     "muscle": "other",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "D20D7BBE": {
     "hevy_title": "Sumo Deadlift",
@@ -3077,7 +5236,14 @@
     "aliases": [],
     "muscle": "glutes",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "lower_back",
+      "hamstrings",
+      "adductors"
+    ]
   },
   "3F5F8D40": {
     "hevy_title": "Sumo Squat",
@@ -3085,7 +5251,15 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "adductors",
+      "lower_back"
+    ]
   },
   "6622E5A0": {
     "hevy_title": "Sumo Squat (Barbell)",
@@ -3093,7 +5267,15 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "adductors",
+      "lower_back"
+    ]
   },
   "05293BCA": {
     "hevy_title": "Sumo Squat (Dumbbell)",
@@ -3101,7 +5283,15 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "dumbbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "adductors",
+      "lower_back"
+    ]
   },
   "5E10D0E6": {
     "hevy_title": "Sumo Squat (Kettlebell)",
@@ -3109,7 +5299,15 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "kettlebell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "adductors",
+      "lower_back"
+    ]
   },
   "218DA87C": {
     "hevy_title": "Superman",
@@ -3117,7 +5315,13 @@
     "aliases": [],
     "muscle": "lower_back",
     "equipment": "none",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": false,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "B60A678F": {
     "hevy_title": "Swimming",
@@ -3125,7 +5329,15 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "shoulders",
+      "chest",
+      "lats"
+    ]
   },
   "08A2974E": {
     "hevy_title": "T Bar Row",
@@ -3133,7 +5345,14 @@
     "aliases": [],
     "muscle": "upper_back",
     "equipment": "barbell",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "horizontal_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "upper_back",
+      "lats"
+    ]
   },
   "90E506D5": {
     "hevy_title": "Thruster (Barbell)",
@@ -3141,7 +5360,16 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "barbell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "shoulders",
+      "traps"
+    ]
   },
   "10313AFD": {
     "hevy_title": "Thruster (Kettlebell)",
@@ -3149,7 +5377,16 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "kettlebell",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "shoulders",
+      "traps"
+    ]
   },
   "75BAC5C3": {
     "hevy_title": "Toe Touch",
@@ -3157,7 +5394,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "B94E35E1": {
     "hevy_title": "Toes to Bar",
@@ -3165,7 +5405,13 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": true,
+    "secondary_muscles": [
+      "shoulders",
+      "lats"
+    ]
   },
   "FBB62888": {
     "hevy_title": "Torso Rotation",
@@ -3173,7 +5419,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "243710DE": {
     "hevy_title": "Treadmill",
@@ -3181,7 +5430,15 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "machine",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ]
   },
   "28BB4A95": {
     "hevy_title": "Triceps Dip",
@@ -3189,7 +5446,13 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ]
   },
   "4B4BF8C2": {
     "hevy_title": "Triceps Dip (Assisted)",
@@ -3197,7 +5460,13 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ]
   },
   "10347BAC": {
     "hevy_title": "Triceps Dip (Weighted)",
@@ -3205,7 +5474,13 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ]
   },
   "2F8D3067": {
     "hevy_title": "Triceps Extension (Barbell)",
@@ -3213,7 +5488,12 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "barbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "21310F5F": {
     "hevy_title": "Triceps Extension (Cable)",
@@ -3221,7 +5501,12 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "3765684D": {
     "hevy_title": "Triceps Extension (Dumbbell)",
@@ -3231,7 +5516,12 @@
     ],
     "muscle": "triceps",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "3092FADD": {
     "hevy_title": "Triceps Extension (Machine)",
@@ -3239,7 +5529,12 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "6182EE83": {
     "hevy_title": "Triceps Extension (Suspension)",
@@ -3247,7 +5542,12 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "suspension",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "EC3B69A3": {
     "hevy_title": "Triceps Kickback (Cable)",
@@ -3255,7 +5555,12 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "6127A3AD": {
     "hevy_title": "Triceps Kickback (Dumbbell)",
@@ -3263,7 +5568,12 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "CDC472B1": {
     "hevy_title": "Triceps Pressdown",
@@ -3271,7 +5581,12 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "93A552C6": {
     "hevy_title": "Triceps Pushdown",
@@ -3279,7 +5594,12 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "94B7239B": {
     "hevy_title": "Triceps Rope Pushdown",
@@ -3287,7 +5607,12 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   },
   "7AB9A362": {
     "hevy_title": "Upright Row (Barbell)",
@@ -3295,7 +5620,14 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "barbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": true,
+    "secondary_muscles": [
+      "traps",
+      "biceps",
+      "forearms"
+    ]
   },
   "286C1D0B": {
     "hevy_title": "Upright Row (Cable)",
@@ -3303,7 +5635,14 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "machine",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": true,
+    "secondary_muscles": [
+      "traps",
+      "biceps",
+      "forearms"
+    ]
   },
   "797F0782": {
     "hevy_title": "Upright Row (Dumbbell)",
@@ -3311,7 +5650,14 @@
     "aliases": [],
     "muscle": "shoulders",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "shoulder_abduction",
+    "is_compound": true,
+    "secondary_muscles": [
+      "traps",
+      "biceps",
+      "forearms"
+    ]
   },
   "6BE68B62": {
     "hevy_title": "V Up",
@@ -3319,7 +5665,10 @@
     "aliases": [],
     "muscle": "abdominals",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_flexion",
+    "is_compound": true,
+    "secondary_muscles": []
   },
   "72880C57": {
     "hevy_title": "Vertical Traction (Machine)",
@@ -3327,7 +5676,13 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "upper_back"
+    ]
   },
   "72297E8C": {
     "hevy_title": "Waiter Curl (Dumbbell)",
@@ -3335,7 +5690,13 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "dumbbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "shoulders",
+      "forearms"
+    ]
   },
   "33EDD7DB": {
     "hevy_title": "Walking",
@@ -3343,7 +5704,15 @@
     "aliases": [],
     "muscle": "cardio",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "glutes",
+      "hamstrings",
+      "calves"
+    ]
   },
   "32HKJ34K": {
     "hevy_title": "Walking Lunge",
@@ -3351,7 +5720,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "none",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "calves"
+    ]
   },
   "A733CC5B": {
     "hevy_title": "Walking Lunge (Dumbbell)",
@@ -3359,7 +5735,14 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "dumbbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "calves"
+    ]
   },
   "A1F47ACC": {
     "hevy_title": "Wall Ball",
@@ -3367,7 +5750,15 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "other",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "vertical_push",
+    "is_compound": true,
+    "secondary_muscles": [
+      "quadriceps",
+      "glutes",
+      "hamstrings",
+      "cardio"
+    ]
   },
   "C8706C80": {
     "hevy_title": "Wall Sit",
@@ -3375,7 +5766,13 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "other",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ]
   },
   "79EF4E4F": {
     "hevy_title": "Warm Up",
@@ -3383,7 +5780,13 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "cardio",
+      "full_body"
+    ]
   },
   "7C50F118": {
     "hevy_title": "Wide Pull Up",
@@ -3391,7 +5794,13 @@
     "aliases": [],
     "muscle": "lats",
     "equipment": "machine",
-    "session_type": "pull"
+    "session_type": "pull",
+    "movement_pattern": "vertical_pull",
+    "is_compound": true,
+    "secondary_muscles": [
+      "biceps",
+      "upper_back"
+    ]
   },
   "B31EB524": {
     "hevy_title": "Wide-Elbow Triceps Press (Dumbbell)",
@@ -3399,7 +5808,13 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "dumbbell",
-    "session_type": "push"
+    "session_type": "push",
+    "movement_pattern": "elbow_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ]
   },
   "0E4523F4": {
     "hevy_title": "Wrist Roller",
@@ -3407,7 +5822,10 @@
     "aliases": [],
     "muscle": "forearms",
     "equipment": "machine",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_extension",
+    "is_compound": false,
+    "secondary_muscles": []
   },
   "8C9D2928": {
     "hevy_title": "Yoga",
@@ -3415,7 +5833,12 @@
     "aliases": [],
     "muscle": "full_body",
     "equipment": "none",
-    "session_type": ""
+    "session_type": "",
+    "movement_pattern": "core_anti_extension",
+    "is_compound": true,
+    "secondary_muscles": [
+      "full_body"
+    ]
   },
   "40C6A9FC": {
     "hevy_title": "Zercher Squat",
@@ -3423,7 +5846,15 @@
     "aliases": [],
     "muscle": "quadriceps",
     "equipment": "barbell",
-    "session_type": "legs"
+    "session_type": "legs",
+    "movement_pattern": "quad_dominant",
+    "is_compound": true,
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings",
+      "lower_back",
+      "chest"
+    ]
   },
   "123EE239": {
     "hevy_title": "Zottman Curl (Dumbbell)",
@@ -3431,6 +5862,11 @@
     "aliases": [],
     "muscle": "biceps",
     "equipment": "dumbbell",
-    "session_type": "arms"
+    "session_type": "arms",
+    "movement_pattern": "elbow_flexion",
+    "is_compound": false,
+    "secondary_muscles": [
+      "forearms"
+    ]
   }
 }

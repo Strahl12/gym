@@ -34,6 +34,21 @@ VALID_EXERCISE_TYPES = {
     "weight_reps", "reps_only", "bodyweight_weighted", "bodyweight_assisted",
     "duration", "distance_duration",
 }
+VALID_MOVEMENT_PATTERNS = {
+    "vertical_push",        # OHP, pike push-up
+    "horizontal_push",      # bench press, push-up
+    "vertical_pull",        # pull-up, lat pulldown
+    "horizontal_pull",      # row variants
+    "hip_hinge",            # deadlift, RDL, good morning
+    "quad_dominant",        # squat, leg press, lunge
+    "knee_flexion",         # leg curl variants
+    "elbow_flexion",        # curl variants
+    "elbow_extension",      # triceps variants
+    "shoulder_abduction",   # lateral raise, face pull
+    "ankle_plantarflexion", # calf raise
+    "core_flexion",         # crunch, sit-up
+    "core_anti_extension",  # plank, ab wheel, pallof press
+}
 
 
 def _load() -> dict:
