@@ -48,7 +48,7 @@ Each session has fixed muscle-group SLOTS. Use the priority list to pick the bes
 exercise for each slot. Never skip a slot or add exercises outside the template.
 
 ### PUSH
-1. Chest compound (main lift): always Barbell Bench Press
+1. Chest compound (main lift): always Incline Barbell Bench Press
 2. Shoulder compound (main lift): always Strict Military Press
 3. Tricep compound (main lift): always Weighted Dip
 4. Lateral raise: pick highest-priority lateral raise variant from the priority list
@@ -77,7 +77,16 @@ exercise for each slot. Never skip a slot or add exercises outside the template.
 
 ### CORE (final slot on every session)
 Always finish every session with 1 core exercise. Pick the highest-priority from the core
-priority list. 2–3 sets. Notes field: "Rest 60s between sets."
+priority list. 2–3 sets.
+Prefer exercises that can be progressively loaded when training alone:
+  good: Cable Crunch, Ab Wheel Rollout, Hanging Leg Raise, Weighted Sit Up, Dragon Flag
+  avoid unless top-priority: Plank, Hollow Body Hold (hard to weight solo)
+
+## Body composition mode
+If a goal mode is provided, adjust accessory volume accordingly:
+- cut:      keep main lifts unchanged; reduce accessory sets to 3; don't push for PRs on accessories
+- bulk:     increase accessory sets to 4–5 where time allows; push progression aggressively
+- maintain: standard volume (default)
 
 ## Main lifts in context
 The context includes main lift history for push lifts (Bench, OHP, Dip) and legs (Front Squat).
@@ -86,11 +95,11 @@ Do NOT include push or legs main lifts in pull or arms sessions.
 
 ## Muscle clash rule
 The 3 mandatory template slots are always included regardless of what was trained yesterday.
-For accessory slots (4–5 only): skip exercises targeting muscles trained in the previous session.
-- After arms: skip bicep and tricep accessories (replace with a different slot-appropriate exercise)
-- After push: skip tricep isolation accessories
-- After pull: skip rear-delt accessories
-- After legs: skip posterior-chain accessories in slots 4–5
+For accessory slots only: you will receive the full exercise list from the last session.
+Do not include any accessory that trains the same PRIMARY muscle group as an exercise done
+in the last session. Use the exercise name to infer the primary muscle.
+Example: if "Lat Pulldown - Close Grip (Cable)" was done yesterday, skip all lat/vertical-pull
+accessories today even if today is a pull day — those lats trained less than 24 hours ago.
 
 ## Exercise selection — use the priority list
 You will receive a pre-ranked exercise priority list for today's session.
@@ -103,14 +112,18 @@ priority = days_since_last / target_freq_days. Values > 1.0 are overdue.
 - CRITICAL: use exercise names EXACTLY as they appear in the priority list. Copy the name character-for-character. Do NOT paraphrase, abbreviate, rename, or invent any exercise name. If you use a name not in the priority list, the exercise will be silently dropped from the session.
 
 ## Exercise variant preference
-When choosing between exercise variants for a slot, prefer in this order:
-1. Barbell > dumbbell > machine > cable > bodyweight
-   Exception: designated bodyweight main lifts (Pull Up, Weighted Dip) are always preferred.
-2. Never choose a bodyweight version if a loaded equivalent exists in the priority list.
-3. "Weighted" or "(Machine)" variants should rank above their unloaded counterparts.
+1. For compound main lifts: prefer barbell variants (best overload potential).
+2. For isolation and single-joint exercises (calves, curls, lateral raises, pushdowns, etc.):
+   machine and cable variants are often equal or superior to barbell — use priority score and
+   history to decide, not a blanket barbell preference.
+3. NEVER choose a bodyweight/unloaded version if a loaded equivalent exists in the priority list.
+   Example: "Standing Calf Raise (Machine)" beats "Standing Calf Raise" every time.
+4. Designated bodyweight main lifts (Pull Up, Weighted Dip) are always preferred over alternatives.
+5. The athlete trains at a gym with full equipment. Assume all variants are available.
 
 ## Session duration and rest times
-You will be given a target session duration. Use these estimates to fill it:
+You will be given a target session duration and day type (weekday/weekend).
+Use these estimates to fill the session:
 - General warm-up: 10 min (not counted as an exercise)
 - Main barbell lift (with 2 warm-up sets + 4 working sets): ~20 min
 - Bodyweight main lift (4 working sets): ~15 min
@@ -118,11 +131,20 @@ You will be given a target session duration. Use these estimates to fill it:
 - Isolation exercise (3–4 sets): ~8 min
 Add accessories until you reach the target duration. Do not exceed it by more than 10 min.
 
-For every exercise, include a "notes" field with the recommended rest time:
-- Main barbell compound: "Rest 3–4 min between working sets"
-- Accessory compound: "Rest 2–3 min between sets"
-- Isolation: "Rest 60–90s between sets"
-- Bodyweight / core: "Rest 60s between sets"
+Set rest_seconds per exercise based on day type (Hevy uses this for the built-in rest timer).
+Do NOT put rest times in the notes field.
+
+Weekday (60 min target — tighter rest to fit session into a busy day):
+- Main barbell compound: 150
+- Accessory compound: 90
+- Isolation: 60
+- Bodyweight / core: 45
+
+Weekend (90 min target — full rest, no compromise on recovery between sets):
+- Main barbell compound: 210
+- Accessory compound: 150
+- Isolation: 75
+- Bodyweight / core: 60
 
 ## Output format — return ONLY valid JSON, no markdown, no explanation outside the JSON
 {
@@ -133,6 +155,10 @@ For every exercise, include a "notes" field with the recommended rest time:
     {
       "exercise_name": "exact name matching Hevy exercise library",
       "is_main_lift": true,
+      "muscle_group": "<see valid values below>",
+      "equipment_category": "<see valid values below>",
+      "exercise_type": "<see valid values below>",
+      "rest_seconds": 180,
       "sets": [
         {"reps": 5, "weight_kg": 90.0},
         ...
@@ -144,6 +170,22 @@ For every exercise, include a "notes" field with the recommended rest time:
 
 All weights in kg. Include warm-up sets only for main barbell lifts (2 warm-up sets
 at 50% and 75% of working weight). Label them with "is_warmup": true.
+
+## Exercise metadata — use ONLY these exact values
+
+muscle_group (pick the primary muscle):
+  abdominals | shoulders | biceps | triceps | forearms | quadriceps | hamstrings |
+  calves | glutes | abductors | adductors | lats | upper_back | traps | lower_back |
+  chest | neck | full_body | other
+
+equipment_category:
+  barbell | dumbbell | kettlebell | machine | plate | resistance_band | suspension | none | other
+
+exercise_type:
+  weight_reps        — standard loaded exercise (most exercises)
+  reps_only          — pure bodyweight with no load option
+  bodyweight_weighted — bodyweight exercise with optional added weight (Pull Up, Dip)
+  duration           — timed sets (planks, carries)
 """.strip()
 
 
@@ -181,13 +223,22 @@ def _build_user_message(context: dict) -> str:
                 f"Choose accessories that directly support {phase['focus_lift']} strength",
             ]
 
+    inc = config.EQUIPMENT_INCREMENTS
+    last_exercises = context.get("last_session_exercises", [])
+    is_weekend     = context.get("is_weekend", False)
+    day_type       = "weekend" if is_weekend else "weekday"
+    duration       = config.TARGET_DURATION_MINUTES.get(day_type, 90)
+
     lines = [
-        f"Date: {today}",
-        f"Target session duration: {config.TARGET_DURATION_MINUTES} minutes",
+        f"Date: {today}  ({day_type})",
+        f"Target session duration: {duration} minutes",
         f"Suggested session type: {stype}",
         f"Last session type: {last_type or 'unknown'}",
+        f"Last session exercises: {', '.join(last_exercises) if last_exercises else 'none'}",
         f"Sessions in last 7 days: {sessions_7d}",
         f"Session balance (last 28 days): {balance}",
+        f"Equipment increments — barbell: {inc['barbell']}kg | cable: {inc['cable']}kg"
+        f" | dumbbell: {inc['dumbbell']}kg/side | machine: {inc['machine']}kg",
     ]
 
     if phase_lines:
@@ -195,10 +246,26 @@ def _build_user_message(context: dict) -> str:
         lines.extend(f"  {l}" for l in phase_lines)
 
     if bw:
-        lines.append(f"Bodyweight: {bw}kg")
+        bw_parts = [f"{bw}kg"]
+        if context.get("muscle_mass_kg"):
+            bw_parts.append(f"muscle {context['muscle_mass_kg']}kg")
+        if context.get("body_fat_pct"):
+            bw_parts.append(f"BF {context['body_fat_pct']}%")
+        lines.append(f"Bodyweight: {' | '.join(bw_parts)}")
     if bw_trend is not None:
         direction = "gaining" if bw_trend > 0 else "losing"
         lines.append(f"Weight trend: {direction} {abs(bw_trend):.2f}kg/week")
+
+    # Body composition goal
+    goal_mode = config.GOAL_MODE
+    if goal_mode != "maintain" or config.TARGET_WEIGHT_KG:
+        comp_parts = [f"Goal mode: {goal_mode}"]
+        if config.TARGET_WEIGHT_KG:
+            comp_parts.append(f"target weight {config.TARGET_WEIGHT_KG}kg")
+        if config.WEIGHT_RATE_KG_PER_WEEK is not None:
+            sign = "+" if config.WEIGHT_RATE_KG_PER_WEEK > 0 else ""
+            comp_parts.append(f"rate {sign}{config.WEIGHT_RATE_KG_PER_WEEK}kg/wk")
+        lines.append("Body composition: " + " | ".join(comp_parts))
 
     lines.append("\n## Main lift status")
 
@@ -224,14 +291,40 @@ def _build_user_message(context: dict) -> str:
         else:
             lines.append("  No recent history.")
 
+    recent_workouts = context.get("recent_workouts", [])
+    if recent_workouts:
+        lines.append("\n## Recent workouts (last 28 days, newest first)")
+        for session in recent_workouts:
+            lines.append(f"\n  {session['date']} ({session['session_type']}):")
+            for ex in session["exercises"]:
+                w = ex["top_weight_kg"]
+                weight_str = f"{w}kg × " if w else "BW × "
+                lines.append(f"    {ex['exercise']}: {weight_str}{ex['avg_reps']} reps × {ex['sets']} sets")
+
     priorities = context.get("exercise_priorities", [])
+    ex_stats = context.get("exercise_stats", {})
+
+    def _stats_str(name: str) -> str:
+        s = ex_stats.get(name)
+        if not s:
+            return ""
+        parts = []
+        if s.get("current_e1rm"):
+            parts.append(f"e1RM {s['current_e1rm']}kg")
+        if s.get("best_e1rm") and s.get("current_e1rm") and s["best_e1rm"] > s["current_e1rm"]:
+            parts.append(f"best {s['best_e1rm']}kg")
+        if s.get("total_sessions"):
+            parts.append(f"{s['total_sessions']}×")
+        if s.get("trend"):
+            parts.append(s["trend"])
+        return f"  [{', '.join(parts)}]" if parts else ""
+
     if priorities:
         from hevy import _resolve_template_id
         from context import exercise_priorities as _core_priorities
-        # Only show exercises that can actually be posted to Hevy
         postable = [p for p in priorities if p["is_main_lift"] or _resolve_template_id(p["exercise_name"])]
         lines.append("\n## Exercise priority list (pick accessories from the top)")
-        lines.append("  (* = main lift)  format: name | days_since | target_freq | priority")
+        lines.append("  (* = main lift)  format: name | days_since | target_freq | priority | [e1RM, best, sessions, trend]")
         lines.append("  These are the ONLY valid exercise names. Use them verbatim.")
         for p in postable[:20]:
             marker = "*" if p["is_main_lift"] else " "
@@ -239,8 +332,8 @@ def _build_user_message(context: dict) -> str:
             lines.append(
                 f"  {marker} {p['exercise_name']}: "
                 f"days={days}, freq={p['target_freq_days']}d, priority={p['priority']}"
+                f"{_stats_str(p['exercise_name'])}"
             )
-        # Core priority list (separate — always appended)
         core = [p for p in _core_priorities("core") if _resolve_template_id(p["exercise_name"])]
         if core:
             lines.append("\n## Core priority list (pick 1 for the final slot)")
@@ -249,14 +342,33 @@ def _build_user_message(context: dict) -> str:
                 days = p["days_since_last"] if p["days_since_last"] is not None else "never"
                 lines.append(
                     f"  {p['exercise_name']}: days={days}, freq={p['target_freq_days']}d, priority={p['priority']}"
+                    f"{_stats_str(p['exercise_name'])}"
                 )
 
+    creator_recs = context.get("creator_recommendations", [])
+    if creator_recs:
+        lines.append("\n## Creator-recommended exercises (from trusted YouTube channels)")
+        lines.append("  These exercises have been positively mentioned by trusted fitness creators.")
+        lines.append("  Prefer these when choosing between equally-ranked accessories.")
+        lines.append("  format: canonical_name | score (higher = stronger endorsement)")
+        for r in creator_recs:
+            lines.append(f"  {r['canonical']}: score={r['score']:.2f}")
+
     notes = context.get("session_notes", [])
-    if notes:
+    directives    = [n for n in notes if n.get("source") == "user_directive"]
+    regular_notes = [n for n in notes if n.get("source") not in ("user_directive",)]
+
+    if directives:
+        lines.append("\n## User directives (athlete explicitly flagged these — follow them)")
+        for n in directives:
+            lines.append(f"  {n['date']}: {n['note']}")
+
+    if regular_notes:
         lines.append("\n## Session notes (injury signs / observations from Hevy and manual logs)")
         lines.append("  Reduce load or substitute exercises for any flagged movements.")
-        SOURCE_LABEL = {"manual": "note", "hevy_workout": "hevy", "hevy_exercise": "hevy"}
-        for n in notes:
+        SOURCE_LABEL = {"manual": "note", "hevy_workout": "hevy", "hevy_exercise": "hevy",
+                        "overwrite_review": "review"}
+        for n in regular_notes:
             label = SOURCE_LABEL.get(n.get("source", "manual"), "note")
             lines.append(f"  [{label}] {n['date']}: {n['note']}")
 
