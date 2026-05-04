@@ -552,14 +552,24 @@ def _build_user_message(context: dict) -> str:
         from context import exercise_priorities as _core_priorities
         postable = [p for p in priorities if p["is_main_lift"] or _resolve_template_id(p["exercise_name"])]
         lines.append("\n## Exercise priority list (pick accessories from the top)")
-        lines.append("  (* = main lift)  format: name | days_since | target_freq | priority | [e1RM, best, sessions, trend]")
+        lines.append("  (* = main lift)  format: name | movement_pattern | days_since | priority | hist | [e1RM, trend]")
         lines.append("  These are the ONLY valid exercise names. Use them verbatim.")
-        for p in postable[:20]:
+        lines.append("  VARIANT SELECTION (mandatory):")
+        lines.append("    1. For each PICK slot, find all candidates matching the slot's movement pattern.")
+        lines.append("    2. Among those candidates, pick the one with the highest hist=N× session count.")
+        lines.append("    3. Only override to a lower-session variant if the preferred one was done within 7 days.")
+        lines.append("    4. Never choose a 0-session exercise if any established variant (hist≥3) exists for the slot.")
+        for p in postable[:25]:
             marker = "*" if p["is_main_lift"] else " "
             days   = p["days_since_last"] if p["days_since_last"] is not None else "never"
+            sc     = p.get("session_count")
+            sc_str = f"  hist={sc}×" if sc and sc > 0 else ""
+            mp     = p.get("movement_pattern", "")
+            mp_str = f"  [{mp}]" if mp else ""
             lines.append(
-                f"  {marker} {p['exercise_name']}: "
-                f"days={days}, freq={p['target_freq_days']}d, priority={p['priority']}"
+                f"  {marker} {p['exercise_name']}:{mp_str}"
+                f"  days={days}, priority={p['priority']}"
+                f"{sc_str}"
                 f"{_stats_str(p['exercise_name'])}"
             )
         core = [p for p in _core_priorities("core") if _resolve_template_id(p["exercise_name"])]

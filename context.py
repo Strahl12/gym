@@ -328,6 +328,16 @@ def exercise_priorities(session_type: str) -> list[dict]:
             return None
         return (today - date.fromisoformat(max(candidates))).days
 
+    # Build movement_pattern lookup from exercises.json
+    from exercise_lib import all_exercises as _all_exercises
+    _ex_db = _all_exercises()
+    _mp_by_canonical: dict[str, str] = {}
+    _compound_by_canonical: dict[str, bool] = {}
+    for _ex in _ex_db.values():
+        _name = _ex.get("canonical", "")
+        _mp_by_canonical[_name] = _ex.get("movement_pattern", "")
+        _compound_by_canonical[_name] = bool(_ex.get("is_compound", True))
+
     result: list[dict] = []
     seen: set[str] = set()
 
@@ -349,6 +359,8 @@ def exercise_priorities(session_type: str) -> list[dict]:
             "days_since_last":  days,
             "star_rating":      star,
             "priority":         round(min(raw, cap), 2),
+            "movement_pattern": _mp_by_canonical.get(name, ""),
+            "is_compound":      _compound_by_canonical.get(name, True),
         })
         seen.add(name)
 
@@ -380,6 +392,45 @@ def exercise_priorities(session_type: str) -> list[dict]:
             "priority":         round(min(raw, 3.0) + bump, 2),
         })
         seen.add(add_name)
+
+    # ── Supplement with historically-preferred exercises missing from roster ──
+    # Any exercise done 3+ times in this session_type that isn't already listed
+    # gets added at star=2 priority so established preferences always surface.
+    try:
+        hist_rows = con.execute("""
+            SELECT exercise, COUNT(DISTINCT date) AS sessions
+            FROM sets
+            WHERE session_type = ? AND is_warmup = 0
+            GROUP BY exercise
+            HAVING COUNT(DISTINCT date) >= 3
+        """, (session_type,)).fetchall()
+
+        for h in hist_rows:
+            name = h["exercise"]
+            if name in seen or name in suspended:
+                continue
+            days = _days_since(name)
+            sessions = int(h["sessions"])
+            days_val = days if days is not None else 21
+            raw  = days_val / 21.0
+            # Preference boost: established exercises sort ahead of untested ones.
+            # +0.02 per 10 sessions (capped at +0.2), keeping well below star=3 threshold.
+            pref_boost = min(sessions / 500.0, 0.2)
+            cap  = STAR_CAP.get(2, 1.0) + pref_boost
+            result.append({
+                "exercise_name":    name,
+                "is_main_lift":     name in config.MAIN_LIFTS,
+                "target_freq_days": 21,
+                "days_since_last":  days,
+                "star_rating":      2,
+                "priority":         round(min(raw + pref_boost, cap), 2),
+                "session_count":    sessions,
+                "movement_pattern": _mp_by_canonical.get(name, ""),
+                "is_compound":      _compound_by_canonical.get(name, True),
+            })
+            seen.add(name)
+    except sqlite3.OperationalError:
+        pass
 
     con.close()
     excluded = {e.lower() for e in getattr(config, "EXCLUDED_EXERCISES", [])}
