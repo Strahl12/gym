@@ -541,6 +541,73 @@ def e1rm_trends(weeks: int = 4) -> dict[str, dict]:
     return result
 
 
+# ── Movement coverage audit ───────────────────────────────────────────────
+
+def movement_coverage_audit(days: int = 14) -> dict:
+    """
+    Check which movement patterns are absent from the last N days of training.
+    Returns:
+      {
+        "covered":  {pattern: [exercise, ...]},   # patterns trained
+        "gaps":     [pattern, ...],               # patterns not trained
+        "by_session_type": {session_type: {pattern: [exercise, ...]}},
+      }
+    """
+    from exercise_lib import all_exercises, VALID_MOVEMENT_PATTERNS
+
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    con = _con()
+    rows = con.execute("""
+        SELECT DISTINCT exercise FROM sets
+        WHERE date >= ? AND is_warmup = 0
+    """, (cutoff,)).fetchall()
+    con.close()
+
+    trained_names = {r["exercise"] for r in rows}
+
+    # Build canonical → taxonomy map from exercises.json
+    ex_db = all_exercises()
+    name_to_meta: dict[str, dict] = {}
+    for ex in ex_db.values():
+        name_to_meta[ex["canonical"].lower()] = ex
+        for alias in ex.get("aliases", []):
+            name_to_meta[alias.lower()] = ex
+
+    covered: dict[str, list[str]] = {}
+    for name in trained_names:
+        meta = name_to_meta.get(name.lower())
+        if not meta:
+            continue
+        mp = meta.get("movement_pattern", "")
+        if mp and mp in VALID_MOVEMENT_PATTERNS:
+            covered.setdefault(mp, []).append(name)
+
+    gaps = sorted(VALID_MOVEMENT_PATTERNS - set(covered.keys()))
+
+    # Per-session-type breakdown using recent_workouts
+    by_session_type: dict[str, dict[str, list[str]]] = {}
+    since_cutoff = (date.today() - timedelta(days=days)).isoformat()
+    recent = recent_workouts(days=days)
+    for session in recent:
+        stype = session["session_type"]
+        if stype not in by_session_type:
+            by_session_type[stype] = {}
+        for ex_row in session["exercises"]:
+            ex_name = ex_row["exercise"]
+            meta = name_to_meta.get(ex_name.lower())
+            if not meta:
+                continue
+            mp = meta.get("movement_pattern", "")
+            if mp and mp in VALID_MOVEMENT_PATTERNS:
+                by_session_type[stype].setdefault(mp, []).append(ex_name)
+
+    return {
+        "covered": covered,
+        "gaps": gaps,
+        "by_session_type": by_session_type,
+    }
+
+
 # ── Prescription logging ──────────────────────────────────────────────────
 
 def active_block_id() -> Optional[int]:
@@ -683,6 +750,7 @@ def build_context() -> dict:
         "session_notes":                   notes,
         "focus_phase":                     phase,
         "creator_recommendations":         creator_recs,
+        "movement_coverage":               movement_coverage_audit(days=14),
     }
 
 
