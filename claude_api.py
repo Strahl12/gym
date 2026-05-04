@@ -16,7 +16,7 @@ CLAUDE_MODEL   = "claude-sonnet-4-20250514"
 ANTHROPIC_URL  = "https://api.anthropic.com/v1/messages"
 MAX_TOKENS     = 2000
 
-SYSTEM_PROMPT = """
+LEGACY_SYSTEM_PROMPT = """
 You are a strength programming assistant. Your job is to prescribe today's gym session
 based on the athlete's training history, goals, and current context.
 
@@ -189,6 +189,129 @@ exercise_type:
 """.strip()
 
 
+def _build_system_prompt() -> str:
+    """Build the system prompt from config data structures."""
+    pr  = config.PROGRESSION
+    inc = config.EQUIPMENT_INCREMENTS
+    te  = config.SESSION_TIME_ESTIMATES
+
+    MODE_DETAILS = {
+        "strength":     "Rep range 4–6, load 80–90% 1RM. Prioritise adding weight over reps.",
+        "hypertrophy":  "Rep range 8–12, load 65–80% 1RM, rest 60–90s. Volume and time under tension.",
+        "powerlifting": "Rep range 1–5 on main lifts, load 85–95% 1RM, rest 4–6 min. Accessories 6–8 reps.",
+    }
+    mode_detail = MODE_DETAILS.get(config.TRAINING_MODE, "")
+
+    # ── Session slot tables ────────────────────────────────────────────────
+    slot_lines = []
+    for stype, slots in config.SESSION_TEMPLATES.items():
+        slot_lines.append(f"\n### {stype.upper()}")
+        for i, s in enumerate(slots, 1):
+            action = f"FIXED: {s['fixed']}" if s.get("fixed") else "pick from priority list"
+            pattern = s.get("movement_pattern") or "any"
+            tags = []
+            if s.get("is_compound") is True:
+                tags.append("compound")
+            elif s.get("is_compound") is False:
+                tags.append("isolation")
+            if s.get("muscle"):
+                tags.append(f"muscle={s['muscle']}")
+            if s.get("exclude"):
+                tags.append(f"exclude={s['exclude']}")
+            if s.get("optional"):
+                tags.append("optional")
+            tag_str = f"  [{', '.join(tags)}]" if tags else ""
+            slot_lines.append(f"  {i}. {s['slot']}: {pattern}{tag_str} — {action}")
+        slot_lines.append("  +. core: core_flexion or core_anti_extension — pick from core priority list, 2–3 sets, prefer progressively loaded variants (Cable Crunch, Ab Wheel, Hanging Leg Raise)")
+
+    # ── Progression block ──────────────────────────────────────────────────
+    pr_lines = [
+        f"no_plateau: same weight; +{pr['increase_kg']}kg if all sets cleanly hit top of rep range",
+        f"plateau (≥{config.PLATEAU_SESSIONS} sessions flat): reset to {int(pr['plateau_reset_pct']*100)}% working weight rounded down to nearest {config.EQUIPMENT_INCREMENTS['barbell']}kg, reps {pr['plateau_reps'][0]}–{pr['plateau_reps'][1]}, note in reasoning",
+        "bodyweight lifts: apply rules to added weight only; prescribe pure BW only if no added-weight history",
+        f"max increase: {pr['max_increase_kg']}kg per session hard cap",
+        f"absent >{pr['deload_threshold_days']} days: deload to {int(pr['deload_weight_pct']*100)}% of last weight, higher reps",
+        f"warm-up sets: {len(pr['warmup_pcts'])} sets at {' / '.join(str(int(p*100))+'%' for p in pr['warmup_pcts'])} of working weight (main barbell lifts only), label is_warmup: true",
+    ]
+
+    # ── Timing block ──────────────────────────────────────────────────────
+    timing_lines = [
+        f"  warmup (not an exercise): {te['warmup_general']} min",
+        f"  main barbell (incl. warmup sets): {te['main_barbell']} min",
+        f"  main bodyweight: {te['main_bodyweight']} min",
+        f"  accessory compound: {te['accessory_compound']} min",
+        f"  isolation: {te['isolation']} min",
+        f"  core: {te['core']} min",
+    ]
+
+    return f"""You are a strength programming assistant. Prescribe today's gym session from the provided context.
+
+## Training mode: {config.TRAINING_MODE}
+{mode_detail}
+
+## Goal
+{config.GOAL.strip()}
+
+## Session structure
+Fill slots in order. FIXED = always use the named exercise. PICK = highest-priority matching exercise from the priority list.
+Never assign the same exercise to two slots. Compounds always precede isolations.
+{"".join(slot_lines)}
+
+## Progression
+{chr(10).join("  " + l for l in pr_lines)}
+
+## Session timing
+Add slots until you reach the target duration; do not exceed by more than 10 min.
+{chr(10).join(timing_lines)}
+Rest seconds per exercise type are provided in the user message — set rest_seconds on each exercise. Do NOT put rest times in notes.
+
+## Body composition mode
+  cut:      keep main lifts; reduce accessory sets to 3; no PR chasing on accessories
+  bulk:     push accessory sets to 4–5; progress aggressively
+  maintain: standard volume
+
+## Muscle clash rule
+FIXED slots are always included regardless of last session. For PICK slots only: skip any
+exercise whose primary muscle was already trained last session.
+
+## Exercise selection
+- Names VERBATIM from the priority list — character-for-character. Names not in the list will be silently dropped.
+- Pick accessories from the top of the priority list (highest priority = most overdue).
+- Prefer loaded variants over unloaded (e.g. Machine Calf Raise > Standing Calf Raise).
+- Compounds prefer barbell; isolations use priority score and history — no blanket barbell preference.
+
+## Output — return ONLY valid JSON
+{{
+  "session_type": "push|pull|legs|arms",
+  "title": "short descriptive title",
+  "reasoning": "2-3 sentences",
+  "exercises": [
+    {{
+      "exercise_name": "exact name",
+      "is_main_lift": true,
+      "muscle_group": "<valid value>",
+      "equipment_category": "<valid value>",
+      "exercise_type": "<valid value>",
+      "rest_seconds": 180,
+      "sets": [
+        {{"reps": 5, "weight_kg": 45.0, "is_warmup": true}},
+        {{"reps": 5, "weight_kg": 67.5, "is_warmup": true}},
+        {{"reps": 5, "weight_kg": 90.0}},
+        {{"reps": 5, "weight_kg": 90.0}}
+      ],
+      "notes": "optional"
+    }}
+  ]
+}}
+All weights in kg. Each exercise appears ONCE. Warmup and working sets go in the same
+sets array for that exercise — never output the same exercise name twice.
+
+## Valid metadata values
+muscle_group: abdominals | shoulders | biceps | triceps | forearms | quadriceps | hamstrings | calves | glutes | abductors | adductors | lats | upper_back | traps | lower_back | chest | neck | full_body | other
+equipment_category: barbell | dumbbell | kettlebell | machine | plate | resistance_band | suspension | none | other
+exercise_type: weight_reps | reps_only | bodyweight_weighted | bodyweight_assisted | duration | distance_duration""".strip()
+
+
 def _headers() -> dict:
     return {
         "x-api-key": config.ANTHROPIC_API_KEY,
@@ -228,10 +351,12 @@ def _build_user_message(context: dict) -> str:
     is_weekend     = context.get("is_weekend", False)
     day_type       = "weekend" if is_weekend else "weekday"
     duration       = config.TARGET_DURATION_MINUTES.get(day_type, 90)
+    rest           = config.REST_SECONDS[day_type]
 
     lines = [
         f"Date: {today}  ({day_type})",
         f"Target session duration: {duration} minutes",
+        f"Rest seconds: main_barbell={rest['main_barbell']}  accessory_compound={rest['accessory_compound']}  isolation={rest['isolation']}  bodyweight_core={rest['bodyweight_core']}",
         f"Suggested session type: {stype}",
         f"Last session type: {last_type or 'unknown'}",
         f"Last session exercises: {', '.join(last_exercises) if last_exercises else 'none'}",
@@ -410,19 +535,23 @@ def _build_user_message(context: dict) -> str:
     return "\n".join(lines)
 
 
-def get_workout(context: dict) -> Optional[dict]:
+def get_workout(context: dict, legacy: bool = False) -> Optional[dict]:
     """
     Calls Claude with the training context. Returns parsed workout dict or None on failure.
+    Pass legacy=True to use the old hardcoded system prompt instead of the data-driven one.
     """
-    MODE_DETAILS = {
-        "strength":     "Rep range 4–6, load 80–90% 1RM, rest 2–4 min between sets. Prioritise adding weight over adding reps.",
-        "hypertrophy":  "Rep range 8–12, load 65–80% 1RM, rest 60–90s. Prioritise volume and time under tension.",
-        "powerlifting": "Rep range 1–5 on main lifts, load 85–95% 1RM, rest 4–6 min on compounds. Accessories at 6–8 reps.",
-    }
-    system = (SYSTEM_PROMPT
-              .replace("{goal}", config.GOAL)
-              .replace("{mode}", config.TRAINING_MODE)
-              .replace("{mode_detail}", MODE_DETAILS.get(config.TRAINING_MODE, "")))
+    if legacy:
+        MODE_DETAILS = {
+            "strength":     "Rep range 4–6, load 80–90% 1RM, rest 2–4 min between sets. Prioritise adding weight over adding reps.",
+            "hypertrophy":  "Rep range 8–12, load 65–80% 1RM, rest 60–90s. Prioritise volume and time under tension.",
+            "powerlifting": "Rep range 1–5 on main lifts, load 85–95% 1RM, rest 4–6 min on compounds. Accessories at 6–8 reps.",
+        }
+        system = (LEGACY_SYSTEM_PROMPT
+                  .replace("{goal}", config.GOAL)
+                  .replace("{mode}", config.TRAINING_MODE)
+                  .replace("{mode_detail}", MODE_DETAILS.get(config.TRAINING_MODE, "")))
+    else:
+        system = _build_system_prompt()
     user   = _build_user_message(context)
 
     payload = {

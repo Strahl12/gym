@@ -147,13 +147,74 @@ MIN_RECOVERY_DAYS = 3
 MAX_CONSECUTIVE_DAYS = 5
 
 # ── Equipment increments ───────────────────────────────────────────────────
-# Minimum realistic weight jump per equipment type. Used by Claude when
-# calculating progressions and prescribing weights.
 EQUIPMENT_INCREMENTS = {
-    "barbell":   2.5,   # 1.25kg plate each side
-    "cable":     2.5,   # standard cable stack step
-    "dumbbell":  2.0,   # one increment = 2kg (next dumbbell pair)
-    "machine":   5.0,   # typical plate/pin increment
+    "barbell":   2.5,
+    "cable":     2.5,
+    "dumbbell":  2.0,
+    "machine":   5.0,
+}
+
+# ── Progression rules ──────────────────────────────────────────────────────
+PROGRESSION = {
+    "increase_kg":           2.5,   # add when all sets hit top of rep range
+    "max_increase_kg":       5.0,   # hard cap per session
+    "plateau_reset_pct":     0.90,  # drop to 90% on plateau
+    "plateau_reps":          (6, 8),
+    "deload_threshold_days": 14,    # absence before deload treatment
+    "deload_weight_pct":     0.80,
+    "warmup_pcts":           [0.50, 0.75],
+}
+
+# ── Session slot templates ─────────────────────────────────────────────────
+# Each slot: movement_pattern + compound flag drive exercise selection from
+# the priority list. "fixed" overrides selection entirely.
+# "muscle" narrows selection within a pattern (e.g. shoulders vs upper_back
+# both share shoulder_abduction). "exclude" blocks specific exercise names.
+SESSION_TEMPLATES: dict[str, list[dict]] = {
+    "push": [
+        {"slot": "chest_compound",    "movement_pattern": "horizontal_push",    "fixed": "Incline Barbell Bench Press"},
+        {"slot": "shoulder_compound", "movement_pattern": "vertical_push",      "fixed": "Strict Military Press"},
+        {"slot": "tricep_compound",   "movement_pattern": "elbow_extension",    "fixed": "Weighted Dip"},
+        {"slot": "lateral_raise",     "movement_pattern": "shoulder_abduction", "muscle": "shoulders"},
+        {"slot": "tricep_isolation",  "movement_pattern": "elbow_extension",    "is_compound": False},
+    ],
+    "pull": [
+        {"slot": "hip_hinge",         "movement_pattern": "hip_hinge",          "is_compound": True},
+        {"slot": "horizontal_row",    "movement_pattern": "horizontal_pull",    "is_compound": True},
+        {"slot": "vertical_pull",     "movement_pattern": "vertical_pull",      "fixed": "Pull Up"},
+        {"slot": "lat_accessory",     "movement_pattern": "vertical_pull",      "is_compound": False},
+        {"slot": "rear_delt",         "movement_pattern": "shoulder_abduction", "muscle": "upper_back"},
+    ],
+    "legs": [
+        {"slot": "quad_compound",     "movement_pattern": "quad_dominant",      "fixed": "Front Squat"},
+        {"slot": "posterior_chain",   "movement_pattern": "hip_hinge",          "is_compound": True},
+        {"slot": "quad_accessory",    "movement_pattern": "quad_dominant",      "is_compound": False},
+        {"slot": "calf",              "movement_pattern": "ankle_plantarflexion"},
+    ],
+    "arms": [
+        {"slot": "tricep_compound",   "movement_pattern": "elbow_extension",    "is_compound": True,
+         "exclude": ["Barbell Bench Press", "Strict Military Press"]},
+        {"slot": "bicep_compound",    "movement_pattern": "elbow_flexion",      "is_compound": True},
+        {"slot": "tricep_isolation",  "movement_pattern": "elbow_extension",    "is_compound": False},
+        {"slot": "bicep_isolation",   "movement_pattern": "elbow_flexion",      "is_compound": False},
+        {"slot": "optional_isolation","movement_pattern": None,                 "optional": True},
+    ],
+}
+
+# ── Session timing estimates (minutes per exercise type) ───────────────────
+SESSION_TIME_ESTIMATES = {
+    "warmup_general":     10,   # fixed overhead, not an exercise
+    "main_barbell":       20,   # includes 2 warmup sets
+    "main_bodyweight":    15,
+    "accessory_compound": 12,
+    "isolation":           8,
+    "core":                6,
+}
+
+# ── Rest seconds per exercise category ────────────────────────────────────
+REST_SECONDS: dict[str, dict[str, int]] = {
+    "weekday": {"main_barbell": 150, "accessory_compound":  90, "isolation": 60, "bodyweight_core": 45},
+    "weekend": {"main_barbell": 210, "accessory_compound": 150, "isolation": 75, "bodyweight_core": 60},
 }
 
 # ── Exercise exclusions ────────────────────────────────────────────────────
