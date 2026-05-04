@@ -172,18 +172,19 @@ def sync_to_db(days: int = 14) -> int:
                 weight_kg = float(s.get("weight_kg") or 0)
                 is_warmup = 1 if s.get("type") == "warmup" else 0
                 e1rm      = _epley(weight_kg, reps)
+                rpe       = s.get("rpe")   # None if not recorded
 
                 con.execute("""
                     INSERT OR IGNORE INTO sets
                         (source, session_id, date, workout_name, session_type,
                          muscle_group, exercise, is_main_lift, is_bodyweight,
-                         is_warmup, set_number, weight_kg, reps, e1rm)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         is_warmup, set_number, weight_kg, reps, e1rm, rpe)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     "hevy", session_id, workout_date, workout_name, session_type,
                     MUSCLE_TO_SESSION.get(muscle, "other"), ex_name,
                     is_main, is_bodyweight,
-                    is_warmup, set_number, weight_kg, reps, e1rm,
+                    is_warmup, set_number, weight_kg, reps, e1rm, rpe,
                 ))
                 set_number += 1
                 total_sets += 1
@@ -230,7 +231,8 @@ def _store_hevy_notes(con: sqlite3.Connection, workout_date: str, workout: dict,
         if ex_note:
             raw_name = ex.get("title") or ex.get("exercise_template_id", "")
             ex_name  = HEVY_ALIASES.get(raw_name, raw_name)
-            source = "user_directive" if ex_note.upper().startswith("NOTE:") else "hevy_exercise"
+            tag = ex_note.upper().split(":")[0].strip()
+            source = {"NOTE": "user_directive", "DEBUG": "debug_request"}.get(tag, "hevy_exercise")
             _insert(workout_date, f"{ex_name}: {ex_note}", source)
 
 

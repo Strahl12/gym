@@ -29,9 +29,10 @@ def lift_history(exercise: str, n: int = 8) -> list[dict]:
     con = _con()
     rows = con.execute("""
         SELECT date,
-               MAX(weight_kg)       AS top_weight,
-               MAX(reps)            AS max_reps,
-               ROUND(MAX(e1rm), 1)  AS best_e1rm
+               MAX(weight_kg)              AS top_weight,
+               MAX(reps)                   AS max_reps,
+               ROUND(MAX(e1rm), 1)         AS best_e1rm,
+               ROUND(AVG(CASE WHEN rpe IS NOT NULL THEN rpe END), 1) AS avg_rpe
         FROM sets
         WHERE exercise = ?
           AND is_warmup = 0
@@ -488,9 +489,10 @@ def recent_workouts(days: int = 28) -> list[dict]:
     for dr in date_rows:
         ex_rows = con.execute("""
             SELECT exercise,
-                   MAX(weight_kg)       AS top_weight_kg,
-                   ROUND(AVG(reps), 1)  AS avg_reps,
-                   COUNT(*)             AS sets
+                   MAX(weight_kg)              AS top_weight_kg,
+                   ROUND(AVG(reps), 1)         AS avg_reps,
+                   COUNT(*)                    AS sets,
+                   ROUND(AVG(CASE WHEN rpe IS NOT NULL THEN rpe END), 1) AS avg_rpe
             FROM sets
             WHERE date = ? AND is_warmup = 0 AND session_type != 'unknown'
             GROUP BY exercise
