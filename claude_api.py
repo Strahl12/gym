@@ -393,6 +393,19 @@ def _build_user_message(context: dict) -> str:
             if parts:
                 lines.append(f"  {d} ({st}): " + "; ".join(parts))
 
+    coverage = context.get("movement_coverage", {})
+    gaps = coverage.get("gaps", [])
+    covered = coverage.get("covered", {})
+    if gaps or covered:
+        lines.append("\n## Movement pattern coverage (last 14 days)")
+        if covered:
+            covered_summary = ", ".join(sorted(covered.keys()))
+            lines.append(f"  Covered: {covered_summary}")
+        if gaps:
+            lines.append(f"  GAPS (not trained in 14 days): {', '.join(gaps)}")
+            lines.append("  If any session-appropriate accessory slot can address a gap, prefer it.")
+            lines.append("  Gaps are not mandatory overrides — only fill if the exercise fits this session type.")
+
     lines.append("\nPrescribe today's full session as JSON.")
     return "\n".join(lines)
 
