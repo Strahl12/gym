@@ -122,23 +122,39 @@ def diff_is_empty(diff: dict) -> bool:
 
 def _store_review(session_date: str, analysis: str, source: str) -> None:
     con = _con()
+    # Replace any prior review for this date+source so re-runs with new notes produce fresh analysis
     con.execute(
-        "INSERT OR IGNORE INTO session_notes (date, note, source) VALUES (?, ?, ?)",
+        "DELETE FROM session_notes WHERE date = ? AND source = ?",
+        (session_date, source),
+    )
+    con.execute(
+        "INSERT INTO session_notes (date, note, source) VALUES (?, ?, ?)",
         (session_date, analysis, source),
     )
     con.commit()
     con.close()
 
 
-def _print_stored_review(session_date: str, source: str) -> None:
+def _get_stored_review(session_date: str, source: str) -> Optional[str]:
     con = _con()
     row = con.execute(
         "SELECT note FROM session_notes WHERE date = ? AND source = ? ORDER BY id DESC LIMIT 1",
         (session_date, source),
     ).fetchone()
     con.close()
-    if row:
-        print(f"[feedback] Review: {row['note']}")
+    return row["note"] if row else None
+
+
+def _get_session_notes(session_date: str) -> list[dict]:
+    """Return user_directive and hevy_exercise notes for a session date."""
+    con = _con()
+    rows = con.execute("""
+        SELECT note, source FROM session_notes
+        WHERE date = ? AND source IN ('user_directive', 'hevy_exercise', 'manual')
+        ORDER BY id
+    """, (session_date,)).fetchall()
+    con.close()
+    return [{"note": r["note"], "source": r["source"]} for r in rows]
 
 
 def run_feedback_for_date(session_date: str) -> Optional[dict]:
@@ -196,7 +212,9 @@ def run_feedback_for_date(session_date: str) -> Optional[dict]:
     session_type    = row["session_type"]
     prescription    = {"exercises": json.loads(row["exercises_json"])}
 
-    # If already stored, print the existing diff + any stored analysis and return
+    notes = _get_session_notes(actual_date)
+
+    # If already stored, print diff + regenerate review if missing or notes have arrived since
     con3 = _con()
     existing_row = con3.execute(
         "SELECT diff_json, session_type FROM workout_feedback WHERE prescription_id = ?",
@@ -205,23 +223,33 @@ def run_feedback_for_date(session_date: str) -> Optional[dict]:
     con3.close()
     if existing_row:
         stored_diff = json.loads(existing_row["diff_json"])
+        label = (f"prescribed: {existing_row['session_type']} → actual: {actual_session_type}"
+                 if actual_session_type != existing_row["session_type"] else existing_row["session_type"])
         if not diff_is_empty(stored_diff):
-            label = (f"prescribed: {existing_row['session_type']} → actual: {actual_session_type}"
-                     if actual_session_type != existing_row["session_type"] else existing_row["session_type"])
             _print_diff(session_date, label, stored_diff)
-            _print_stored_review(session_date, "completed_review")
+        stored_review = _get_stored_review(actual_date, "completed_review")
+        if stored_review:
+            print(f"[feedback] Review:\n{stored_review}")
+        elif not diff_is_empty(stored_diff) or notes:
+            analysis = analyze_diff(stored_diff, prescription, session_type,
+                                    context="completed", notes=notes)
+            if analysis:
+                print(f"[feedback] Review:\n{analysis}")
+                _store_review(actual_date, analysis, "completed_review")
         return stored_diff
 
     diff = compute_diff(prescription, actual)
+    store_diff(session_date, prescription_id, session_type, diff)
+    label = (f"prescribed: {session_type} → actual: {actual_session_type}"
+             if actual_session_type != session_type else session_type)
     if not diff_is_empty(diff):
-        store_diff(session_date, prescription_id, session_type, diff)
-        label = (f"prescribed: {session_type} → actual: {actual_session_type}"
-                 if actual_session_type != session_type else session_type)
         _print_diff(session_date, label, diff)
-        analysis = analyze_diff(diff, prescription, session_type, context="completed")
+    if not diff_is_empty(diff) or notes:
+        analysis = analyze_diff(diff, prescription, session_type,
+                                context="completed", notes=notes)
         if analysis:
-            print(f"[feedback] Review: {analysis}")
-            _store_review(session_date, analysis, "completed_review")
+            print(f"[feedback] Review:\n{analysis}")
+            _store_review(actual_date, analysis, "completed_review")
 
     return diff
 
@@ -251,9 +279,9 @@ def _print_diff(session_date: str, session_type: str, diff: dict) -> None:
 
 
 def analyze_diff(diff: dict, prescription: dict, session_type: str,
-                 context: str = "pre_session") -> str:
+                 context: str = "pre_session", notes: list[dict] | None = None) -> str:
     """
-    Call Claude Haiku to assess a workout diff.
+    Call Claude Haiku to assess a workout diff and any session notes.
     context: "pre_session" (user edited before starting) | "completed" (what was actually done).
     Returns a short analysis string, or "" on failure.
     """
@@ -281,15 +309,30 @@ def analyze_diff(diff: dict, prescription: dict, session_type: str,
     prompt = (
         f"A strength AI prescribed this {session_type} session:\n"
         + "\n".join(f"  {n}" for n in prescribed_names)
-        + f"\n\n{situation}\n"
-        + "\n".join(diff_lines)
-        + "\n\nAnalyse in 3–4 sentences. Cover:\n"
-        "1. Were the changes sensible for this session type?\n"
-        "2. Were any important movement patterns dropped or doubled up?\n"
-        "3. Does this look like a personal preference or avoidance of something necessary?\n"
-        "4. Should these changes be considered going forward?\n"
-        "Be direct and specific."
     )
+
+    if diff_lines:
+        prompt += f"\n\n{situation}\n" + "\n".join(diff_lines)
+        prompt += (
+            "\n\nOn the diff, cover briefly:\n"
+            "1. Were the changes sensible?\n"
+            "2. Any important movement patterns dropped or doubled?\n"
+            "3. Preference or avoidance of something necessary?\n"
+        )
+    else:
+        prompt += f"\n\nThe athlete completed the session as prescribed ({session_type})."
+
+    if notes:
+        notes_text = "\n".join(f"  [{n['source']}] {n['note']}" for n in notes)
+        prompt += (
+            f"\n\nAthlete notes from this session:\n{notes_text}\n\n"
+            "Respond in plain prose (no markdown headers, no bullet tables). "
+            "Cover the diff briefly, then address each note in 1-2 sentences: "
+            "what it implies for future sessions and whether anything should change in how this exercise is prescribed. "
+            "Flag anything critical. 150-200 words total."
+        )
+    else:
+        prompt += "\n\nBe direct and specific. Plain prose, 3-4 sentences."
 
     try:
         resp = requests.post(
@@ -301,7 +344,7 @@ def analyze_diff(diff: dict, prescription: dict, session_type: str,
             },
             json={
                 "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 350,
+                "max_tokens": 900,
                 "messages": [{"role": "user", "content": prompt}],
             },
             timeout=30,
