@@ -1,6 +1,10 @@
 .env/
+.env
+secrets.env
 __pycache__/
 *.pyc
 *.pyo
 gym.db
 *.log
+app_state.json
+recurring_activities.json

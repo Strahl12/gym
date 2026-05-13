@@ -1,14 +1,42 @@
 """
 Central config. Edit this file to update goals, lift definitions, and API keys.
 All API keys should be set as environment variables — never hardcoded.
+
+Secrets can also be placed in a `secrets.env` file alongside this module
+(KEY=VALUE per line). It loads automatically and never overrides anything
+already set in the real environment.
 """
 import os
+from pathlib import Path
 from dataclasses import dataclass, field
+
+
+def _load_dotenv(path: Path) -> None:
+    """Tiny .env loader — no external dep. Real env vars take precedence."""
+    if not path.is_file():
+        return
+    for raw in path.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):]
+        if "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        key = key.strip()
+        val = val.strip()
+        if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+            val = val[1:-1]
+        os.environ.setdefault(key, val)
+
+
+_load_dotenv(Path(__file__).parent / "secrets.env")
 
 # ── Paths ──────────────────────────────────────────────────────────────────
 DB_PATH = "/Users/johnparry/projects/projects/personal/gym/gym.db"
 
-# ── API Keys (set as env vars) ─────────────────────────────────────────────
+# ── API Keys (set as env vars or in secrets.env) ───────────────────────────
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 HEVY_API_KEY      = os.environ.get("HEVY_API_KEY", "")
 WITHINGS_ACCESS_TOKEN  = os.environ.get("WITHINGS_ACCESS_TOKEN", "")

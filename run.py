@@ -20,6 +20,7 @@ Usage:
   python run.py --force                # override rest day and generate anyway
   python run.py --creator-recs         # include creator recommendations in prescription
   python run.py --exclude "Calf Raise (Barbell)"  # add exercise to permanent exclusion list
+  python run.py --withings-auth        # one-time OAuth setup for Withings
 """
 import sys
 import json
@@ -268,6 +269,11 @@ if __name__ == "__main__":
         idx = sys.argv.index("--set-focus")
         if idx + 2 < len(sys.argv):
             set_focus = (sys.argv[idx + 1], sys.argv[idx + 2])
+
+    if "--withings-auth" in sys.argv:
+        from withings import start_oauth
+        start_oauth()
+        sys.exit(0)
 
     if "--exclude" in sys.argv:
         idx  = sys.argv.index("--exclude")
