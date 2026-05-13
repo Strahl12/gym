@@ -36,6 +36,7 @@ def _actual_sets(session_date: str) -> dict[str, dict]:
         FROM sets
         WHERE date = ? AND is_warmup = 0
         GROUP BY exercise
+        ORDER BY MIN(set_number)
     """, (session_date,)).fetchall()
     con.close()
     return {r["exercise"]: dict(r) for r in rows}
@@ -199,29 +200,57 @@ def run_feedback_for_date(session_date: str) -> Optional[dict]:
     con = _con()
     if actual_session_type:
         row = con.execute("""
-            SELECT id, session_type, exercises_json
+            SELECT id, session_type, exercises_json, reasoning
             FROM prescribed_sessions
             WHERE date = ? AND posted_to_hevy = 1
             ORDER BY CASE WHEN session_type = ? THEN 0 ELSE 1 END, id DESC LIMIT 1
         """, (session_date, actual_session_type)).fetchone()
     else:
         row = con.execute("""
-            SELECT id, session_type, exercises_json
+            SELECT id, session_type, exercises_json, reasoning
             FROM prescribed_sessions
             WHERE date = ? AND posted_to_hevy = 1
             ORDER BY id DESC LIMIT 1
         """, (session_date,)).fetchone()
-    con.close()
 
     if not row:
+        con.close()
         return None
 
     prescription_id = row["id"]
     session_type    = row["session_type"]
     prescription    = {"exercises": json.loads(row["exercises_json"])}
+    reasoning       = row["reasoning"] or ""
+
+    # Gap before this session (helps reviewer judge re-entry / illness context)
+    prior = con.execute("""
+        SELECT MAX(date) AS d FROM sets
+        WHERE date < ? AND session_type != 'unknown'
+    """, (actual_date,)).fetchone()
+    if prior and prior["d"]:
+        days_since_prior = (_d.fromisoformat(actual_date) - _d.fromisoformat(prior["d"])).days
+    else:
+        days_since_prior = None
+
+    # Notes from the 7 days leading up to and including the session
+    notes_window_start = (_d.fromisoformat(actual_date) - timedelta(days=7)).isoformat()
+    surrounding_notes = con.execute("""
+        SELECT date, note, source FROM session_notes
+        WHERE date >= ? AND date <= ?
+          AND source NOT IN ('completed_review', 'pre_session_review')
+        ORDER BY date DESC
+    """, (notes_window_start, actual_date)).fetchall()
+    surrounding_notes = [dict(n) for n in surrounding_notes]
+    con.close()
 
     notes = _get_session_notes(actual_date)
     handle_debug_notes(actual_date)
+
+    review_ctx = {
+        "reasoning":        reasoning,
+        "days_since_prior": days_since_prior,
+        "surrounding_notes": surrounding_notes,
+    }
 
     # If already stored, print diff + regenerate review if missing or notes have arrived since
     con3 = _con()
@@ -241,7 +270,8 @@ def run_feedback_for_date(session_date: str) -> Optional[dict]:
             print(f"[feedback] Review:\n{stored_review}")
         elif not diff_is_empty(stored_diff) or notes:
             analysis = analyze_diff(stored_diff, prescription, session_type,
-                                    context="completed", notes=notes)
+                                    context="completed", notes=notes,
+                                    review_ctx=review_ctx)
             if analysis:
                 print(f"[feedback] Review:\n{analysis}")
                 _store_review(actual_date, analysis, "completed_review")
@@ -255,7 +285,8 @@ def run_feedback_for_date(session_date: str) -> Optional[dict]:
         _print_diff(session_date, label, diff)
     if not diff_is_empty(diff) or notes:
         analysis = analyze_diff(diff, prescription, session_type,
-                                context="completed", notes=notes)
+                                context="completed", notes=notes,
+                                review_ctx=review_ctx)
         if analysis:
             print(f"[feedback] Review:\n{analysis}")
             _store_review(actual_date, analysis, "completed_review")
@@ -290,7 +321,8 @@ def _print_diff(session_date: str, session_type: str, diff: dict) -> None:
 
 
 def analyze_diff(diff: dict, prescription: dict, session_type: str,
-                 context: str = "pre_session", notes: list[dict] | None = None) -> str:
+                 context: str = "pre_session", notes: list[dict] | None = None,
+                 review_ctx: dict | None = None) -> str:
     """
     Call Claude Haiku to assess a workout diff and any session notes.
     context: "pre_session" (user edited before starting) | "completed" (what was actually done).
@@ -313,14 +345,36 @@ def analyze_diff(diff: dict, prescription: dict, session_type: str,
             f"  REPS: {r['exercise']} {r['prescribed_reps']}→{r['actual_reps']}")
 
     if context == "pre_session":
-        situation = f"Before starting, the athlete edited the {session_type} routine:"
+        situation = f"Before starting, the athlete edited the {session_type} routine. Only changes are listed below; anything not listed was left as prescribed:"
     else:
-        situation = f"This is what the athlete actually completed vs the {session_type} prescription:"
+        situation = (f"The athlete completed the {session_type} session. ONLY DEVIATIONS from the "
+                     f"prescription are listed below — every prescribed exercise NOT listed below "
+                     f"was completed exactly as prescribed. Do not infer skipped exercises from absence:")
 
     prompt = (
         f"A strength AI prescribed this {session_type} session:\n"
         + "\n".join(f"  {n}" for n in prescribed_names)
     )
+
+    if review_ctx:
+        ctx_lines = []
+        dsp = review_ctx.get("days_since_prior")
+        if dsp is not None:
+            ctx_lines.append(f"Gap before this session: {dsp} days since prior gym session.")
+        rs = review_ctx.get("reasoning") or ""
+        if rs:
+            ctx_lines.append(f"Prescription reasoning: {rs}")
+        sn = review_ctx.get("surrounding_notes") or []
+        if sn:
+            ctx_lines.append("Notes from the 7 days leading up to this session:")
+            for n in sn:
+                ctx_lines.append(f"  {n['date']} [{n['source']}] {n['note']}")
+        if ctx_lines:
+            prompt += (
+                "\n\nIMPORTANT — context for judging this session (do NOT critique as a normal session "
+                "if any of this indicates re-entry, illness, deload, or fatigue management):\n"
+                + "\n".join(ctx_lines)
+            )
 
     if diff_lines:
         prompt += f"\n\n{situation}\n" + "\n".join(diff_lines)
@@ -331,7 +385,7 @@ def analyze_diff(diff: dict, prescription: dict, session_type: str,
             "3. Preference or avoidance of something necessary?\n"
         )
     else:
-        prompt += f"\n\nThe athlete completed the session as prescribed ({session_type})."
+        prompt += f"\n\nThe athlete completed every prescribed exercise with no deviations ({session_type})."
 
     if notes:
         notes_text = "\n".join(f"  [{n['source']}] {n['note']}" for n in notes)
@@ -389,7 +443,7 @@ def diff_hevy_template_vs_prescription(routine_id: str, today_iso: str) -> Optio
     # Compare against the last prescription that was actually pushed to Hevy —
     # that's what the routine currently contains (before any user edits).
     row = con.execute("""
-        SELECT id, session_type, exercises_json FROM prescribed_sessions
+        SELECT id, date, session_type, exercises_json FROM prescribed_sessions
         WHERE posted_to_hevy = 1
         ORDER BY date DESC, id DESC LIMIT 1
     """).fetchone()
