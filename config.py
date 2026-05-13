@@ -45,11 +45,11 @@ WITHINGS_CLIENT_ID     = os.environ.get("WITHINGS_CLIENT_ID", "")
 WITHINGS_CLIENT_SECRET = os.environ.get("WITHINGS_CLIENT_SECRET", "")
 
 # ── Training mode ──────────────────────────────────────────────────────────
-# Options: "strength" | "hypertrophy" | "powerlifting"
-#   strength:     4–6 reps, 80–90% 1RM, 2–4 min rest, linear progression
-#   hypertrophy:  8–12 reps, 65–80% 1RM, 60–90s rest, volume focus
-#   powerlifting: 1–5 reps, 85–95% 1RM, 4–6 min rest on main lifts, peaking focus
-TRAINING_MODE = "strength"
+# TRAINING_MODE: "strength" | "hypertrophy" | "mixed" — decoupled from GOAL_MODE.
+#   strength:    1–6 rep range, load 80–95% 1RM, longer rests, lower volume
+#   hypertrophy: 6–12 rep range, load 65–80% 1RM, moderate rests, higher volume
+#   mixed:       blend — main lifts in strength range, accessories in hypertrophy range
+TRAINING_MODE = "hypertrophy"
 
 # ── Training goals ─────────────────────────────────────────────────────────
 GOAL = """
@@ -64,9 +64,9 @@ All weights in kg.
 #             avoid excessive fatigue; don't chase PRs on accessories
 #   bulk:     caloric surplus — push accessory volume, progress aggressively
 #   maintain: balanced — steady progression, standard volume
-GOAL_MODE = "maintain"
-TARGET_WEIGHT_KG: float | None = None          # goal bodyweight
-WEIGHT_RATE_KG_PER_WEEK: float | None = None   # negative = losing, positive = gaining
+GOAL_MODE = "bulk"
+TARGET_WEIGHT_KG: float | None = 95.0          # goal bodyweight
+WEIGHT_RATE_KG_PER_WEEK: float | None = 0.25   # lean-bulk pace (~1kg/month)
 
 # ── Session duration (weekday vs weekend) ──────────────────────────────────
 # Weekday sessions are shorter — same exercise count, tighter rest periods.

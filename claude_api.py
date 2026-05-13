@@ -17,7 +17,13 @@ _STATE_FILE = Path(config.DB_PATH).parent / "app_state.json"
 
 
 def _load_state() -> dict:
-    return json.loads(_STATE_FILE.read_text()) if _STATE_FILE.exists() else {}
+    if not _STATE_FILE.exists():
+        return {}
+    try:
+        return json.loads(_STATE_FILE.read_text())
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"[claude_api] Could not read {_STATE_FILE.name} ({e}); resetting state.")
+        return {}
 
 
 def _save_state(state: dict) -> None:
@@ -89,7 +95,7 @@ def check_mode_change(context: dict) -> Optional[str]:
 
     return directive or None
 
-CLAUDE_MODEL   = "claude-sonnet-4-20250514"
+CLAUDE_MODEL   = "claude-sonnet-4-6"
 ANTHROPIC_URL  = "https://api.anthropic.com/v1/messages"
 MAX_TOKENS     = 2000
 
@@ -319,7 +325,11 @@ def _build_system_prompt(block_directive: Optional[str] = None) -> str:
 
     # ── Progression block ──────────────────────────────────────────────────
     pr_lines = [
-        f"no_plateau: same weight; +{pr['increase_kg']}kg if all sets cleanly hit top of rep range",
+        f"no_plateau — gate on last_set_rpe (RPE of the final working set) from most recent session:",
+        f"  last_set_rpe ≤7 (capacity remaining): +{pr['increase_kg']}kg",
+        f"  last_set_rpe 8–9 (optimal stimulus): same weight",
+        f"  last_set_rpe ≥9.5 or reps cut short: −{pr['increase_kg']}kg",
+        f"  no RPE data: +{pr['increase_kg']}kg if all sets hit top of rep range; else same weight",
         f"plateau (≥{config.PLATEAU_SESSIONS} sessions flat): reset to {int(pr['plateau_reset_pct']*100)}% working weight rounded down to nearest {config.EQUIPMENT_INCREMENTS['barbell']}kg, reps {pr['plateau_reps'][0]}–{pr['plateau_reps'][1]}, note in reasoning",
         "bodyweight lifts: apply rules to added weight only; prescribe pure BW only if no added-weight history",
         f"max increase: {pr['max_increase_kg']}kg per session hard cap",
@@ -354,6 +364,16 @@ Never assign the same exercise to two slots. Compounds always precede isolations
 ## Progression
 {chr(10).join("  " + l for l in pr_lines)}
 
+## Re-entry override (global, applies to ALL lifts this session)
+If the user message contains a "Re-entry status" section with a rule, that rule OVERRIDES the
+per-lift progression above for THIS session — apply the global re-entry adjustment first, then
+resume normal progression rules from the next session onward. Note the re-entry in reasoning.
+
+## Recovery ramp override (global, applies to ALL lifts this session)
+If the user message contains a "Recovery state: RAMPING" section, the ramp rule OVERRIDES the
+bulk-mode volume increase: keep accessory sets at 3 (not 4–5). RPE cap 8 on all working sets.
+No progression on main lifts. Note the ramping state in reasoning.
+
 ## Session timing
 Add slots until you reach the target duration; do not exceed by more than 10 min.
 {chr(10).join(timing_lines)}
@@ -364,15 +384,22 @@ Rest seconds per exercise type are provided in the user message — set rest_sec
   bulk:     push accessory sets to 4–5; progress aggressively
   maintain: standard volume
 
+## Training mode (rep range bias)
+  strength:    main lifts at BOTTOM of rep range (1–6); accessories 4–8. Prioritise load over volume.
+  hypertrophy: main lifts at TOP of rep range or extend to 12; accessories 8–12. Prioritise volume/TUT.
+  mixed:       main lifts at MIDDLE of rep range (5–8); accessories 6–10.
+The user message will state the active training mode — apply it to ALL rep prescriptions this session.
+
 ## Muscle clash rule
 FIXED slots are always included regardless of last session. For PICK slots only: skip any
 exercise whose primary muscle was already trained last session.
 
-## RPE interpretation
-If RPE data is shown in the session history, use it to calibrate load:
-- RPE ≤7: athlete had capacity remaining — consider progressing weight
-- RPE 8-9: appropriate training stimulus — maintain or small increment
-- RPE 10 / no more reps possible: reduce volume or weight next session
+## RPE interpretation (accessories and general calibration)
+Main lift progression is gated by last_set_rpe per the rules above.
+For accessories, apply the same logic directionally:
+- RPE ≤7: capacity remaining — consider progressing weight or reps
+- RPE 8–9: appropriate stimulus — maintain or small increment
+- RPE ≥9.5 / reps cut short: reduce load next session
 
 ## Exercise selection
 - Names VERBATIM from the priority list — character-for-character. Names not in the list will be silently dropped.
@@ -382,6 +409,11 @@ If RPE data is shown in the session history, use it to calibrate load:
 {skill_section}
 
 ## Output — return ONLY valid JSON
+If the user message contains a Fatigue section with verdict "rest" OR signals indicate excessive fatigue
+(very high last-set RPE combined with negative e1RM slope, etc.), return INSTEAD:
+{{ "rest_recommended": true, "reason": "<2-3 sentences citing the specific signals>" }}
+Otherwise return the workout schema below.
+
 {{
   "session_type": "push|pull|legs|arms",
   "title": "short descriptive title",
@@ -477,10 +509,37 @@ def _build_user_message(context: dict) -> str:
             bw_parts.append(f"muscle {context['muscle_mass_kg']}kg")
         if context.get("body_fat_pct"):
             bw_parts.append(f"BF {context['body_fat_pct']}%")
+        if context.get("bodyweight_avg_7d"):
+            bw_parts.append(f"7d avg {context['bodyweight_avg_7d']}kg")
         lines.append(f"Bodyweight: {' | '.join(bw_parts)}")
     if bw_trend is not None:
         direction = "gaining" if bw_trend > 0 else "losing"
-        lines.append(f"Weight trend: {direction} {abs(bw_trend):.2f}kg/week")
+        lines.append(f"Weight trend (30d): {direction} {abs(bw_trend):.2f}kg/week")
+
+    comp = context.get("body_composition_trends") or {}
+    muscle_dt = comp.get("muscle_kg_per_week")
+    fat_dt    = comp.get("body_fat_pct_per_week")
+    if muscle_dt is not None or fat_dt is not None:
+        parts = []
+        if muscle_dt is not None:
+            parts.append(f"muscle {muscle_dt:+.2f}kg/wk")
+        if fat_dt is not None:
+            parts.append(f"BF {fat_dt:+.2f}%/wk")
+        lines.append(f"Composition trend (30d): {' | '.join(parts)}")
+
+    target = config.TARGET_WEIGHT_KG
+    if target and bw:
+        delta = round(target - bw, 1)
+        if abs(delta) > 0.1:
+            verb = "to gain" if delta > 0 else "to lose"
+            rate = config.WEIGHT_RATE_KG_PER_WEEK
+            eta = f", ~{abs(delta / rate):.0f}wk at {rate:+.2f}kg/wk pace" if rate else ""
+            lines.append(f"Target: {target}kg ({abs(delta)}kg {verb}{eta})")
+
+    bw_hist = context.get("bodyweight_history") or []
+    if len(bw_hist) >= 3:
+        recent = ", ".join(f"{h['date'][5:]}={h['weight_kg']}" for h in bw_hist[:7])
+        lines.append(f"Recent weights (last 7): {recent}")
 
     # Body composition goal
     goal_mode = config.GOAL_MODE
@@ -492,6 +551,52 @@ def _build_user_message(context: dict) -> str:
             sign = "+" if config.WEIGHT_RATE_KG_PER_WEEK > 0 else ""
             comp_parts.append(f"rate {sign}{config.WEIGHT_RATE_KG_PER_WEEK}kg/wk")
         lines.append("Body composition: " + " | ".join(comp_parts))
+
+    tm = getattr(config, "TRAINING_MODE", "mixed")
+    tm_guide = {
+        "strength":    "Use BOTTOM of each main lift's rep range. Accessories 4-8 reps. Load priority.",
+        "hypertrophy": "Use TOP of each main lift's rep range (extend to 12 if range permits). Accessories 8-12 reps. Volume priority.",
+        "mixed":       "Use MIDDLE of each main lift's rep range (5-8). Accessories 6-10 reps.",
+    }.get(tm, "Use middle of each main lift's rep range.")
+    lines.append(f"\n## Training mode: {tm}\n  {tm_guide}")
+
+    rec = context.get("recovery") or {}
+    if rec.get("state") == "ramping":
+        lines.append(
+            f"\n## Recovery state: RAMPING (post-{rec.get('reason', 'break')})"
+            f"\n  Clean sessions back: {rec.get('clean_streak', 0)}/{rec.get('clean_needed', 2)}"
+            f"\n  Rule: RPE cap 8 on all working sets. Bulk volume increase SUSPENDED (cap accessories at 3 sets)."
+            f"\n  Repeat last weight on main lifts unless re-entry rule below dictates a deload."
+            f"\n  Exit condition: 2 consecutive sessions where first_set_rpe ≤7.5 AND last_set_rpe ≤8.5."
+        )
+
+    dsa = context.get("days_since_any_session")
+    if dsa is not None:
+        if dsa <= 3:
+            re_entry = "normal — no re-entry adjustment needed"
+        elif dsa <= 7:
+            re_entry = "REPEAT last weight (no progression). RPE cap 8 on all sets. Full warm-up."
+        elif dsa <= 14:
+            re_entry = "DELOAD −5% on all working weights. Rebuild over 2 sessions before resuming progression."
+        else:
+            re_entry = "DELOAD −10% on all working weights. Rebuild over 3 sessions before resuming progression."
+        lines.append(f"\n## Re-entry status\n  Days since last session: {dsa}\n  Rule: {re_entry}")
+
+    fat = context.get("fatigue") or {}
+    if fat:
+        fc = fat.get("components", {})
+        lines.append("\n## Fatigue signals")
+        lines.append(f"  Score: {fat.get('score')}/100  ({fat.get('verdict')})")
+        lines.append(f"  Last-session avg last-set RPE: {fc.get('last_set_rpe_avg')}")
+        lines.append(f"  Focus-lift e1RM 14d slope: {fc.get('e1rm_slope_kg_per_week_14d')}kg/wk")
+        lines.append(f"  Consecutive training days: {fc.get('consecutive_training_days')}/{config.MAX_CONSECUTIVE_DAYS}")
+        lines.append(f"  Bodyweight 14d slope: {fc.get('bodyweight_slope_kg_per_week_14d')}kg/wk (goal: {config.GOAL_MODE})")
+        if fc.get("notes_hits"):
+            lines.append(f"  Note flags: {'; '.join(fc['notes_hits'])}")
+        lines.append("  If verdict is 'rest' OR you judge accumulated fatigue is excessive, return"
+                     ' {"rest_recommended": true, "reason": "..."} INSTEAD of a workout.')
+        lines.append("  If verdict is 'caution', you MAY still prescribe a deload session (lower volume,"
+                     " RPE cap 7) — note this in the reasoning.")
 
     lines.append("\n## Main lift status")
 
@@ -513,7 +618,14 @@ def _build_user_message(context: dict) -> str:
             lines.append("  Recent sessions (newest first):")
             for h in history[:5]:
                 e1rm_str = f"e1RM={h['best_e1rm']}kg" if h.get('best_e1rm') else "bodyweight"
-                rpe_str  = f"  RPE {h['avg_rpe']}" if h.get('avg_rpe') else ""
+                if h.get('last_set_rpe') is not None:
+                    rpe_str = f"  last-set RPE {h['last_set_rpe']}"
+                    if h.get('avg_rpe') is not None:
+                        rpe_str += f" (avg {h['avg_rpe']})"
+                elif h.get('avg_rpe') is not None:
+                    rpe_str = f"  RPE avg {h['avg_rpe']}"
+                else:
+                    rpe_str = ""
                 lines.append(f"    {h['date']}: {h['top_weight']}kg × {h['max_reps']} reps — {e1rm_str}{rpe_str}")
         else:
             lines.append("  No history — treat as first session: start conservative (≈60% estimated 1RM, 4×8), no warm-up sets, note in reasoning.")
@@ -526,7 +638,14 @@ def _build_user_message(context: dict) -> str:
             for ex in session["exercises"]:
                 w = ex["top_weight_kg"]
                 weight_str = f"{w}kg × " if w else "BW × "
-                rpe_str = f"  RPE {ex['avg_rpe']}" if ex.get("avg_rpe") else ""
+                if ex.get("last_set_rpe") is not None:
+                    rpe_str = f"  RPE {ex['last_set_rpe']}"
+                    if ex.get("avg_rpe") is not None:
+                        rpe_str += f" (avg {ex['avg_rpe']})"
+                elif ex.get("avg_rpe") is not None:
+                    rpe_str = f"  RPE avg {ex['avg_rpe']}"
+                else:
+                    rpe_str = ""
                 lines.append(f"    {ex['exercise']}: {weight_str}{ex['avg_reps']} reps × {ex['sets']} sets{rpe_str}")
 
     priorities = context.get("exercise_priorities", [])

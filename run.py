@@ -71,9 +71,17 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
     print("\n===== SYNC =====")
     try:
         from withings import sync_to_db
-        sync_to_db(days=7)
+        sync_to_db(days=30)
     except Exception as e:
-        log.warning(f"Withings sync failed (continuing without bodyweight): {e}")
+        msg = str(e).lower()
+        if "refresh_token" in msg or "invalid_grant" in msg or "unauthorized" in msg:
+            print("\n" + "!" * 60)
+            print("⚠️  WITHINGS AUTH EXPIRED — bodyweight data will be stale")
+            print("    Fix: python run.py --withings-auth")
+            print("!" * 60 + "\n")
+            log.error(f"Withings auth failure: {e}")
+        else:
+            log.warning(f"Withings sync failed (continuing without bodyweight): {e}")
 
     # ── 1b. Sync Hevy workouts → sets table ────────────────────────────────
     try:
@@ -139,9 +147,68 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
     log.info(f"Session type today: {stype} (last {stype}: {days_str} ago)")
     log.info(f"Focus phases: {phase_summary()}")
     log.info(f"Last session: {last_str}  |  Recent: {history}")
-    log.info(f"Bodyweight: {ctx.get('bodyweight_kg')}kg")
     log.info(f"Sessions last 7 days: {ctx['sessions_last_7_days']}")
 
+    _dsa = ctx.get("days_since_any_session")
+    if _dsa is not None and _dsa >= 4:
+        if   _dsa <=  7: _re = "repeat last weight, RPE cap 8"
+        elif _dsa <= 14: _re = "−5% deload, rebuild over 2 sessions"
+        else:            _re = "−10% deload, rebuild over 3 sessions"
+        log.warning(f"Re-entry: {_dsa} days since last session → {_re}")
+
+    print("\n===== MONITORING =====")
+    print("\n--- STATS ---")
+    _ch = ctx.get("composition_history") or {}
+    _weight_latest = (_ch.get("weight") or {}).get("latest") or {}
+    if _weight_latest.get("date"):
+        _wage = (date.today() - date.fromisoformat(_weight_latest["date"])).days
+        if _wage >= 3:
+            log.warning(f"⚠️  Latest weigh-in is {_wage}d old ({_weight_latest['date']}) — "
+                        f"check Withings sync (python run.py --withings-auth)")
+    def _line(label: str, key: str, unit: str = "kg") -> str:
+        entry = _ch.get(key) or {}
+        cur, prev = entry.get("latest"), entry.get("previous")
+        if not cur: return ""
+        line = f"{label}: {cur['value']}{unit}  (on {cur['date']})"
+        if prev:
+            delta = cur["value"] - prev["value"]
+            line += f"  | prev {prev['value']}{unit} on {prev['date']}  ({delta:+.2f}{unit})"
+        return line
+    bw_line = _line("Bodyweight", "weight")
+    if bw_line:
+        log.info(f"{bw_line}  | 7d avg: {ctx.get('bodyweight_avg_7d')}kg")
+    mm_line = _line("Muscle mass", "muscle")
+    if mm_line:
+        log.info(mm_line)
+    bf_line = _line("Body fat",   "body_fat", unit="%")
+    if bf_line:
+        log.info(bf_line)
+    _comp = ctx.get("body_composition_trends") or {}
+    def _arrow(v):
+        if v is None: return "?"
+        if v >  0.05: return "↑"
+        if v < -0.05: return "↓"
+        return "→"
+    def _fmt(v, unit="kg"):
+        return f"{v:+.2f}{unit}/wk" if v is not None else "no data"
+    log.info(f"  {_arrow(_comp.get('weight_kg_per_week'))} Weight: {_fmt(_comp.get('weight_kg_per_week'))}  (target {_cfg.TARGET_WEIGHT_KG}kg)")
+    log.info(f"  {_arrow(_comp.get('muscle_kg_per_week'))} Muscle: {_fmt(_comp.get('muscle_kg_per_week'))}")
+    bf = _comp.get('body_fat_pct_per_week')
+    log.info(f"  {_arrow(-bf if bf is not None else None)} Body fat: {_fmt(bf, '%')}")
+
+    print("\n--- FATIGUE ---")
+    fat = ctx.get("fatigue") or {}
+    fat_emoji = {"rest": "🔴", "caution": "⚠️", "ok": "🟢"}.get(fat.get("verdict"), "?")
+    log.info(f"  {fat_emoji} Score: {fat.get('score')}/100  ({fat.get('verdict')})")
+    _fc = fat.get("components", {})
+    log.info(f"     last-set RPE avg: {_fc.get('last_set_rpe_avg')}  (+{_fc.get('rpe_points')})")
+    log.info(f"     e1RM 14d slope:   {_fc.get('e1rm_slope_kg_per_week_14d')}kg/wk  (+{_fc.get('e1rm_slope_points')})")
+    log.info(f"     consecutive days: {_fc.get('consecutive_training_days')}/{_cfg.MAX_CONSECUTIVE_DAYS}  (+{_fc.get('consecutive_points')})")
+    log.info(f"     bodyweight 14d:   {_fc.get('bodyweight_slope_kg_per_week_14d')}kg/wk  (+{_fc.get('bodyweight_points')})")
+    if _fc.get("notes_hits"):
+        log.info(f"     note flags:       {', '.join(_fc['notes_hits'])}  (+{_fc.get('notes_points')})")
+
+    print("\n--- TRACKED LIFTS ---")
     from context import e1rm_trends
     _SHORT = {
         "Incline Barbell Bench Press": "Incline Bench",
@@ -179,6 +246,16 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
 
     if not workout:
         log.error("Claude returned no workout. Aborting.")
+        return
+
+    if workout.get("rest_recommended"):
+        if force:
+            log.warning(f"Claude recommended rest but --force was set. Reason: {workout.get('reason')}")
+            log.warning("Rest recommendation ignored. Re-run without --force to honour it.")
+            return
+        print("\n💤  REST DAY (Claude-recommended)  💤")
+        print(f"   {workout.get('reason')}")
+        print("   Run with --force to override.\n")
         return
 
     log.info(f"Workout: {workout.get('title')}")

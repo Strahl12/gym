@@ -28,17 +28,29 @@ def lift_history(exercise: str, n: int = 8) -> list[dict]:
     """Last n working sets (non-warmup) grouped by session, most recent first."""
     con = _con()
     rows = con.execute("""
-        SELECT date,
-               MAX(weight_kg)              AS top_weight,
-               MAX(reps)                   AS max_reps,
-               ROUND(MAX(e1rm), 1)         AS best_e1rm,
-               ROUND(AVG(CASE WHEN rpe IS NOT NULL THEN rpe END), 1) AS avg_rpe
-        FROM sets
-        WHERE exercise = ?
-          AND is_warmup = 0
-          AND e1rm IS NOT NULL
-        GROUP BY date
-        ORDER BY date DESC
+        SELECT s1.date,
+               MAX(s1.weight_kg)              AS top_weight,
+               MAX(s1.reps)                   AS max_reps,
+               ROUND(MAX(s1.e1rm), 1)         AS best_e1rm,
+               ROUND(AVG(CASE WHEN s1.rpe IS NOT NULL THEN s1.rpe END), 1) AS avg_rpe,
+               (SELECT s2.rpe FROM sets s2
+                WHERE s2.exercise = s1.exercise
+                  AND s2.date     = s1.date
+                  AND s2.is_warmup = 0
+                  AND s2.rpe IS NOT NULL
+                ORDER BY s2.set_number DESC LIMIT 1) AS last_set_rpe,
+               (SELECT s3.rpe FROM sets s3
+                WHERE s3.exercise = s1.exercise
+                  AND s3.date     = s1.date
+                  AND s3.is_warmup = 0
+                  AND s3.rpe IS NOT NULL
+                ORDER BY s3.set_number ASC LIMIT 1) AS first_set_rpe
+        FROM sets s1
+        WHERE s1.exercise = ?
+          AND s1.is_warmup = 0
+          AND s1.e1rm IS NOT NULL
+        GROUP BY s1.date
+        ORDER BY s1.date DESC
         LIMIT ?
     """, (exercise, n)).fetchall()
     con.close()
@@ -84,6 +96,18 @@ def session_balance(days: int = 28) -> dict[str, int]:
     for r in rows:
         base[r["session_type"]] = r["n"]
     return base
+
+
+def days_since_any_session() -> Optional[int]:
+    """Days since the most recent session of any type (None if never trained)."""
+    con = _con()
+    row = con.execute(
+        "SELECT MAX(date) AS d FROM sets WHERE session_type != 'unknown'"
+    ).fetchone()
+    con.close()
+    if not row or not row["d"]:
+        return None
+    return (date.today() - date.fromisoformat(row["d"])).days
 
 
 def consecutive_training_days() -> int:
@@ -182,25 +206,93 @@ def latest_bodyweight() -> Optional[dict]:
     }
 
 
-def bodyweight_trend(days: int = 30) -> Optional[float]:
-    """Simple linear trend in kg/week over last N days. Negative = losing weight."""
+def composition_history() -> dict:
+    """
+    Latest + previous non-null values per composition column, with dates.
+    Independent per-column because many weigh-ins lack muscle/body-fat data.
+    Returns {weight: {latest: {date, value}, previous: {date, value}}, muscle: {...}, body_fat: {...}}.
+    """
+    con = _con()
+    def _at(col: str, offset: int) -> Optional[dict]:
+        row = con.execute(
+            f"SELECT date, {col} AS v FROM bodyweight "
+            f"WHERE {col} IS NOT NULL ORDER BY date DESC LIMIT 1 OFFSET ?",
+            (offset,)
+        ).fetchone()
+        return {"date": row["date"], "value": row["v"]} if row else None
+    result = {
+        col: {"latest": _at(sql, 0), "previous": _at(sql, 1)}
+        for col, sql in (("weight", "weight_kg"),
+                         ("muscle", "muscle_mass_kg"),
+                         ("body_fat", "body_fat_pct"))
+    }
+    con.close()
+    return result
+
+
+def recent_bodyweight(days: int = 14) -> list[dict]:
+    """Return [{date, weight_kg}] for the last N days (newest first)."""
     since = (date.today() - timedelta(days=days)).isoformat()
     con = _con()
     rows = con.execute("""
         SELECT date, weight_kg FROM bodyweight
-        WHERE date >= ? ORDER BY date
+        WHERE date >= ? AND weight_kg IS NOT NULL
+        ORDER BY date DESC
     """, (since,)).fetchall()
+    con.close()
+    return [{"date": r["date"], "weight_kg": r["weight_kg"]} for r in rows]
+
+
+def bodyweight_avg(days: int = 7) -> Optional[float]:
+    """Average bodyweight over the last N days. Smooths daily noise."""
+    since = (date.today() - timedelta(days=days)).isoformat()
+    con = _con()
+    row = con.execute("""
+        SELECT ROUND(AVG(weight_kg), 2) AS avg_kg
+        FROM bodyweight WHERE date >= ? AND weight_kg IS NOT NULL
+    """, (since,)).fetchone()
+    con.close()
+    return row["avg_kg"] if row and row["avg_kg"] else None
+
+
+def bodyweight_trend(days: int = 30) -> Optional[float]:
+    """Simple linear trend in kg/week over last N days. Negative = losing weight."""
+    return _composition_slope("weight_kg", days)
+
+
+def _composition_slope(column: str, days: int) -> Optional[float]:
+    """Generic least-squares slope (per week) for a bodyweight-table column."""
+    since = (date.today() - timedelta(days=days)).isoformat()
+    con = _con()
+    rows = con.execute(
+        f"SELECT date, {column} AS v FROM bodyweight "
+        f"WHERE date >= ? AND {column} IS NOT NULL ORDER BY date",
+        (since,)
+    ).fetchall()
     con.close()
     if len(rows) < 4:
         return None
-    # Simple slope via least squares
     xs = [(date.fromisoformat(r["date"]) - date.fromisoformat(rows[0]["date"])).days
           for r in rows]
-    ys = [r["weight_kg"] for r in rows]
+    ys = [r["v"] for r in rows]
     n = len(xs)
-    sx, sy, sxy, sx2 = sum(xs), sum(ys), sum(x*y for x,y in zip(xs,ys)), sum(x**2 for x in xs)
+    sx, sy = sum(xs), sum(ys)
+    sxy, sx2 = sum(x*y for x, y in zip(xs, ys)), sum(x**2 for x in xs)
     slope_per_day = (n*sxy - sx*sy) / (n*sx2 - sx**2 + 1e-9)
-    return round(slope_per_day * 7, 3)   # kg/week
+    return round(slope_per_day * 7, 3)
+
+
+def body_composition_trends(days: int = 30) -> dict:
+    """
+    Returns trends for weight, muscle mass, and body fat % over the window.
+    All slopes are per week. Useful for judging bulk/cut quality.
+    """
+    return {
+        "weight_kg_per_week":     _composition_slope("weight_kg",      days),
+        "muscle_kg_per_week":     _composition_slope("muscle_mass_kg", days),
+        "body_fat_pct_per_week":  _composition_slope("body_fat_pct",   days),
+        "window_days":            days,
+    }
 
 
 # ── Suggested session type ─────────────────────────────────────────────────
@@ -539,15 +631,27 @@ def recent_workouts(days: int = 28) -> list[dict]:
     sessions = []
     for dr in date_rows:
         ex_rows = con.execute("""
-            SELECT exercise,
-                   MAX(weight_kg)              AS top_weight_kg,
-                   ROUND(AVG(reps), 1)         AS avg_reps,
-                   COUNT(*)                    AS sets,
-                   ROUND(AVG(CASE WHEN rpe IS NOT NULL THEN rpe END), 1) AS avg_rpe
-            FROM sets
-            WHERE date = ? AND is_warmup = 0 AND session_type != 'unknown'
-            GROUP BY exercise
-            ORDER BY MAX(set_number)
+            SELECT s1.exercise,
+                   MAX(s1.weight_kg)              AS top_weight_kg,
+                   ROUND(AVG(s1.reps), 1)         AS avg_reps,
+                   COUNT(*)                        AS sets,
+                   ROUND(AVG(CASE WHEN s1.rpe IS NOT NULL THEN s1.rpe END), 1) AS avg_rpe,
+                   (SELECT s2.rpe FROM sets s2
+                    WHERE s2.exercise = s1.exercise
+                      AND s2.date     = s1.date
+                      AND s2.is_warmup = 0
+                      AND s2.rpe IS NOT NULL
+                    ORDER BY s2.set_number DESC LIMIT 1) AS last_set_rpe,
+                   (SELECT s3.rpe FROM sets s3
+                    WHERE s3.exercise = s1.exercise
+                      AND s3.date     = s1.date
+                      AND s3.is_warmup = 0
+                      AND s3.rpe IS NOT NULL
+                    ORDER BY s3.set_number ASC LIMIT 1) AS first_set_rpe
+            FROM sets s1
+            WHERE s1.date = ? AND s1.is_warmup = 0 AND s1.session_type != 'unknown'
+            GROUP BY s1.exercise
+            ORDER BY MAX(s1.set_number)
         """, (dr["date"],)).fetchall()
         sessions.append({
             "date":         dr["date"],
@@ -592,6 +696,288 @@ def e1rm_trends(weeks: int = 4) -> dict[str, dict]:
             "delta_pct": delta_pct,
         }
     return result
+
+
+# ── Recovery state machine ────────────────────────────────────────────────
+
+RECOVERY_CLEAN_FIRST_RPE_MAX = 7.5
+RECOVERY_CLEAN_LAST_RPE_MAX  = 8.5
+RECOVERY_CLEAN_STREAK_NEEDED = 2
+RECOVERY_TIMEOUT_DAYS        = 14
+
+
+def recovery_state() -> dict:
+    """
+    Are we ramping back to full intensity after a break/illness?
+    Enters 'ramping' when:
+      - days_since_any_session >= 4 (a gym break), OR
+      - illness keywords in notes in last 7 days
+    Exits 'ramping' when:
+      - RECOVERY_CLEAN_STREAK_NEEDED consecutive clean sessions completed
+        (clean = first_set_rpe <= 7.5 AND last_set_rpe <= 8.5 on main lifts), OR
+      - RECOVERY_TIMEOUT_DAYS days have passed since the break end
+    """
+    illness_kws = ("ill", "sick", "flu", "cold", "fever", "unwell", "covid")
+    today = date.today()
+    cutoff = (today - timedelta(days=7)).isoformat()
+
+    con = _con()
+    rows = con.execute(
+        "SELECT date, note FROM session_notes WHERE date >= ? AND source != 'completed_review' "
+        "AND source != 'pre_session_review' ORDER BY date DESC",
+        (cutoff,),
+    ).fetchall()
+    illness_dates = []
+    for r in rows:
+        text = (r["note"] or "").lower()
+        if any(kw in text for kw in illness_kws):
+            illness_dates.append(r["date"])
+    con.close()
+
+    gap_days = days_since_any_session()
+    had_break = gap_days is not None and gap_days >= 4
+    had_illness = bool(illness_dates)
+
+    if not had_break and not had_illness:
+        return {"state": "normal", "reason": None, "clean_streak": 0,
+                "clean_needed": RECOVERY_CLEAN_STREAK_NEEDED,
+                "break_end_date": None, "days_since_break_end": None}
+
+    # Estimate break-end date: most recent session date (if any) — that's day 1 back
+    con = _con()
+    last_sess_row = con.execute(
+        "SELECT MAX(date) AS d FROM sets WHERE session_type != 'unknown'"
+    ).fetchone()
+    con.close()
+    last_sess = last_sess_row["d"] if last_sess_row else None
+    # Break ended on the day of last session (first session back); if no sessions yet, break is still ongoing
+    break_end = last_sess if had_illness or had_break else None
+
+    if break_end:
+        days_since_break_end = (today - date.fromisoformat(break_end)).days
+        if days_since_break_end >= RECOVERY_TIMEOUT_DAYS:
+            return {"state": "normal", "reason": "timeout", "clean_streak": 0,
+                    "clean_needed": RECOVERY_CLEAN_STREAK_NEEDED,
+                    "break_end_date": break_end, "days_since_break_end": days_since_break_end}
+    else:
+        days_since_break_end = None
+
+    # Count consecutive clean sessions starting from most recent (only sessions AFTER break end)
+    workouts = recent_workouts(days=21)
+    clean_streak = 0
+    main_set = set(config.MAIN_LIFTS.keys())
+    for w in workouts:
+        # Skip sessions that predate or equal the break (workouts before the break itself)
+        # We're counting from most recent backwards; stop when we hit a session that's pre-break
+        # Heuristic: only count sessions where date > (break_end - illness_window). Since break_end
+        # is the first session back, every session in `workouts` from break_end onward counts.
+        if break_end and w["date"] < break_end:
+            break
+        # Determine cleanliness on main lifts (fall back to all exercises if no main lifts logged)
+        candidates = [e for e in w["exercises"] if e["exercise"] in main_set]
+        if not candidates:
+            candidates = w["exercises"]
+        rpe_pairs = [
+            (e.get("first_set_rpe"), e.get("last_set_rpe")) for e in candidates
+            if e.get("first_set_rpe") is not None or e.get("last_set_rpe") is not None
+        ]
+        if not rpe_pairs:
+            # No RPE logged — can't judge; conservatively treat as not-clean to stay in ramp
+            break
+        # All measured RPE must be within clean bounds
+        all_clean = all(
+            (f is None or f <= RECOVERY_CLEAN_FIRST_RPE_MAX)
+            and (l is None or l <= RECOVERY_CLEAN_LAST_RPE_MAX)
+            for f, l in rpe_pairs
+        )
+        if all_clean:
+            clean_streak += 1
+        else:
+            break
+
+    if clean_streak >= RECOVERY_CLEAN_STREAK_NEEDED:
+        return {"state": "normal", "reason": "ramp_complete", "clean_streak": clean_streak,
+                "clean_needed": RECOVERY_CLEAN_STREAK_NEEDED,
+                "break_end_date": break_end, "days_since_break_end": days_since_break_end}
+
+    reason = "illness" if had_illness else "break"
+    return {"state": "ramping", "reason": reason, "clean_streak": clean_streak,
+            "clean_needed": RECOVERY_CLEAN_STREAK_NEEDED,
+            "break_end_date": break_end, "days_since_break_end": days_since_break_end}
+
+
+# ── Fatigue / rest-day signal ─────────────────────────────────────────────
+
+_FATIGUE_NOTE_KEYWORDS = (
+    "wrecked", "exhausted", "fried", "drained", "burnt out", "burned out",
+    "shattered", "destroyed", "tired", "knackered",
+    "pain", "ache", "achy", "sore", "tight", "twinge", "tweaked", "strained",
+    "no sleep", "didn't sleep", "bad sleep", "poor sleep",
+    "sick", "ill", "flu", "cold",
+)
+
+
+def _last_session_rpe_metrics(stale_after_days: int = 4) -> dict:
+    """
+    RPE metrics from the most recent session: avg first-set RPE, avg last-set RPE,
+    and avg fatigue diff (last - first). Returns Nones if session is stale (>N days old)
+    or no RPE was logged.
+    """
+    result = {"first_avg": None, "last_avg": None, "diff_avg": None}
+    workouts = recent_workouts(days=14)
+    if not workouts:
+        return result
+    last = workouts[0]
+    age_days = (date.today() - date.fromisoformat(last["date"])).days
+    if age_days > stale_after_days:
+        return result
+    main_set = set(config.MAIN_LIFTS.keys())
+    candidates = [e for e in last["exercises"] if e["exercise"] in main_set]
+    if not candidates:
+        candidates = last["exercises"]
+    firsts = [e["first_set_rpe"] for e in candidates if e.get("first_set_rpe") is not None]
+    lasts  = [e["last_set_rpe"]  for e in candidates if e.get("last_set_rpe")  is not None]
+    diffs  = [e["last_set_rpe"] - e["first_set_rpe"] for e in candidates
+              if e.get("first_set_rpe") is not None and e.get("last_set_rpe") is not None]
+    if firsts: result["first_avg"] = round(sum(firsts) / len(firsts), 2)
+    if lasts:  result["last_avg"]  = round(sum(lasts)  / len(lasts),  2)
+    if diffs:  result["diff_avg"]  = round(sum(diffs)  / len(diffs),  2)
+    return result
+
+
+def _last_session_avg_last_set_rpe(stale_after_days: int = 4) -> Optional[float]:
+    """Legacy helper retained for callers; delegates to _last_session_rpe_metrics."""
+    workouts = recent_workouts(days=14)
+    if not workouts:
+        return None
+    last = workouts[0]
+    age_days = (date.today() - date.fromisoformat(last["date"])).days
+    if age_days > stale_after_days:
+        return None
+    main_set = set(config.MAIN_LIFTS.keys())
+    rpes = [
+        e["last_set_rpe"] for e in last["exercises"]
+        if e["exercise"] in main_set and e.get("last_set_rpe") is not None
+    ]
+    if not rpes:
+        rpes = [e["last_set_rpe"] for e in last["exercises"] if e.get("last_set_rpe") is not None]
+    if not rpes:
+        return None
+    return round(sum(rpes) / len(rpes), 2)
+
+
+def _focus_lift_short_slope(days: int = 14) -> Optional[float]:
+    """e1RM kg/week slope over last `days` for the lift with most recent activity."""
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    best: tuple[Optional[float], int] = (None, 0)
+    for lift in config.MAIN_LIFTS:
+        history = [h for h in lift_history(lift, n=20) if h["date"] >= cutoff and h.get("best_e1rm")]
+        if len(history) < 2:
+            continue
+        xs = [(date.fromisoformat(h["date"]) - date.fromisoformat(history[-1]["date"])).days for h in history]
+        ys = [h["best_e1rm"] for h in history]
+        n = len(xs)
+        mx = sum(xs) / n
+        my = sum(ys) / n
+        denom = sum((x - mx) ** 2 for x in xs)
+        if denom == 0:
+            continue
+        slope_per_day = sum((xs[i] - mx) * (ys[i] - my) for i in range(n)) / denom
+        slope_per_week = slope_per_day * 7
+        if n > best[1]:
+            best = (round(slope_per_week, 2), n)
+    return best[0]
+
+
+def _notes_flag(days: int = 3) -> tuple[bool, list[str]]:
+    """True if any note in the last `days` mentions a fatigue keyword."""
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    con = _con()
+    rows = con.execute(
+        "SELECT date, note FROM session_notes WHERE date >= ? ORDER BY date DESC",
+        (cutoff,),
+    ).fetchall()
+    con.close()
+    hits = []
+    for r in rows:
+        text = (r["note"] or "").lower()
+        for kw in _FATIGUE_NOTE_KEYWORDS:
+            if kw in text:
+                hits.append(f"{r['date']}: {kw}")
+                break
+    return (bool(hits), hits)
+
+
+def fatigue_score() -> dict:
+    """
+    Composite fatigue score 0-100 with component breakdown.
+    >=60: rest strongly recommended; 40-59: caution; <40: fine.
+    """
+    components: dict = {}
+    score = 0.0
+
+    rpe_metrics = _last_session_rpe_metrics()
+    components["first_set_rpe_avg"] = rpe_metrics["first_avg"]
+    components["last_set_rpe_avg"]  = rpe_metrics["last_avg"]
+    components["rpe_diff_avg"]      = rpe_metrics["diff_avg"]
+    rpe_pts = 0.0
+    last_rpe = rpe_metrics["last_avg"]
+    if last_rpe is not None:
+        if   last_rpe >= 9.5: rpe_pts += 30
+        elif last_rpe >= 9.0: rpe_pts += 18
+        elif last_rpe >= 8.0: rpe_pts += 8
+    first_rpe = rpe_metrics["first_avg"]
+    if first_rpe is not None and first_rpe >= 8.0:
+        # First-set already high → load is too heavy / poorly recovered going in
+        rpe_pts += 10
+    diff = rpe_metrics["diff_avg"]
+    if diff is not None and diff >= 2.5:
+        # Steep fatigue accumulation under prescribed volume — poor work capacity at load
+        rpe_pts += min(10.0, (diff - 2.0) * 4)
+    rpe_pts = min(40.0, rpe_pts)
+    score += rpe_pts
+    components["rpe_points"] = round(rpe_pts, 1)
+
+    slope = _focus_lift_short_slope(days=14)
+    components["e1rm_slope_kg_per_week_14d"] = slope
+    slope_pts = 0.0
+    if slope is not None and slope < 0:
+        slope_pts = min(25.0, abs(slope) * 8)
+    score += slope_pts
+    components["e1rm_slope_points"] = round(slope_pts, 1)
+
+    consec = consecutive_training_days()
+    components["consecutive_training_days"] = consec
+    consec_pts = min(20.0, (consec / config.MAX_CONSECUTIVE_DAYS) * 20)
+    score += consec_pts
+    components["consecutive_points"] = round(consec_pts, 1)
+
+    bw_slope = _composition_slope("weight_kg", 14)
+    components["bodyweight_slope_kg_per_week_14d"] = bw_slope
+    bw_pts = 0.0
+    if bw_slope is not None and getattr(config, "GOAL_MODE", None) == "bulk" and bw_slope <= 0:
+        bw_pts = 10.0
+    elif bw_slope is not None and getattr(config, "GOAL_MODE", None) == "cut" and bw_slope >= 0:
+        bw_pts = 5.0
+    score += bw_pts
+    components["bodyweight_points"] = round(bw_pts, 1)
+
+    flagged, hits = _notes_flag(days=3)
+    components["notes_flagged"] = flagged
+    components["notes_hits"] = hits
+    notes_pts = 5.0 if flagged else 0.0
+    score += notes_pts
+    components["notes_points"] = notes_pts
+
+    score = round(score, 1)
+    if score >= 60:
+        verdict = "rest"
+    elif score >= 40:
+        verdict = "caution"
+    else:
+        verdict = "ok"
+
+    return {"score": score, "verdict": verdict, "components": components}
 
 
 # ── Movement coverage audit ───────────────────────────────────────────────
@@ -754,7 +1140,11 @@ def build_context() -> dict:
         }
 
     bw = latest_bodyweight()
+    comp_history = composition_history()
     bw_trend = bodyweight_trend()
+    bw_history = recent_bodyweight(days=14)
+    bw_avg_7 = bodyweight_avg(days=7)
+    comp_trends = body_composition_trends(days=30)
     balance = session_balance(days=28)
     recent_sessions = recent_session_dates(days=7)
     priorities = exercise_priorities(session_type)
@@ -788,7 +1178,11 @@ def build_context() -> dict:
         "bodyweight_date":    bw["date"]           if bw else None,
         "muscle_mass_kg":     bw["muscle_mass_kg"] if bw else None,
         "body_fat_pct":       bw["body_fat_pct"]   if bw else None,
+        "composition_history": comp_history,
         "bodyweight_trend_kg_per_week": bw_trend,
+        "bodyweight_avg_7d":   bw_avg_7,
+        "bodyweight_history":  bw_history,
+        "body_composition_trends": comp_trends,
         "sessions_last_7_days": len(recent_sessions),
         "session_dates_last_7_days": recent_sessions,
         "session_balance_last_28_days": balance,
@@ -804,6 +1198,9 @@ def build_context() -> dict:
         "focus_phase":                     phase,
         "creator_recommendations":         creator_recs,
         "movement_coverage":               movement_coverage_audit(days=14),
+        "fatigue":                         fatigue_score(),
+        "days_since_any_session":          days_since_any_session(),
+        "recovery":                        recovery_state(),
     }
 
 
