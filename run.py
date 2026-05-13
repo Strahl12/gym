@@ -21,6 +21,9 @@ Usage:
   python run.py --creator-recs         # include creator recommendations in prescription
   python run.py --exclude "Calf Raise (Barbell)"  # add exercise to permanent exclusion list
   python run.py --withings-auth        # one-time OAuth setup for Withings
+  python run.py --activity-list                       # list recurring non-gym activities
+  python run.py --activity-add wrestling thu          # add a recurring activity
+  python run.py --activity-remove wrestling           # remove a recurring activity
 """
 import sys
 import json
@@ -108,7 +111,21 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
     except Exception as e:
         log.warning(f"Feedback diff failed (non-critical): {e}")
 
-    # ── 1d. Rest day check ─────────────────────────────────────────────────
+    # ── 1d. Recurring activity check (e.g. wrestling Thursday) ─────────────
+    from context import recurring_activity_role
+    _role = recurring_activity_role()
+    if _role["role"] == "on":
+        act = _role["activity"]
+        if force:
+            log.warning(f"{act['name'].title()} day overridden (--force) — generating gym session anyway.")
+        else:
+            print(f"\n🤼  {act['name'].upper()} DAY  🤼")
+            print(f"   {act['duration_minutes']} min of {act['name']} — no gym session today.")
+            print(f"   Log it after with: python run.py --note \"{act['name']}: ...\"")
+            print("   Run with --force to override.\n")
+            return
+
+    # ── 1e. Rest day check ─────────────────────────────────────────────────
     from context import consecutive_training_days
     consecutive = consecutive_training_days()
     if consecutive >= _cfg.MAX_CONSECUTIVE_DAYS:
@@ -148,6 +165,13 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
     log.info(f"Focus phases: {phase_summary()}")
     log.info(f"Last session: {last_str}  |  Recent: {history}")
     log.info(f"Sessions last 7 days: {ctx['sessions_last_7_days']}")
+    _ra = ctx.get("recurring_activity") or {}
+    if _ra.get("role") == "pre":
+        _act = _ra["activity"]
+        log.warning(f"Pre-{_act['name']}: {_act['name']} in {_ra['days_until']}d → avoid {'/'.join(_act['movement_load'])}, cap RPE 7")
+    elif _ra.get("role") == "post":
+        _act = _ra["activity"]
+        log.warning(f"Post-{_act['name']}: {_act['name']} {_ra['days_since']}d ago → deload 5%, cap RPE 7, push/arms preferred")
 
     _dsa = ctx.get("days_since_any_session")
     if _dsa is not None and _dsa >= 4:
@@ -350,6 +374,51 @@ if __name__ == "__main__":
     if "--withings-auth" in sys.argv:
         from withings import start_oauth
         start_oauth()
+        sys.exit(0)
+
+    if "--activity-list" in sys.argv:
+        from activities import list_activities, weekday_name
+        items = list_activities()
+        if not items:
+            print("No recurring activities configured.")
+        else:
+            print("Recurring activities:")
+            for a in items:
+                load = ",".join(a.get("movement_load", [])) or "—"
+                print(f"  {a['name']:12s}  {weekday_name(a['weekday'])}  "
+                      f"{a.get('duration_minutes', '?')}min {a.get('intensity', '?')}  "
+                      f"load=[{load}]  pre={a.get('pre_buffer_days', 0)}d post={a.get('post_buffer_days', 0)}d")
+        sys.exit(0)
+
+    if "--activity-add" in sys.argv:
+        from activities import add_activity, TEMPLATES, weekday_name
+        idx = sys.argv.index("--activity-add")
+        if idx + 2 >= len(sys.argv):
+            print(f"Usage: --activity-add NAME WEEKDAY\n"
+                  f"  Templates: {', '.join(TEMPLATES.keys())}\n"
+                  f"  Weekday: mon|tue|...|sun or 0..6 (0=Mon)")
+            sys.exit(1)
+        try:
+            entry = add_activity(sys.argv[idx + 1], sys.argv[idx + 2])
+        except ValueError as e:
+            print(e)
+            sys.exit(1)
+        print(f"Added activity: {entry['name']} on {weekday_name(entry['weekday'])} "
+              f"({entry['duration_minutes']}min, {entry['intensity']}, "
+              f"load={entry['movement_load']})")
+        sys.exit(0)
+
+    if "--activity-remove" in sys.argv:
+        from activities import remove_activity
+        idx = sys.argv.index("--activity-remove")
+        if idx + 1 >= len(sys.argv):
+            print("Usage: --activity-remove NAME")
+            sys.exit(1)
+        name = sys.argv[idx + 1]
+        if remove_activity(name):
+            print(f"Removed activity: {name}")
+        else:
+            print(f"No activity named {name!r} found.")
         sys.exit(0)
 
     if "--exclude" in sys.argv:

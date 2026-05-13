@@ -111,16 +111,25 @@ def days_since_any_session() -> Optional[int]:
 
 
 def consecutive_training_days() -> int:
-    """Count consecutive days with sessions ending yesterday (today not yet trained)."""
+    """
+    Count consecutive days of training load ending yesterday.
+    Counts both gym sessions (sets table) and scheduled recurring activity days
+    (e.g. wrestling Thursdays) — both impose fatigue.
+    """
     con = _con()
     rows = con.execute("""
         SELECT DISTINCT date FROM sets ORDER BY date DESC LIMIT 14
     """).fetchall()
     con.close()
     dates = {date.fromisoformat(r["date"]) for r in rows}
+    try:
+        from activities import load_activities
+        activity_weekdays = {a["weekday"] for a in load_activities()}
+    except Exception:
+        activity_weekdays = set()
     count = 0
     check = date.today() - timedelta(days=1)
-    while check in dates:
+    while check in dates or check.weekday() in activity_weekdays:
         count += 1
         check -= timedelta(days=1)
     return count
@@ -310,17 +319,58 @@ def days_since_session_type(stype: str) -> Optional[int]:
     return (date.today() - date.fromisoformat(val)).days
 
 
+def recurring_activity_role(d: Optional[date] = None) -> dict:
+    """
+    Classify `d` (default today) against config.RECURRING_ACTIVITIES.
+    Returns {"role": "on"|"pre"|"post"|"none", "activity": dict|None,
+             "days_until": int|None, "days_since": int|None}.
+    'pre'/'post' only triggered within the configured buffer window.
+    """
+    d = d or date.today()
+    try:
+        from activities import load_activities
+        activities = load_activities()
+    except Exception:
+        activities = []
+    for act in activities:
+        wd = act["weekday"]
+        if d.weekday() == wd:
+            return {"role": "on", "activity": act, "days_until": 0, "days_since": 0}
+        # days until next occurrence (1..7)
+        days_until = (wd - d.weekday()) % 7
+        if days_until == 0:
+            days_until = 7
+        if days_until <= act.get("pre_buffer_days", 0):
+            return {"role": "pre", "activity": act, "days_until": days_until, "days_since": None}
+        # days since most recent occurrence (1..7)
+        days_since = (d.weekday() - wd) % 7
+        if days_since == 0:
+            days_since = 7
+        if days_since <= act.get("post_buffer_days", 0):
+            return {"role": "post", "activity": act, "days_until": None, "days_since": days_since}
+    return {"role": "none", "activity": None, "days_until": None, "days_since": None}
+
+
 def suggest_session_type() -> str:
     """
     Picks the most overdue recovered session type, using cycle order as a tiebreaker.
     'Recovered' means days_since >= MIN_RECOVERY_DAYS (or never trained).
     Excludes the last session type to avoid back-to-back repeats.
+    On pre/post buffer days of a recurring activity, restricts to safe_session_types.
     Falls back to the next in cycle if nothing is recovered yet.
     """
     cycle     = config.SESSION_CYCLE
     last_type = last_session_type()
 
     candidates = [t for t in cycle if t != last_type]
+
+    role = recurring_activity_role()
+    if role["role"] in ("pre", "post"):
+        safe = role["activity"].get("safe_session_types") or []
+        narrowed = [t for t in candidates if t in safe]
+        if narrowed:
+            candidates = narrowed
+        # if no safe candidates (e.g. last session was also push/arms), fall through
 
     recovered = []
     for t in candidates:
@@ -1200,6 +1250,7 @@ def build_context() -> dict:
         "movement_coverage":               movement_coverage_audit(days=14),
         "fatigue":                         fatigue_score(),
         "days_since_any_session":          days_since_any_session(),
+        "recurring_activity":              recurring_activity_role(),
         "recovery":                        recovery_state(),
     }
 

@@ -374,6 +374,12 @@ If the user message contains a "Recovery state: RAMPING" section, the ramp rule 
 bulk-mode volume increase: keep accessory sets at 3 (not 4–5). RPE cap 8 on all working sets.
 No progression on main lifts. Note the ramping state in reasoning.
 
+## Conditioning override (global, applies to ALL lifts this session)
+If the user message contains a "Conditioning context" section, the buffer rule OVERRIDES per-lift
+progression for THIS session. Apply the RPE cap and weight adjustment as stated. Note the
+conditioning context in reasoning. If both Re-entry AND Conditioning apply, take the MORE
+conservative of the two (whichever reduces load/RPE more).
+
 ## Session timing
 Add slots until you reach the target duration; do not exceed by more than 10 min.
 {chr(10).join(timing_lines)}
@@ -569,6 +575,28 @@ def _build_user_message(context: dict) -> str:
             f"\n  Repeat last weight on main lifts unless re-entry rule below dictates a deload."
             f"\n  Exit condition: 2 consecutive sessions where first_set_rpe ≤7.5 AND last_set_rpe ≤8.5."
         )
+
+    ra = context.get("recurring_activity") or {}
+    if ra.get("role") in ("pre", "post"):
+        act  = ra["activity"]
+        load = ", ".join(act.get("movement_load", []))
+        safe = ", ".join(act.get("safe_session_types", []))
+        if ra["role"] == "pre":
+            lines.append(
+                f"\n## Conditioning context"
+                f"\n  {act['name'].title()} TOMORROW ({act['duration_minutes']} min, {act['intensity']} intensity)."
+                f"\n  Heavily taxes: {load}. Safe session types today: {safe}."
+                f"\n  Rule: Cap RPE at 7 on ALL working sets. Reduce accessory volume by ~25%."
+                f"\n  Do not chase PRs. Goal: leave body fresh for {act['name']}."
+            )
+        else:
+            lines.append(
+                f"\n## Conditioning context"
+                f"\n  {act['name'].title()} YESTERDAY ({act['duration_minutes']} min, {act['intensity']} intensity)."
+                f"\n  CNS + connective tissue fatigued. Heavily taxed: {load}."
+                f"\n  Rule: −5% on all working weights. Cap RPE at 7. Avoid heavy {load}."
+                f"\n  Treat this session as deload/recovery — quality movement, not load chasing."
+            )
 
     dsa = context.get("days_since_any_session")
     if dsa is not None:

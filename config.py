@@ -174,6 +174,10 @@ MIN_RECOVERY_DAYS = 3
 # Maximum consecutive training days before a mandatory rest day
 MAX_CONSECUTIVE_DAYS = 5
 
+# Recurring non-gym activities live in recurring_activities.json (managed via
+# `python run.py --activity-add NAME WEEKDAY` / --activity-remove / --activity-list).
+# See activities.py for the JSON-backed store and template defaults.
+
 # ── Equipment increments ───────────────────────────────────────────────────
 EQUIPMENT_INCREMENTS = {
     "barbell":   2.5,
