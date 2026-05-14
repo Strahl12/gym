@@ -170,7 +170,8 @@ def _send_review_notification(session_date: str, session_type: str, analysis: st
     """Best-effort iMessage send. Silent if no recipient configured or on failure."""
     try:
         from notify import imessage_send
-        imessage_send(f"Gym review — {session_date} {session_type}\n\n{analysis}")
+        stype = (session_type or "?").upper()
+        imessage_send(f"==== Session review — {session_date} {stype} ====\n\n{analysis}")
     except Exception:
         pass
 
