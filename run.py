@@ -52,7 +52,7 @@ def _send_proposal_notification(workout: dict, session_date: str) -> None:
     try:
         from notify import imessage_send
         stype = (workout.get("session_type") or "?").upper()
-        lines = [f"==== Session proposal — {session_date} {stype} ===="]
+        lines = [f"== Session proposal — {session_date} {stype} =="]
         if workout.get("title"):
             lines.append(workout["title"])
         lines.append("")

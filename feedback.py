@@ -171,7 +171,7 @@ def _send_review_notification(session_date: str, session_type: str, analysis: st
     try:
         from notify import imessage_send
         stype = (session_type or "?").upper()
-        imessage_send(f"==== Session review — {session_date} {stype} ====\n\n{analysis}")
+        imessage_send(f"== Session review — {session_date} {stype} ==\n\n{analysis}")
     except Exception:
         pass
 
