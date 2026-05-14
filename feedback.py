@@ -166,6 +166,15 @@ def _get_session_notes(session_date: str) -> list[dict]:
     return [{"note": r["note"], "source": r["source"]} for r in rows]
 
 
+def _send_review_notification(session_date: str, session_type: str, analysis: str) -> None:
+    """Best-effort iMessage send. Silent if no recipient configured or on failure."""
+    try:
+        from notify import imessage_send
+        imessage_send(f"Gym review — {session_date} {session_type}\n\n{analysis}")
+    except Exception:
+        pass
+
+
 def run_feedback_for_date(session_date: str) -> Optional[dict]:
     """
     Find the prescription for session_date, pull actual sets, compute and store diff.
@@ -275,6 +284,7 @@ def run_feedback_for_date(session_date: str) -> Optional[dict]:
             if analysis:
                 print(f"[feedback] Review:\n{analysis}")
                 _store_review(actual_date, analysis, "completed_review")
+                _send_review_notification(actual_date, session_type, analysis)
         return stored_diff
 
     diff = compute_diff(prescription, actual)
@@ -290,6 +300,7 @@ def run_feedback_for_date(session_date: str) -> Optional[dict]:
         if analysis:
             print(f"[feedback] Review:\n{analysis}")
             _store_review(actual_date, analysis, "completed_review")
+            _send_review_notification(actual_date, session_type, analysis)
 
     return diff
 
@@ -511,11 +522,13 @@ def handle_debug_notes(session_date: str) -> None:
 
         # Gather context: exercise history from DB
         history = _lift_history(ex_name, n=10) if ex_name else []
-        history_text = (
-            "\n".join(f"  {h['date']}: {h['top_weight']}kg × {h['max_reps']} reps  e1RM={h['best_e1rm']}kg"
-                      for h in history)
-            or "  (no history in DB)"
-        )
+        def _h_line(h):
+            ww, wr, sc = h.get('working_weight'), h.get('working_reps'), h.get('working_set_count')
+            tw, tr = h.get('top_weight'), h.get('top_reps')
+            base = f"{ww}kg × {wr} × {sc} sets" if ww else f"BW × {wr or tr} × {sc} sets"
+            top = f"  [top set: {tw}kg × {tr}]" if ww and (tw != ww or tr != wr) else ""
+            return f"  {h['date']}: working {base}{top}  e1RM={h['best_e1rm']}kg"
+        history_text = "\n".join(_h_line(h) for h in history) or "  (no history in DB)"
 
         prompt = (
             f"An athlete left this debug note after their session:\n"

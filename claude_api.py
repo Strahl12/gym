@@ -325,6 +325,8 @@ def _build_system_prompt(block_directive: Optional[str] = None) -> str:
 
     # ── Progression block ──────────────────────────────────────────────────
     pr_lines = [
+        f"BASELINE: anchor next prescription on the previous session's WORKING WEIGHT (the mode/most-common load drilled across sets), NOT on the top set. A one-off heavy single does not move the baseline.",
+        f"  Recent-session lines show: `working {{w}}kg × {{r}} × {{n}} sets [top set: {{w}}kg × {{r}}]`. Use the `working` value as your baseline; the `top set` is context only.",
         f"no_plateau — gate on last_set_rpe (RPE of the final working set) from most recent session:",
         f"  last_set_rpe ≤7 (capacity remaining): +{pr['increase_kg']}kg",
         f"  last_set_rpe 8–9 (optimal stimulus): same weight",
@@ -332,7 +334,7 @@ def _build_system_prompt(block_directive: Optional[str] = None) -> str:
         f"  no RPE data: +{pr['increase_kg']}kg if all sets hit top of rep range; else same weight",
         f"plateau (≥{config.PLATEAU_SESSIONS} sessions flat): reset to {int(pr['plateau_reset_pct']*100)}% working weight rounded down to nearest {config.EQUIPMENT_INCREMENTS['barbell']}kg, reps {pr['plateau_reps'][0]}–{pr['plateau_reps'][1]}, note in reasoning",
         "bodyweight lifts: apply rules to added weight only; prescribe pure BW only if no added-weight history",
-        f"max increase: {pr['max_increase_kg']}kg per session hard cap",
+        f"HARD CAP: prescribed weight must NOT exceed previous session's working_weight + {pr['max_increase_kg']}kg. Reject any output that would jump further, even if the top set was higher.",
         f"absent >{pr['deload_threshold_days']} days: deload to {int(pr['deload_weight_pct']*100)}% of last weight, higher reps",
         f"warm-up sets: {len(pr['warmup_pcts'])} sets at {' / '.join(str(int(p*100))+'%' for p in pr['warmup_pcts'])} of working weight (main barbell lifts only), label is_warmup: true",
     ]
@@ -654,7 +656,13 @@ def _build_user_message(context: dict) -> str:
                     rpe_str = f"  RPE avg {h['avg_rpe']}"
                 else:
                     rpe_str = ""
-                lines.append(f"    {h['date']}: {h['top_weight']}kg × {h['max_reps']} reps — {e1rm_str}{rpe_str}")
+                ww, wr, sc = h.get('working_weight'), h.get('working_reps'), h.get('working_set_count')
+                tw, tr = h.get('top_weight'), h.get('top_reps')
+                working_str = f"{ww}kg × {wr} × {sc} sets" if ww else f"BW × {wr or tr} × {sc} sets"
+                top_str = ""
+                if ww and (tw != ww or tr != wr):
+                    top_str = f"  [top set: {tw}kg × {tr}]"
+                lines.append(f"    {h['date']}: working {working_str}{top_str} — {e1rm_str}{rpe_str}")
         else:
             lines.append("  No history — treat as first session: start conservative (≈60% estimated 1RM, 4×8), no warm-up sets, note in reasoning.")
 
@@ -664,8 +672,6 @@ def _build_user_message(context: dict) -> str:
         for session in recent_workouts:
             lines.append(f"\n  {session['date']} ({session['session_type']}):")
             for ex in session["exercises"]:
-                w = ex["top_weight_kg"]
-                weight_str = f"{w}kg × " if w else "BW × "
                 if ex.get("last_set_rpe") is not None:
                     rpe_str = f"  RPE {ex['last_set_rpe']}"
                     if ex.get("avg_rpe") is not None:
@@ -674,7 +680,16 @@ def _build_user_message(context: dict) -> str:
                     rpe_str = f"  RPE avg {ex['avg_rpe']}"
                 else:
                     rpe_str = ""
-                lines.append(f"    {ex['exercise']}: {weight_str}{ex['avg_reps']} reps × {ex['sets']} sets{rpe_str}")
+                ww = ex.get("working_weight_kg")
+                wr = ex.get("working_reps")
+                tw = ex.get("top_weight_kg")
+                tr = ex.get("top_reps")
+                sc = ex.get("sets")
+                base = f"{ww}kg × {wr} × {sc} sets" if ww else f"BW × {wr or tr} × {sc} sets"
+                top_str = ""
+                if ww and (tw != ww or tr != wr):
+                    top_str = f"  [top: {tw}kg × {tr}]"
+                lines.append(f"    {ex['exercise']}: {base}{top_str}{rpe_str}")
 
     priorities = context.get("exercise_priorities", [])
     ex_stats = context.get("exercise_stats", {})

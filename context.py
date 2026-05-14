@@ -25,36 +25,71 @@ def _con() -> sqlite3.Connection:
 # ── Per-lift metrics ───────────────────────────────────────────────────────
 
 def lift_history(exercise: str, n: int = 8) -> list[dict]:
-    """Last n working sets (non-warmup) grouped by session, most recent first."""
+    """Last n sessions for an exercise, most recent first.
+
+    Each row reports two real sets:
+      top_*     — the heaviest working set (by e1RM). weight/reps/e1RM come
+                  from the same row, so the display always reflects a set
+                  that actually happened.
+      working_* — the mode (most-common) weight and the mode reps at that
+                  weight, plus the total working-set count. This is what
+                  the athlete *actually drilled*; a one-off heavy single
+                  does not move it.
+    Progression decisions should anchor on working_weight, not top_weight.
+    """
     con = _con()
-    rows = con.execute("""
-        SELECT s1.date,
-               MAX(s1.weight_kg)              AS top_weight,
-               MAX(s1.reps)                   AS max_reps,
-               ROUND(MAX(s1.e1rm), 1)         AS best_e1rm,
-               ROUND(AVG(CASE WHEN s1.rpe IS NOT NULL THEN s1.rpe END), 1) AS avg_rpe,
-               (SELECT s2.rpe FROM sets s2
-                WHERE s2.exercise = s1.exercise
-                  AND s2.date     = s1.date
-                  AND s2.is_warmup = 0
-                  AND s2.rpe IS NOT NULL
-                ORDER BY s2.set_number DESC LIMIT 1) AS last_set_rpe,
-               (SELECT s3.rpe FROM sets s3
-                WHERE s3.exercise = s1.exercise
-                  AND s3.date     = s1.date
-                  AND s3.is_warmup = 0
-                  AND s3.rpe IS NOT NULL
-                ORDER BY s3.set_number ASC LIMIT 1) AS first_set_rpe
-        FROM sets s1
-        WHERE s1.exercise = ?
-          AND s1.is_warmup = 0
-          AND s1.e1rm IS NOT NULL
-        GROUP BY s1.date
-        ORDER BY s1.date DESC
-        LIMIT ?
+    date_rows = con.execute("""
+        SELECT date FROM sets
+        WHERE exercise = ? AND is_warmup = 0 AND e1rm IS NOT NULL
+        GROUP BY date ORDER BY date DESC LIMIT ?
     """, (exercise, n)).fetchall()
+
+    result = []
+    for r in date_rows:
+        d = r["date"]
+        top = con.execute("""
+            SELECT weight_kg, reps, e1rm FROM sets
+            WHERE exercise = ? AND date = ? AND is_warmup = 0 AND e1rm IS NOT NULL
+            ORDER BY e1rm DESC, weight_kg DESC LIMIT 1
+        """, (exercise, d)).fetchone()
+        mode_w = con.execute("""
+            SELECT weight_kg FROM sets
+            WHERE exercise = ? AND date = ? AND is_warmup = 0
+            GROUP BY weight_kg
+            ORDER BY COUNT(*) DESC, weight_kg DESC LIMIT 1
+        """, (exercise, d)).fetchone()
+        working_weight = mode_w["weight_kg"] if mode_w else None
+        mode_r = con.execute("""
+            SELECT reps FROM sets
+            WHERE exercise = ? AND date = ? AND is_warmup = 0 AND weight_kg = ?
+            GROUP BY reps
+            ORDER BY COUNT(*) DESC, reps DESC LIMIT 1
+        """, (exercise, d, working_weight)).fetchone() if working_weight is not None else None
+        set_count = con.execute("""
+            SELECT COUNT(*) AS n FROM sets
+            WHERE exercise = ? AND date = ? AND is_warmup = 0
+        """, (exercise, d)).fetchone()["n"]
+        rpes = [
+            row["rpe"] for row in con.execute("""
+                SELECT rpe FROM sets
+                WHERE exercise = ? AND date = ? AND is_warmup = 0 AND rpe IS NOT NULL
+                ORDER BY set_number
+            """, (exercise, d)).fetchall()
+        ]
+        result.append({
+            "date":              d,
+            "top_weight":        top["weight_kg"] if top else None,
+            "top_reps":          top["reps"]      if top else None,
+            "best_e1rm":         round(top["e1rm"], 1) if top else None,
+            "working_weight":    working_weight,
+            "working_reps":      mode_r["reps"] if mode_r else None,
+            "working_set_count": set_count,
+            "avg_rpe":           round(sum(rpes) / len(rpes), 1) if rpes else None,
+            "first_set_rpe":     rpes[0]  if rpes else None,
+            "last_set_rpe":      rpes[-1] if rpes else None,
+        })
     con.close()
-    return [dict(r) for r in rows]
+    return result
 
 
 def plateau_detected(history: list[dict], threshold: int = config.PLATEAU_SESSIONS) -> bool:
@@ -682,21 +717,41 @@ def recent_workouts(days: int = 28) -> list[dict]:
     for dr in date_rows:
         ex_rows = con.execute("""
             SELECT s1.exercise,
-                   MAX(s1.weight_kg)              AS top_weight_kg,
-                   ROUND(AVG(s1.reps), 1)         AS avg_reps,
-                   COUNT(*)                        AS sets,
+                   -- Top set: weight + reps come from the same physical row (heaviest by e1RM).
+                   (SELECT s2.weight_kg FROM sets s2
+                    WHERE s2.exercise = s1.exercise AND s2.date = s1.date
+                      AND s2.is_warmup = 0 AND s2.e1rm IS NOT NULL
+                    ORDER BY s2.e1rm DESC, s2.weight_kg DESC LIMIT 1)    AS top_weight_kg,
+                   (SELECT s2.reps FROM sets s2
+                    WHERE s2.exercise = s1.exercise AND s2.date = s1.date
+                      AND s2.is_warmup = 0 AND s2.e1rm IS NOT NULL
+                    ORDER BY s2.e1rm DESC, s2.weight_kg DESC LIMIT 1)    AS top_reps,
+                   -- Working set: mode (most-common) weight, then mode reps at that weight.
+                   -- This is what the athlete actually drilled; a top single does not move it.
+                   (SELECT s2.weight_kg FROM sets s2
+                    WHERE s2.exercise = s1.exercise AND s2.date = s1.date
+                      AND s2.is_warmup = 0
+                    GROUP BY s2.weight_kg
+                    ORDER BY COUNT(*) DESC, s2.weight_kg DESC LIMIT 1)   AS working_weight_kg,
+                   (SELECT s2.reps FROM sets s2
+                    WHERE s2.exercise = s1.exercise AND s2.date = s1.date
+                      AND s2.is_warmup = 0
+                      AND s2.weight_kg = (SELECT s3.weight_kg FROM sets s3
+                                          WHERE s3.exercise = s1.exercise AND s3.date = s1.date
+                                            AND s3.is_warmup = 0
+                                          GROUP BY s3.weight_kg
+                                          ORDER BY COUNT(*) DESC, s3.weight_kg DESC LIMIT 1)
+                    GROUP BY s2.reps
+                    ORDER BY COUNT(*) DESC, s2.reps DESC LIMIT 1)        AS working_reps,
+                   COUNT(*)                       AS sets,
                    ROUND(AVG(CASE WHEN s1.rpe IS NOT NULL THEN s1.rpe END), 1) AS avg_rpe,
                    (SELECT s2.rpe FROM sets s2
-                    WHERE s2.exercise = s1.exercise
-                      AND s2.date     = s1.date
-                      AND s2.is_warmup = 0
-                      AND s2.rpe IS NOT NULL
+                    WHERE s2.exercise = s1.exercise AND s2.date = s1.date
+                      AND s2.is_warmup = 0 AND s2.rpe IS NOT NULL
                     ORDER BY s2.set_number DESC LIMIT 1) AS last_set_rpe,
                    (SELECT s3.rpe FROM sets s3
-                    WHERE s3.exercise = s1.exercise
-                      AND s3.date     = s1.date
-                      AND s3.is_warmup = 0
-                      AND s3.rpe IS NOT NULL
+                    WHERE s3.exercise = s1.exercise AND s3.date = s1.date
+                      AND s3.is_warmup = 0 AND s3.rpe IS NOT NULL
                     ORDER BY s3.set_number ASC LIMIT 1) AS first_set_rpe
             FROM sets s1
             WHERE s1.date = ? AND s1.is_warmup = 0 AND s1.session_type != 'unknown'
