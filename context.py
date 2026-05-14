@@ -40,17 +40,18 @@ def lift_history(exercise: str, n: int = 8) -> list[dict]:
     con = _con()
     date_rows = con.execute("""
         SELECT date FROM sets
-        WHERE exercise = ? AND is_warmup = 0 AND e1rm IS NOT NULL
+        WHERE exercise = ? AND is_warmup = 0 AND reps IS NOT NULL AND reps > 0
         GROUP BY date ORDER BY date DESC LIMIT ?
     """, (exercise, n)).fetchall()
 
     result = []
     for r in date_rows:
         d = r["date"]
+        # Pick the heaviest working set by e1RM; for pure-BW (e1rm NULL) fall back to reps.
         top = con.execute("""
             SELECT weight_kg, reps, e1rm FROM sets
-            WHERE exercise = ? AND date = ? AND is_warmup = 0 AND e1rm IS NOT NULL
-            ORDER BY e1rm DESC, weight_kg DESC LIMIT 1
+            WHERE exercise = ? AND date = ? AND is_warmup = 0 AND reps > 0
+            ORDER BY COALESCE(e1rm, -1) DESC, weight_kg DESC, reps DESC LIMIT 1
         """, (exercise, d)).fetchone()
         mode_w = con.execute("""
             SELECT weight_kg FROM sets
@@ -80,7 +81,7 @@ def lift_history(exercise: str, n: int = 8) -> list[dict]:
             "date":              d,
             "top_weight":        top["weight_kg"] if top else None,
             "top_reps":          top["reps"]      if top else None,
-            "best_e1rm":         round(top["e1rm"], 1) if top else None,
+            "best_e1rm":         round(top["e1rm"], 1) if (top and top["e1rm"] is not None) else None,
             "working_weight":    working_weight,
             "working_reps":      mode_r["reps"] if mode_r else None,
             "working_set_count": set_count,

@@ -325,8 +325,9 @@ def _build_system_prompt(block_directive: Optional[str] = None) -> str:
 
     # ── Progression block ──────────────────────────────────────────────────
     pr_lines = [
-        f"BASELINE: anchor next prescription on the previous session's WORKING WEIGHT (the mode/most-common load drilled across sets), NOT on the top set. A one-off heavy single does not move the baseline.",
+        f"BASELINE: anchor next prescription on the previous session's WORKING WEIGHT and WORKING REPS (the mode/most-common load and the mode reps at that load), NOT on the top set. A one-off heavy single does not move the baseline.",
         f"  Recent-session lines show: `working {{w}}kg × {{r}} × {{n}} sets [top set: {{w}}kg × {{r}}]`. Use the `working` value as your baseline; the `top set` is context only.",
+        f"  Bodyweight lifts (Pull Up, etc.): reps are the progression axis. Repeat previous working_reps unless RPE/recovery rules below dictate otherwise. Do NOT jump straight to the top of the rep range — climb one rep at a time when RPE permits.",
         f"no_plateau — gate on last_set_rpe (RPE of the final working set) from most recent session:",
         f"  last_set_rpe ≤7 (capacity remaining): +{pr['increase_kg']}kg",
         f"  last_set_rpe 8–9 (optimal stimulus): same weight",
@@ -574,7 +575,7 @@ def _build_user_message(context: dict) -> str:
             f"\n## Recovery state: RAMPING (post-{rec.get('reason', 'break')})"
             f"\n  Clean sessions back: {rec.get('clean_streak', 0)}/{rec.get('clean_needed', 2)}"
             f"\n  Rule: RPE cap 8 on all working sets. Bulk volume increase SUSPENDED (cap accessories at 3 sets)."
-            f"\n  Repeat last weight on main lifts unless re-entry rule below dictates a deload."
+            f"\n  Repeat last weight AND last working_reps on main lifts — do NOT bump reps or weight. For bodyweight lifts, repeat previous working_reps; never jump to the top of the rep range while ramping."
             f"\n  Exit condition: 2 consecutive sessions where first_set_rpe ≤7.5 AND last_set_rpe ≤8.5."
         )
 
