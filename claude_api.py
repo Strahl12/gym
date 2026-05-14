@@ -326,7 +326,7 @@ def _build_system_prompt(block_directive: Optional[str] = None) -> str:
     # ── Progression block ──────────────────────────────────────────────────
     pr_lines = [
         f"BASELINE: anchor next prescription on the previous session's WORKING WEIGHT and WORKING REPS (the mode/most-common load and the mode reps at that load), NOT on the top set. A one-off heavy single does not move the baseline.",
-        f"  Recent-session lines show: `working {{w}}kg × {{r}} × {{n}} sets [top set: {{w}}kg × {{r}}]`. Use the `working` value as your baseline; the `top set` is context only.",
+        f"  Recent-session lines show the RAW per-set log first: `weight×reps@rpe / weight×reps@rpe / ...` (rpe omitted if not logged), followed by `[working=…, top=…, e1RM=…]`. READ THE FULL VECTOR — every set matters. Look for rep drops, RPE climb across sets, missed reps. Use the `working` summary as your baseline anchor; the vector tells you whether the session was clean or grinding.",
         f"  Bodyweight lifts (Pull Up, etc.): reps are the progression axis. Repeat previous working_reps unless RPE/recovery rules below dictate otherwise. Do NOT jump straight to the top of the rep range — climb one rep at a time when RPE permits.",
         f"no_plateau — gate on last_set_rpe (RPE of the final working set) from most recent session:",
         f"  last_set_rpe ≤7 (capacity remaining): +{pr['increase_kg']}kg",
@@ -460,6 +460,19 @@ def _headers() -> dict:
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
     }
+
+
+def _fmt_set_vector(sets: list[dict]) -> str:
+    """Render per-set vector as `w×r@rpe / w×r@rpe / ...` (no RPE if missing)."""
+    parts = []
+    for s in sets or []:
+        w = s.get("weight") or 0
+        wstr = f"{w:g}kg" if w else "BW"
+        part = f"{wstr}×{s.get('reps')}"
+        if s.get("rpe") is not None:
+            part += f"@{s['rpe']:g}"
+        parts.append(part)
+    return " / ".join(parts)
 
 
 def _build_user_message(context: dict) -> str:
@@ -646,51 +659,37 @@ def _build_user_message(context: dict) -> str:
         lines.append(f"  Target sets: {data['target_sets']}, rep range: {data['rep_range']}")
 
         if history:
-            lines.append("  Recent sessions (newest first):")
-            for h in history[:5]:
-                e1rm_str = f"e1RM={h['best_e1rm']}kg" if h.get('best_e1rm') else "bodyweight"
-                if h.get('last_set_rpe') is not None:
-                    rpe_str = f"  last-set RPE {h['last_set_rpe']}"
-                    if h.get('avg_rpe') is not None:
-                        rpe_str += f" (avg {h['avg_rpe']})"
-                elif h.get('avg_rpe') is not None:
-                    rpe_str = f"  RPE avg {h['avg_rpe']}"
-                else:
-                    rpe_str = ""
-                ww, wr, sc = h.get('working_weight'), h.get('working_reps'), h.get('working_set_count')
-                tw, tr = h.get('top_weight'), h.get('top_reps')
-                working_str = f"{ww}kg × {wr} × {sc} sets" if ww else f"BW × {wr or tr} × {sc} sets"
-                top_str = ""
-                if ww and (tw != ww or tr != wr):
-                    top_str = f"  [top set: {tw}kg × {tr}]"
-                lines.append(f"    {h['date']}: working {working_str}{top_str} — {e1rm_str}{rpe_str}")
+            lines.append("  Recent sessions (newest first) — raw per-set log: weight×reps@rpe (rpe omitted if not logged):")
+            for h in history[:8]:
+                vec = _fmt_set_vector(h.get("sets", []))
+                ww, wr = h.get("working_weight"), h.get("working_reps")
+                tw, tr = h.get("top_weight"), h.get("top_reps")
+                base = f"{ww:g}kg×{wr}" if ww else f"BW×{wr}"
+                tags = [f"working={base}"]
+                if (tw != ww or tr != wr) and tw is not None:
+                    tags.append(f"top={tw:g}kg×{tr}" if tw else f"top=BW×{tr}")
+                if h.get("best_e1rm"):
+                    tags.append(f"e1RM={h['best_e1rm']}kg")
+                lines.append(f"    {h['date']}: {vec}   [{', '.join(tags)}]")
         else:
             lines.append("  No history — treat as first session: start conservative (≈60% estimated 1RM, 4×8), no warm-up sets, note in reasoning.")
 
     recent_workouts = context.get("recent_workouts", [])
     if recent_workouts:
-        lines.append("\n## Recent workouts (last 28 days, newest first)")
+        lines.append("\n## Recent workouts (last 28 days, newest first) — raw per-set log: weight×reps@rpe")
         for session in recent_workouts:
             lines.append(f"\n  {session['date']} ({session['session_type']}):")
             for ex in session["exercises"]:
-                if ex.get("last_set_rpe") is not None:
-                    rpe_str = f"  RPE {ex['last_set_rpe']}"
-                    if ex.get("avg_rpe") is not None:
-                        rpe_str += f" (avg {ex['avg_rpe']})"
-                elif ex.get("avg_rpe") is not None:
-                    rpe_str = f"  RPE avg {ex['avg_rpe']}"
-                else:
-                    rpe_str = ""
+                vec = _fmt_set_vector(ex.get("sets", []))
                 ww = ex.get("working_weight_kg")
                 wr = ex.get("working_reps")
                 tw = ex.get("top_weight_kg")
                 tr = ex.get("top_reps")
-                sc = ex.get("sets")
-                base = f"{ww}kg × {wr} × {sc} sets" if ww else f"BW × {wr or tr} × {sc} sets"
-                top_str = ""
-                if ww and (tw != ww or tr != wr):
-                    top_str = f"  [top: {tw}kg × {tr}]"
-                lines.append(f"    {ex['exercise']}: {base}{top_str}{rpe_str}")
+                base = f"{ww:g}kg×{wr}" if ww else f"BW×{wr}"
+                tags = [f"working={base}"]
+                if (tw != ww or tr != wr) and tw is not None:
+                    tags.append(f"top={tw:g}kg×{tr}" if tw else f"top=BW×{tr}")
+                lines.append(f"    {ex['exercise']}: {vec}   [{', '.join(tags)}]")
 
     priorities = context.get("exercise_priorities", [])
     ex_stats = context.get("exercise_stats", {})

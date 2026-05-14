@@ -522,12 +522,20 @@ def handle_debug_notes(session_date: str) -> None:
 
         # Gather context: exercise history from DB
         history = _lift_history(ex_name, n=10) if ex_name else []
+        def _fmt_sets(sets):
+            parts = []
+            for s in sets or []:
+                w = s.get("weight") or 0
+                wstr = f"{w:g}kg" if w else "BW"
+                p = f"{wstr}×{s.get('reps')}"
+                if s.get("rpe") is not None:
+                    p += f"@{s['rpe']:g}"
+                parts.append(p)
+            return " / ".join(parts)
         def _h_line(h):
-            ww, wr, sc = h.get('working_weight'), h.get('working_reps'), h.get('working_set_count')
-            tw, tr = h.get('top_weight'), h.get('top_reps')
-            base = f"{ww}kg × {wr} × {sc} sets" if ww else f"BW × {wr or tr} × {sc} sets"
-            top = f"  [top set: {tw}kg × {tr}]" if ww and (tw != ww or tr != wr) else ""
-            return f"  {h['date']}: working {base}{top}  e1RM={h['best_e1rm']}kg"
+            vec = _fmt_sets(h.get('sets', []))
+            e1 = f"  e1RM={h['best_e1rm']}kg" if h.get('best_e1rm') else ""
+            return f"  {h['date']}: {vec}{e1}"
         history_text = "\n".join(_h_line(h) for h in history) or "  (no history in DB)"
 
         prompt = (
