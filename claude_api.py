@@ -8,12 +8,54 @@ Claude is given:
 Returns a validated dict matching the Hevy write schema.
 """
 import json
+import re
 import requests
 from pathlib import Path
 from typing import Optional
 import config
 
 _STATE_FILE = Path(config.DB_PATH).parent / "app_state.json"
+
+
+def _extract_json(text: str) -> Optional[dict]:
+    """Pull a JSON object out of a Claude response.
+
+    Handles three cases:
+      1. The whole response IS the JSON object.
+      2. The JSON sits inside a ```json … ``` fenced block, with prose around it.
+      3. No fences, but a JSON object appears somewhere in the text — take the
+         last balanced {…} run (Claude tends to put final answer at the end).
+    Returns the parsed dict, or None if nothing parses.
+    """
+    text = text.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Fenced ```json ... ``` (or plain ``` ... ```) — take the last fenced block.
+    fenced = re.findall(r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.DOTALL)
+    for candidate in reversed(fenced):
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+
+    # Unfenced: scan for the last balanced { … } run.
+    starts = [i for i, c in enumerate(text) if c == "{"]
+    for start in reversed(starts):
+        depth = 0
+        for i in range(start, len(text)):
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[start:i + 1])
+                    except json.JSONDecodeError:
+                        break
+    return None
 
 
 def _load_state() -> dict:
@@ -841,19 +883,11 @@ def get_workout(context: dict, legacy: bool = False,
     resp.raise_for_status()
 
     raw = resp.json()["content"][0]["text"].strip()
-
-    # Strip markdown fences if present
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    raw = raw.strip()
-
-    try:
-        workout = json.loads(raw)
-    except json.JSONDecodeError as e:
-        print(f"[claude_api] JSON parse error: {e}\nRaw response:\n{raw}")
+    parsed = _extract_json(raw)
+    if parsed is None:
+        print(f"[claude_api] JSON parse error: no decodable object found.\nRaw response:\n{raw}")
         return None
+    workout = parsed
 
     # Deduplicate exercises (keep first occurrence)
     seen: set[str] = set()
