@@ -8,3 +8,4 @@ gym.db
 *.log
 app_state.json
 recurring_activities.json
+.claude/settings.local.json
