@@ -457,6 +457,17 @@ For accessories, apply the same logic directionally:
 - Pick accessories from the top of the priority list (highest priority = most overdue).
 - Prefer loaded variants over unloaded (e.g. Machine Calf Raise > Standing Calf Raise).
 - Compounds prefer barbell; isolations use priority score and history — no blanket barbell preference.
+
+## Alternates (advisory only — for accessory/PICK slots)
+For every non-fixed (PICK) exercise, populate an `alternates` field with up to 3 names from the priority list
+that target the same slot/movement pattern. These are suggestions only — the athlete may substitute one of
+them at the gym if equipment is busy or they want variety. Rules:
+- Names VERBATIM from the priority list (same as for the main exercise_name).
+- Same movement pattern as the chosen exercise.
+- Exclude the chosen exercise itself.
+- Exclude anything already in this session.
+- Exclude anything that clashes with last session's primary muscle (same muscle clash rule as for the chosen exercise).
+- FIXED slots (main lifts) get `alternates: []` — main lifts are non-negotiable.
 {skill_section}
 
 ## Output — return ONLY valid JSON
@@ -483,6 +494,7 @@ Otherwise return the workout schema below.
         {{"reps": 5, "weight_kg": 90.0}},
         {{"reps": 5, "weight_kg": 90.0}}
       ],
+      "alternates": ["Exercise Name From Priority List", "..."],
       "notes": "optional"
     }}
   ]
@@ -904,12 +916,27 @@ def get_workout(context: dict, legacy: bool = False,
     # Validate exercise names resolve to known templates
     from hevy import _resolve_template_id
     priority_names = {p["exercise_name"] for p in context.get("exercise_priorities", [])}
+    chosen_names = {ex.get("exercise_name", "") for ex in workout.get("exercises", [])}
     for ex in workout.get("exercises", []):
         name = ex.get("exercise_name", "")
         if not _resolve_template_id(name):
             closest = next((n for n in priority_names if name.lower() in n.lower() or n.lower() in name.lower()), None)
             print(f"[claude_api] WARNING: '{name}' has no template ID — will be dropped. "
                   f"{'Did you mean: ' + repr(closest) + '?' if closest else 'Not in priority list.'}")
+
+        # Filter alternates: must be in priority list, not already chosen, not self.
+        alts = ex.get("alternates") or []
+        cleaned = []
+        for a in alts:
+            if not isinstance(a, str) or not a:
+                continue
+            if a == name or a in chosen_names:
+                continue
+            if a not in priority_names:
+                print(f"[claude_api] Dropping alternate '{a}' (not in priority list) for '{name}'")
+                continue
+            cleaned.append(a)
+        ex["alternates"] = cleaned[:3]
 
     return workout
 

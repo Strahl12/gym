@@ -218,6 +218,7 @@ def _post(endpoint: str, payload: dict, label: str) -> dict:
 def build_routine_payload(workout: dict) -> dict:
     """Convert Claude's workout JSON → Hevy routine payload (no timestamps)."""
     exercises = []
+    notes_lines = []
     for ex in workout.get("exercises", []):
         name = ex["exercise_name"]
         tid  = _resolve_template_id(name, ex)
@@ -237,13 +238,20 @@ def build_routine_payload(workout: dict) -> dict:
             entry["rest_seconds"] = int(ex["rest_seconds"])
         exercises.append(entry)
 
+        alts = [a for a in (ex.get("alternates") or []) if a]
+        line = f"- {name}"
+        if alts:
+            line += f"  (alt: {', '.join(alts)})"
+        notes_lines.append(line)
+
     date_prefix = datetime.now().strftime("[%d-%m-%Y]")
     title = f"{date_prefix} {workout.get('title', 'AI Prescribed Workout')}"
+    notes = "\n".join(notes_lines) if notes_lines else "AI prescribed"
 
     return {
         "routine": {
             "title":     title,
-            "notes":     workout.get("reasoning") or "AI prescribed",
+            "notes":     notes,
             "folder_id": config.HEVY_ROUTINE_FOLDER_ID,
             "exercises": exercises,
         }

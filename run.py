@@ -67,7 +67,11 @@ def _send_proposal_notification(workout: dict, session_date: str) -> None:
             reps = working[0].get("reps")
             top = max((s.get("weight_kg") or 0) for s in working)
             load = f"{top:g}kg" if top else "BW"
-            lines.append(f"- {ex['exercise_name']}: {len(working)}×{reps} @ {load}")
+            line = f"- {ex['exercise_name']}: {len(working)}×{reps} @ {load}"
+            alts = [a for a in (ex.get("alternates") or []) if a]
+            if alts:
+                line += f"  (alt: {', '.join(alts)})"
+            lines.append(line)
         imessage_send("\n".join(lines))
     except Exception:
         pass
@@ -341,6 +345,9 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
                 top = max(s["weight_kg"] for s in working)
                 reps = working[0]["reps"]
                 print(f"  {ex['exercise_name']}: {w_str}{len(working)}×{reps} @ {top}kg")
+            alts = [a for a in (ex.get("alternates") or []) if a]
+            if alts:
+                print(f"    alt: {', '.join(alts)}")
             notes = ex.get("notes", "")
             if notes:
                 print(f"    → {notes}")
