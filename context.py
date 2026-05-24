@@ -797,10 +797,11 @@ def e1rm_trends(weeks: int = 4) -> dict[str, dict]:
 
 # ── Recovery state machine ────────────────────────────────────────────────
 
-RECOVERY_CLEAN_FIRST_RPE_MAX = 7.5
-RECOVERY_CLEAN_LAST_RPE_MAX  = 8.5
-RECOVERY_CLEAN_STREAK_NEEDED = 2
-RECOVERY_TIMEOUT_DAYS        = 14
+RECOVERY_CLEAN_FIRST_RPE_MAX  = 7.5
+RECOVERY_CLEAN_LAST_RPE_MAX   = 8.5
+RECOVERY_CLEAN_STREAK_NEEDED  = 2
+RECOVERY_TIMEOUT_DAYS_ILLNESS = 7
+RECOVERY_TIMEOUT_DAYS_BREAK   = 14
 
 
 def recovery_state() -> dict:
@@ -812,7 +813,8 @@ def recovery_state() -> dict:
     Exits 'ramping' when:
       - RECOVERY_CLEAN_STREAK_NEEDED consecutive clean sessions completed
         (clean = first_set_rpe <= 7.5 AND last_set_rpe <= 8.5 on main lifts), OR
-      - RECOVERY_TIMEOUT_DAYS days have passed since the break end
+      - Timeout reached since break end: 7 days for illness, 14 for pure break.
+        Illness fades fast — past a week, ramping is stale and incentivises misreporting RPE.
     """
     illness_kws = ("ill", "sick", "flu", "cold", "fever", "unwell", "covid")
     today = date.today()
@@ -850,9 +852,10 @@ def recovery_state() -> dict:
     # Break ended on the day of last session (first session back); if no sessions yet, break is still ongoing
     break_end = last_sess if had_illness or had_break else None
 
+    timeout_days = RECOVERY_TIMEOUT_DAYS_ILLNESS if had_illness else RECOVERY_TIMEOUT_DAYS_BREAK
     if break_end:
         days_since_break_end = (today - date.fromisoformat(break_end)).days
-        if days_since_break_end >= RECOVERY_TIMEOUT_DAYS:
+        if days_since_break_end >= timeout_days:
             return {"state": "normal", "reason": "timeout", "clean_streak": 0,
                     "clean_needed": RECOVERY_CLEAN_STREAK_NEEDED,
                     "break_end_date": break_end, "days_since_break_end": days_since_break_end}
