@@ -1,3 +1,10 @@
-requests
-pandas
-numbers-parser
+# Runtime — required for the daily workout flow on Pi or Mac.
+requests>=2.31
+
+# Optional — only needed for one-time historical imports / dev scripts:
+#   ingest_strong.py:        pandas, numbers-parser
+#   classify_exercises.py:   anthropic
+# Uncomment if you actually run those.
+# pandas
+# numbers-parser
+# anthropic

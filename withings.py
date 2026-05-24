@@ -19,22 +19,26 @@ import config
 TOKEN_URL     = "https://wbsapi.withings.net/v2/oauth2"
 MEASURE_URL   = "https://wbsapi.withings.net/measure"
 AUTHORIZE_URL = "https://account.withings.com/oauth2_user/authorize2"
-TOKEN_CACHE   = os.path.expanduser("~/.withings_token.json")
 OAUTH_PORT    = int(os.environ.get("WITHINGS_OAUTH_PORT", "8765"))
 OAUTH_SCOPE   = "user.metrics"
 
 
 # ── Token management ───────────────────────────────────────────────────────
 
+def _token_cache_path() -> str:
+    return config.WITHINGS_TOKEN_PATH
+
+
 def _load_cached_token() -> Optional[dict]:
-    if os.path.exists(TOKEN_CACHE):
-        with open(TOKEN_CACHE) as f:
+    p = _token_cache_path()
+    if os.path.exists(p):
+        with open(p) as f:
             return json.load(f)
     return None
 
 
 def _save_token(token: dict) -> None:
-    with open(TOKEN_CACHE, "w") as f:
+    with open(_token_cache_path(), "w") as f:
         json.dump(token, f)
 
 

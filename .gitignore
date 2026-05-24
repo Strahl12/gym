@@ -9,3 +9,9 @@ gym.db
 app_state.json
 recurring_activities.json
 .claude/settings.local.json
+
+# Per-user data — track only the _template directory.
+users/*
+!users/_template/
+# The _template's secrets.env is a placeholder for new users — track it.
+!users/_template/secrets.env

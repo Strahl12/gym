@@ -258,18 +258,17 @@ def build_routine_payload(workout: dict) -> dict:
     }
 
 
-ROUTINE_ID_FILE = Path.home() / "gym_ai" / "hevy_routine_id.txt"
-
-
 def _load_pinned_routine_id() -> Optional[str]:
-    if ROUTINE_ID_FILE.exists():
-        return ROUTINE_ID_FILE.read_text().strip() or None
+    p = Path(config.ROUTINE_ID_PATH)
+    if p.exists():
+        return p.read_text().strip() or None
     return None
 
 
 def _save_pinned_routine_id(routine_id: str) -> None:
-    ROUTINE_ID_FILE.parent.mkdir(parents=True, exist_ok=True)
-    ROUTINE_ID_FILE.write_text(routine_id)
+    p = Path(config.ROUTINE_ID_PATH)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(routine_id)
 
 
 def _update_routine(routine_id: str, payload: dict) -> dict:

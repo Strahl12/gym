@@ -1,72 +1,147 @@
 # gym_ai — AI-Powered Workout Prescriber
 
-Pulls training data from Strong (CSV/Numbers) + Withings (bodyweight),
-builds context, calls Claude to prescribe today's session, and POSTs it
-to Hevy — ready to log when you walk into the gym.
+Pulls training data from Hevy + Withings (bodyweight), builds context,
+calls Claude to prescribe today's session, and PUT-updates a pinned Hevy
+routine — ready to log when you walk into the gym.
 
-## Setup
-
-```bash
-pip install requests numbers-parser
-```
-
-Set env vars:
-```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-export HEVY_API_KEY=sk_live_...
-export WITHINGS_CLIENT_ID=...
-export WITHINGS_CLIENT_SECRET=...
-export WITHINGS_REFRESH_TOKEN=...
-```
-
-## First-time setup
-
-### 1. Seed the DB from Strong export
-```bash
-python ingest_strong.py
-```
-
-### 2. Find your Hevy exercise template IDs
-```bash
-python run.py --find-templates
-```
-Paste the printed IDs into `config.py` → `MAIN_LIFTS[...]["hevy_template_id"]`.
-
-### 3. Set up Withings OAuth (one-time)
-See: https://developer.withings.com/oauth2/
-Get a refresh token and set WITHINGS_REFRESH_TOKEN.
-
-### 4. Test without posting to Hevy
-```bash
-python run.py --dry-run
-```
-
-### 5. Go live
-```bash
-python run.py
-```
-
-## Cron setup (runs at 07:30 every day)
-```bash
-crontab -e
-# add:
-30 7 * * * cd /path/to/gym_ai && /usr/bin/python3 run.py >> logs/cron.log 2>&1
-```
+Supports multiple users on the same machine: each user has their own DB,
+secrets, profile, and pinned routine.
 
 ## File structure
+
 ```
-gym_ai/
-├── config.py          # goals, lift config, API keys
-├── context.py         # derives training metrics from DB
-├── claude_api.py      # calls Claude, returns workout JSON
-├── hevy.py            # posts workout to Hevy API
-├── withings.py        # syncs bodyweight from Withings
-├── ingest_strong.py   # one-time Strong CSV/Numbers import
-├── run.py             # main orchestrator (cron entry point)
-├── gym.db             # SQLite database
-└── logs/              # daily context + workout JSON logs
+gym/
+├── config.py              # infra constants (paths, training rules, templates)
+├── context.py / hevy.py / claude_api.py / withings.py / ...   # use config.activate(name)
+├── run.py                 # main orchestrator — REQUIRES --user <name>
+├── run_all.py             # iterates every user dir; one Pi cron line covers all
+├── add_user.py            # wizard launched via `python run.py --add-user <name>`
+├── secrets.env            # SHARED ANTHROPIC_API_KEY (gitignored)
+└── users/
+    ├── _template/         # profile.py + secrets.env starter (tracked)
+    └── <name>/            # per-user (gitignored)
+        ├── profile.py             # goals, main lifts, focus lifts, exclusions
+        ├── secrets.env            # HEVY_API_KEY, WITHINGS_*
+        ├── gym.db                 # sets, prescriptions, body composition
+        ├── app_state.json         # mode-change tracking
+        ├── recurring_activities.json
+        ├── hevy_routine_id.txt    # pinned routine slot
+        ├── withings_token.json    # OAuth refresh cache
+        └── logs/                  # daily <date>.log + context.json + workout.json
 ```
 
-## Updating with new Strong data
-Re-run `ingest_strong.py` with a fresh export — it drops and rebuilds the
-`sets` table. Withings data in `bodyweight` table is preserved.
+## Setup (macOS or Linux/Pi)
+
+```bash
+git clone <repo>
+cd gym
+python3 -m venv .env
+.env/bin/pip install -r requirements.txt
+
+# Shared key
+cp secrets.env.example secrets.env
+# edit secrets.env, set ANTHROPIC_API_KEY=sk-ant-...
+```
+
+## Add a user
+
+```bash
+.env/bin/python run.py --add-user <name>
+```
+
+The wizard prompts for the Hevy API key (verified live), Withings credentials
+(optional), training mode, goal mode, target weight, and the Hevy routine
+folder ID (picked from your account). It creates `users/<name>/` with
+`profile.py`, `secrets.env`, an empty `gym.db`, and a `logs/` directory.
+
+Then:
+
+```bash
+# 1. Find Hevy template IDs for the user's main lifts and paste them into profile.py
+.env/bin/python run.py --user <name> --find-templates
+
+# 2. (optional) Withings OAuth — one-time
+.env/bin/python run.py --user <name> --withings-auth
+
+# 3. Test without posting to Hevy
+.env/bin/python run.py --user <name> --dry-run
+
+# 4. Go live
+.env/bin/python run.py --user <name>
+```
+
+## Daily usage
+
+```bash
+# One user
+.env/bin/python run.py --user john
+
+# All users (good for cron)
+.env/bin/python run_all.py
+
+# Subset
+.env/bin/python run_all.py --only john,alice
+
+# Pass-through flags
+.env/bin/python run_all.py --dry-run
+```
+
+Other per-user flags:
+
+```bash
+--note "..."                       # log a session note
+--set-focus push "Bench Press"     # override focus lift for a session type
+--exclude "Calf Raise (Barbell)"   # append to user's profile.py EXCLUDED_EXERCISES
+--activity-list / --activity-add wrestling thu / --activity-remove wrestling
+--force                            # override rest-day check
+--confirm                          # show prescription, prompt y/n before posting
+--context-only                     # print today's context, no Claude call
+--creator-recs                     # include creator recommendations
+--find-templates                   # print Hevy template IDs for main lifts
+```
+
+## Raspberry Pi deployment
+
+Tested on Raspberry Pi OS (Bookworm, Pi 4/5) with Python 3.11+.
+
+```bash
+# 1. System prep
+sudo apt update
+sudo apt install -y python3 python3-venv git
+
+# 2. Clone + venv
+git clone <repo> /home/pi/gym
+cd /home/pi/gym
+python3 -m venv .env
+.env/bin/pip install -r requirements.txt
+
+# 3. Shared secrets
+cp secrets.env.example secrets.env
+nano secrets.env             # paste ANTHROPIC_API_KEY
+
+# 4. Add yourself
+.env/bin/python run.py --add-user john
+.env/bin/python run.py --user john --find-templates    # fill in profile.py
+nano users/john/profile.py
+.env/bin/python run.py --user john --withings-auth     # optional
+.env/bin/python run.py --user john --dry-run           # smoke-test
+
+# 5. Manual morning run
+.env/bin/python run_all.py
+```
+
+### Cron (optional — fully automated)
+
+```bash
+crontab -e
+# Add a single line that handles every user:
+30 7 * * * cd /home/pi/gym && /home/pi/gym/.env/bin/python run_all.py >> /home/pi/gym/run_all.log 2>&1
+```
+
+Adding a new user later requires no cron edit: drop a `users/<newname>/`
+(via the wizard) and `run_all.py` picks them up automatically the next morning.
+
+### Notifications
+
+iMessage is macOS-only; `notify.py` no-ops on Pi. A Telegram-bot replacement
+is on the roadmap (see TODO.md).

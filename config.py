@@ -1,20 +1,35 @@
 """
-Central config. Edit this file to update goals, lift definitions, and API keys.
-All API keys should be set as environment variables — never hardcoded.
+Central config.
 
-Secrets can also be placed in a `secrets.env` file alongside this module
-(KEY=VALUE per line). It loads automatically and never overrides anything
-already set in the real environment.
+Two layers:
+  - Infrastructure constants (cross-user): training rules, session templates,
+    progression knobs, equipment increments. Defined directly in this file.
+  - Per-user profile: goals, main lifts, focus lifts, target weight, Hevy
+    folder ID, API keys. Defined in users/<name>/profile.py and overlaid by
+    config.activate(<name>).
+
+Usage:
+    import config
+    config.activate("john")     # required before any DB / API access
+    # ... config.DB_PATH, config.MAIN_LIFTS, config.HEVY_API_KEY now populated
+
+Shared secrets (ANTHROPIC_API_KEY) live in the root secrets.env or shell env.
+Per-user secrets (HEVY_API_KEY, WITHINGS_*) live in users/<name>/secrets.env.
 """
 import os
 from pathlib import Path
-from dataclasses import dataclass, field
+
+_ROOT = Path(__file__).parent
+_USERS_ROOT = _ROOT / "users"
 
 
-def _load_dotenv(path: Path) -> None:
-    """Tiny .env loader — no external dep. Real env vars take precedence."""
+# ── .env loader ────────────────────────────────────────────────────────────
+
+def _read_dotenv(path: Path) -> dict[str, str]:
+    """Parse a .env-style file into a dict. No os.environ mutation."""
+    out: dict[str, str] = {}
     if not path.is_file():
-        return
+        return out
     for raw in path.read_text().splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
@@ -28,126 +43,83 @@ def _load_dotenv(path: Path) -> None:
         val = val.strip()
         if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
             val = val[1:-1]
-        os.environ.setdefault(key, val)
+        out[key] = val
+    return out
 
 
-_load_dotenv(Path(__file__).parent / "secrets.env")
+# Root secrets.env: shared keys only (ANTHROPIC_API_KEY). Loaded into os.environ
+# so it stays available across activate() calls. Per-user secrets are read fresh
+# per activate() so run_all.py can switch users in a single process.
+for _k, _v in _read_dotenv(_ROOT / "secrets.env").items():
+    os.environ.setdefault(_k, _v)
 
-# ── Paths ──────────────────────────────────────────────────────────────────
-DB_PATH = "/Users/johnparry/projects/projects/personal/gym/gym.db"
 
-# ── API Keys (set as env vars or in secrets.env) ───────────────────────────
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-HEVY_API_KEY      = os.environ.get("HEVY_API_KEY", "")
-WITHINGS_ACCESS_TOKEN  = os.environ.get("WITHINGS_ACCESS_TOKEN", "")
-WITHINGS_REFRESH_TOKEN = os.environ.get("WITHINGS_REFRESH_TOKEN", "")
-WITHINGS_CLIENT_ID     = os.environ.get("WITHINGS_CLIENT_ID", "")
-WITHINGS_CLIENT_SECRET = os.environ.get("WITHINGS_CLIENT_SECRET", "")
+# ── Per-user paths (set by activate) ───────────────────────────────────────
+USER_NAME: str | None      = None
+USER_DIR: str | None       = None
+DB_PATH: str | None        = None
+APP_STATE_PATH: str | None = None
+ACTIVITIES_PATH: str | None = None
+WITHINGS_TOKEN_PATH: str | None = None
+ROUTINE_ID_PATH: str | None = None
+LOG_DIR: str | None        = None
 
-# ── Training mode ──────────────────────────────────────────────────────────
-# TRAINING_MODE: "strength" | "hypertrophy" | "mixed" — decoupled from GOAL_MODE.
-#   strength:    1–6 rep range, load 80–95% 1RM, longer rests, lower volume
-#   hypertrophy: 6–12 rep range, load 65–80% 1RM, moderate rests, higher volume
-#   mixed:       blend — main lifts in strength range, accessories in hypertrophy range
+
+# ── API Keys ───────────────────────────────────────────────────────────────
+ANTHROPIC_API_KEY      = os.environ.get("ANTHROPIC_API_KEY", "")
+HEVY_API_KEY           = ""    # populated per-user by activate()
+WITHINGS_ACCESS_TOKEN  = ""
+WITHINGS_REFRESH_TOKEN = ""
+WITHINGS_CLIENT_ID     = ""
+WITHINGS_CLIENT_SECRET = ""
+
+
+# ── Per-user profile defaults (overridden by users/<name>/profile.py) ─────
+# These values are sensible-but-generic defaults. Real users override via profile.py.
+
+# TRAINING_MODE: "strength" | "hypertrophy" | "mixed"
 TRAINING_MODE = "hypertrophy"
 
-# ── Training goals ─────────────────────────────────────────────────────────
 GOAL = """
 Training split: Push / Pull / Legs / Arms (PPL+Arms).
 Target frequency: 5 sessions per week.
 All weights in kg.
 """
 
-# ── Body composition ───────────────────────────────────────────────────────
 # GOAL_MODE: "cut" | "bulk" | "maintain"
-#   cut:      slight caloric deficit — reduce accessory volume, prioritise compounds,
-#             avoid excessive fatigue; don't chase PRs on accessories
-#   bulk:     caloric surplus — push accessory volume, progress aggressively
-#   maintain: balanced — steady progression, standard volume
-GOAL_MODE = "bulk"
-TARGET_WEIGHT_KG: float | None = 95.0          # goal bodyweight
-WEIGHT_RATE_KG_PER_WEEK: float | None = 0.25   # lean-bulk pace (~1kg/month)
+GOAL_MODE = "maintain"
+TARGET_WEIGHT_KG: float | None       = None
+WEIGHT_RATE_KG_PER_WEEK: float | None = None
 
-# ── Session duration (weekday vs weekend) ──────────────────────────────────
-# Weekday sessions are shorter — same exercise count, tighter rest periods.
+# Session duration (weekday vs weekend, minutes)
 TARGET_DURATION_MINUTES = {
     "weekday": 60,
     "weekend": 90,
 }
 
-# ── Main lifts + Hevy exercise template IDs ───────────────────────────────
-# Template IDs must be fetched from Hevy API (see hevy.py:get_template_id)
-# and filled in here after first run.
-MAIN_LIFTS = {
-    "Incline Barbell Bench Press": {
-        "hevy_template_id": "50DFDFAB",
-        "hevy_name": "Incline Bench Press (Barbell)",
-        "session_type": "push",
-        "target_sets": 4,
-        "rep_range": (4, 6),
-        "progression_kg": 2.5,
-    },
-    "Strict Military Press": {
-        "hevy_template_id": "7B8D84E8",
-        "hevy_name": "Overhead Press (Barbell)",
-        "session_type": "push",
-        "target_sets": 4,
-        "rep_range": (4, 6),
-        "progression_kg": 2.5,
-    },
-    "Pull Up": {
-        "hevy_template_id": "1B2B1E7C",
-        "hevy_name": "Pull Up",
-        "session_type": "pull",
-        "target_sets": 4,
-        "rep_range": (4, 8),
-        "progression_kg": 2.5,      # added weight once BW sets are easy
-        "is_bodyweight": True,
-    },
-    "Weighted Dip": {
-        "hevy_template_id": "29472BE1",
-        "hevy_name": "Chest Dip (Weighted)",
-        "session_type": "push",
-        "target_sets": 4,
-        "rep_range": (6, 10),
-        "progression_kg": 2.5,
-        "is_bodyweight": True,
-    },
-    "Front Squat": {
-        "hevy_template_id": "5046D0A9",
-        "hevy_name": "Front Squat",
-        "session_type": "legs",
-        "target_sets": 4,
-        "rep_range": (4, 6),
-        "progression_kg": 2.5,
-    },
-}
+# Main lifts + Hevy template IDs — per-user (template IDs vary by Hevy library)
+MAIN_LIFTS: dict[str, dict] = {}
 
-# Session type → which main lifts belong there
-SESSION_LIFTS = {
-    "push": ["Incline Barbell Bench Press", "Strict Military Press", "Weighted Dip"],
-    "pull": ["Pull Up"],
-    "legs": ["Front Squat"],
-    "arms": [],  # accessory-only session
-}
+# Hevy routine folder — per-user (folder ID is account-specific)
+HEVY_ROUTINE_FOLDER_ID: int | None = None
 
-# Hevy routine folder — routines are posted into this folder
-HEVY_ROUTINE_FOLDER_ID = 2770378   # "Dynamic"
+# Per-session-type default focus lift
+DEFAULT_FOCUS_LIFTS: dict[str, str] = {}
 
-# Plateau detection: flag if e1RM hasn't improved across this many sessions
-PLATEAU_SESSIONS = 4
+# Exercises that should never be prescribed for this user
+EXCLUDED_EXERCISES: list[str] = []
+
+# Skill / practice work — optional list of duration-type drills
+SKILL_WORK: list[str] = []
+
+# Trusted YouTube creators for exercise selection (per-user — interests vary)
+TRUSTED_CREATORS: list[dict] = []
+
+
+# ── Infrastructure constants (cross-user, edit here to tune system-wide) ──
 
 # Fixed cycle order for session type rotation
 SESSION_CYCLE = ["push", "pull", "legs", "arms"]
-
-# ── Focus lift system ──────────────────────────────────────────────────────
-# Primary lift to progress per session type. Override with --set-focus.
-DEFAULT_FOCUS_LIFTS = {
-    "push": "Incline Barbell Bench Press",
-    "pull": "Pull Up",
-    "legs": "Front Squat",
-    "arms": "Close Grip Bench Press",
-}
 
 # Complementary lifts: when focus lift is progressing well, shift emphasis
 # to these to build supporting strength before returning to the focus lift.
@@ -174,11 +146,10 @@ MIN_RECOVERY_DAYS = 3
 # Maximum consecutive training days before a mandatory rest day
 MAX_CONSECUTIVE_DAYS = 5
 
-# Recurring non-gym activities live in recurring_activities.json (managed via
-# `python run.py --activity-add NAME WEEKDAY` / --activity-remove / --activity-list).
-# See activities.py for the JSON-backed store and template defaults.
+# Plateau detection: flag if e1RM hasn't improved across this many sessions
+PLATEAU_SESSIONS = 4
 
-# ── Equipment increments ───────────────────────────────────────────────────
+# Equipment increments (kg)
 EQUIPMENT_INCREMENTS = {
     "barbell":   2.5,
     "cable":     2.5,
@@ -186,22 +157,18 @@ EQUIPMENT_INCREMENTS = {
     "machine":   5.0,
 }
 
-# ── Progression rules ──────────────────────────────────────────────────────
+# Progression rules
 PROGRESSION = {
-    "increase_kg":           2.5,   # add when all sets hit top of rep range
-    "max_increase_kg":       5.0,   # hard cap per session
-    "plateau_reset_pct":     0.90,  # drop to 90% on plateau
+    "increase_kg":           2.5,
+    "max_increase_kg":       5.0,
+    "plateau_reset_pct":     0.90,
     "plateau_reps":          (6, 8),
-    "deload_threshold_days": 14,    # absence before deload treatment
+    "deload_threshold_days": 14,
     "deload_weight_pct":     0.80,
     "warmup_pcts":           [0.50, 0.75],
 }
 
-# ── Session slot templates ─────────────────────────────────────────────────
-# Each slot: movement_pattern + compound flag drive exercise selection from
-# the priority list. "fixed" overrides selection entirely.
-# "muscle" narrows selection within a pattern (e.g. shoulders vs upper_back
-# both share shoulder_abduction). "exclude" blocks specific exercise names.
+# Session slot templates
 SESSION_TEMPLATES: dict[str, list[dict]] = {
     "push": [
         {"slot": "chest_compound",    "movement_pattern": "horizontal_push",    "fixed": "Incline Barbell Bench Press"},
@@ -233,10 +200,9 @@ SESSION_TEMPLATES: dict[str, list[dict]] = {
     ],
 }
 
-# ── Session timing estimates (minutes per exercise type) ───────────────────
 SESSION_TIME_ESTIMATES = {
-    "warmup_general":     10,   # fixed overhead, not an exercise
-    "main_barbell":       20,   # includes 2 warmup sets
+    "warmup_general":     10,
+    "main_barbell":       20,
     "main_bodyweight":    15,
     "accessory_compound": 12,
     "isolation":           8,
@@ -244,35 +210,87 @@ SESSION_TIME_ESTIMATES = {
     "skill":               5,
 }
 
-# ── Skill / practice work ─────────────────────────────────────────────────
-# Added after the core slot if time allows. Prescribed as duration-type sets.
-# Examples: "Headstand Practice", "Handstand Hold", "L-Sit", "Ring Support Hold"
-SKILL_WORK: list[str] = []
-
-# ── Rest seconds per exercise category ────────────────────────────────────
 REST_SECONDS: dict[str, dict[str, int]] = {
     "weekday": {"main_barbell": 150, "accessory_compound":  90, "isolation": 60, "bodyweight_core": 45},
     "weekend": {"main_barbell": 210, "accessory_compound": 150, "isolation": 75, "bodyweight_core": 60},
 }
 
-# ── Exercise exclusions ────────────────────────────────────────────────────
-# Exercises that should never be prescribed. Add names exactly as they appear
-# in the Hevy exercise library (check exercises.json).
-# Use --exclude "exercise name" to append from the command line.
-EXCLUDED_EXERCISES: list[str] = [
-    "Calf Raise (Barbell)",
-]
-
-# ── Creator content ingestion ──────────────────────────────────────────────
-# YouTube channels whose content informs exercise selection.
-# weight: how much to trust this creator relative to others (1.0 = full trust).
-# channel_id: from the channel URL — youtube.com/channel/CHANNEL_ID
-TRUSTED_CREATORS: list[dict] = [
-    {"name": "Jeff Nippard", "channel_id": "UCjTp-nBKswYLumqmVeBPwYw", "weight": 1.0},
-]
-
-# Only count videos published within this window for scoring
 CREATOR_SCORE_LOOKBACK_DAYS = 365
-
-# Minimum weighted score for an exercise to surface to Claude
 CREATOR_SCORE_MIN = 0.3
+
+
+# ── Derived (recomputed by activate from MAIN_LIFTS) ──────────────────────
+SESSION_LIFTS: dict[str, list[str]] = {}
+
+
+def _derive_session_lifts(main_lifts: dict) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {st: [] for st in SESSION_CYCLE}
+    for name, lift in main_lifts.items():
+        out.setdefault(lift["session_type"], []).append(name)
+    return out
+
+
+# ── activate ──────────────────────────────────────────────────────────────
+
+def activate(user_name: str) -> None:
+    """
+    Switch active user: resolve paths under users/<name>/, load their
+    secrets.env, and overlay their profile.py onto this module's globals.
+
+    Must be called before any DB / API access. Safe to call repeatedly
+    (e.g. run_all.py iterating over users).
+    """
+    global USER_NAME, USER_DIR, DB_PATH, APP_STATE_PATH, ACTIVITIES_PATH
+    global WITHINGS_TOKEN_PATH, ROUTINE_ID_PATH, LOG_DIR
+    global HEVY_API_KEY, ANTHROPIC_API_KEY
+    global WITHINGS_ACCESS_TOKEN, WITHINGS_REFRESH_TOKEN
+    global WITHINGS_CLIENT_ID, WITHINGS_CLIENT_SECRET
+    global SESSION_LIFTS
+
+    user_dir = _USERS_ROOT / user_name
+    if not user_dir.is_dir():
+        raise FileNotFoundError(
+            f"No user directory at {user_dir}. "
+            f"Create one with: python run.py --add-user {user_name}"
+        )
+
+    USER_NAME           = user_name
+    USER_DIR            = str(user_dir)
+    DB_PATH             = str(user_dir / "gym.db")
+    APP_STATE_PATH      = str(user_dir / "app_state.json")
+    ACTIVITIES_PATH     = str(user_dir / "recurring_activities.json")
+    WITHINGS_TOKEN_PATH = str(user_dir / "withings_token.json")
+    ROUTINE_ID_PATH     = str(user_dir / "hevy_routine_id.txt")
+    LOG_DIR             = str(user_dir / "logs")
+
+    Path(LOG_DIR).mkdir(parents=True, exist_ok=True)
+
+    # Per-user secrets: file > shell env (explicit isolation when run_all switches users)
+    user_secrets = _read_dotenv(user_dir / "secrets.env")
+    def _pick(key: str) -> str:
+        v = user_secrets.get(key, "")
+        return v if v else os.environ.get(key, "")
+
+    HEVY_API_KEY           = _pick("HEVY_API_KEY")
+    WITHINGS_ACCESS_TOKEN  = _pick("WITHINGS_ACCESS_TOKEN")
+    WITHINGS_REFRESH_TOKEN = _pick("WITHINGS_REFRESH_TOKEN")
+    WITHINGS_CLIENT_ID     = _pick("WITHINGS_CLIENT_ID")
+    WITHINGS_CLIENT_SECRET = _pick("WITHINGS_CLIENT_SECRET")
+    # Anthropic key may live in user's secrets.env too (rare); root is fallback
+    ANTHROPIC_API_KEY      = _pick("ANTHROPIC_API_KEY")
+
+    # Overlay profile.py
+    profile_path = user_dir / "profile.py"
+    if not profile_path.is_file():
+        raise FileNotFoundError(f"No profile.py at {profile_path}")
+
+    ns: dict = {}
+    exec(compile(profile_path.read_text(), str(profile_path), "exec"), ns)
+    module = __import__(__name__)
+    for k, v in ns.items():
+        if k.startswith("_") or k == "__builtins__":
+            continue
+        setattr(module, k, v)
+
+    # Recompute derived state from overlaid MAIN_LIFTS
+    SESSION_LIFTS = _derive_session_lifts(MAIN_LIFTS)

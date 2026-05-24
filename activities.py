@@ -12,8 +12,11 @@ Schema per entry:
 """
 import json
 from pathlib import Path
+import config
 
-STORE = Path(__file__).parent / "recurring_activities.json"
+
+def _store() -> Path:
+    return Path(config.ACTIVITIES_PATH)
 
 # Sensible defaults per activity type. User provides name + weekday;
 # everything else falls back to the template if not overridden.
@@ -104,16 +107,17 @@ def weekday_name(n: int) -> str:
 
 
 def load_activities() -> list[dict]:
-    if not STORE.exists():
+    store = _store()
+    if not store.exists():
         return []
     try:
-        return json.loads(STORE.read_text())
+        return json.loads(store.read_text())
     except (json.JSONDecodeError, OSError):
         return []
 
 
 def save_activities(items: list[dict]) -> None:
-    STORE.write_text(json.dumps(items, indent=2))
+    _store().write_text(json.dumps(items, indent=2))
 
 
 def add_activity(name: str, weekday: str, overrides: dict | None = None) -> dict:

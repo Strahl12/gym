@@ -64,9 +64,13 @@ def imessage_send(body: str, recipient: str | None = None) -> bool:
     """Send `body` via iMessage. Returns True on success, False otherwise.
 
     Recipient resolution order: argument > IMESSAGE_RECIPIENT env var.
-    No-ops (returns False) if no recipient is configured or if the same
-    body was sent within the last 30 minutes (dedupe guard).
+    No-ops (returns False) when:
+      - not on macOS (iMessage / osascript unavailable, e.g. Pi)
+      - no recipient configured
+      - identical body sent within the last 30 minutes (dedupe guard)
     """
+    if sys.platform != "darwin":
+        return False
     recipient = recipient or os.environ.get("IMESSAGE_RECIPIENT", "").strip()
     if not recipient:
         return False

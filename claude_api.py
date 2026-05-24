@@ -14,8 +14,6 @@ from pathlib import Path
 from typing import Optional
 import config
 
-_STATE_FILE = Path(config.DB_PATH).parent / "app_state.json"
-
 
 def _extract_json(text: str) -> Optional[dict]:
     """Pull a JSON object out of a Claude response.
@@ -59,17 +57,18 @@ def _extract_json(text: str) -> Optional[dict]:
 
 
 def _load_state() -> dict:
-    if not _STATE_FILE.exists():
+    p = Path(config.APP_STATE_PATH)
+    if not p.exists():
         return {}
     try:
-        return json.loads(_STATE_FILE.read_text())
+        return json.loads(p.read_text())
     except (json.JSONDecodeError, OSError) as e:
-        print(f"[claude_api] Could not read {_STATE_FILE.name} ({e}); resetting state.")
+        print(f"[claude_api] Could not read {p.name} ({e}); resetting state.")
         return {}
 
 
 def _save_state(state: dict) -> None:
-    _STATE_FILE.write_text(json.dumps(state, indent=2))
+    Path(config.APP_STATE_PATH).write_text(json.dumps(state, indent=2))
 
 
 def generate_block_directive(context: dict) -> str:

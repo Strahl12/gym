@@ -1,29 +1,32 @@
 """
-run.py — Morning cron job orchestrator.
+run.py — Morning workout orchestrator (per user).
 
-Runs each morning (e.g. 07:30 via crontab):
-  1. Sync Withings bodyweight → DB
-  2. Build training context from DB
-  3. Call Claude → get workout prescription
-  4. POST to Hevy as a routine (open Hevy at the gym and start it)
-  5. Log everything to ~/gym_ai/logs/
+All real commands require --user <name>. The wizard `--add-user <name>`
+creates a new user.
+
+Runs:
+  1. Sync Withings bodyweight → user DB
+  2. Sync Hevy completed workouts → user DB
+  3. Build training context from DB
+  4. Call Claude → get workout prescription
+  5. POST to Hevy as a routine (PUT-updates the pinned slot)
+  6. Log everything to users/<name>/logs/
 
 Usage:
-  python run.py                        # post as routine (default — start at the gym)
-  python run.py --as-workout           # post as a completed workout instead
-  python run.py --dry-run              # build context + call Claude, don't post to Hevy
-  python run.py --confirm              # print workout and ask y/n before posting
-  python run.py --context-only         # just print today's context, no Claude call
-  python run.py --find-templates       # print Hevy template IDs for main lifts then exit
-  python run.py --note "left shoulder felt tight"  # log a session note, then exit
-  python run.py --set-focus push "Strict Military Press"  # override focus lift
-  python run.py --force                # override rest day and generate anyway
-  python run.py --creator-recs         # include creator recommendations in prescription
-  python run.py --exclude "Calf Raise (Barbell)"  # add exercise to permanent exclusion list
-  python run.py --withings-auth        # one-time OAuth setup for Withings
-  python run.py --activity-list                       # list recurring non-gym activities
-  python run.py --activity-add wrestling thu          # add a recurring activity
-  python run.py --activity-remove wrestling           # remove a recurring activity
+  python run.py --user john                            # post as routine (default)
+  python run.py --user john --as-workout               # post as a completed workout
+  python run.py --user john --dry-run                  # build context + call Claude, skip Hevy
+  python run.py --user john --confirm                  # print workout, ask y/n before posting
+  python run.py --user john --context-only             # print today's context, no Claude call
+  python run.py --user john --find-templates           # print Hevy template IDs for main lifts
+  python run.py --user john --note "left shoulder tight"
+  python run.py --user john --set-focus push "Strict Military Press"
+  python run.py --user john --force                    # override rest day
+  python run.py --user john --creator-recs             # include creator recs
+  python run.py --user john --exclude "Calf Raise (Barbell)"   # append to profile.py exclusions
+  python run.py --user john --withings-auth            # one-time Withings OAuth
+  python run.py --user john --activity-list / --activity-add / --activity-remove
+  python run.py --add-user alice                       # interactive wizard
 """
 import sys
 import json
@@ -31,20 +34,22 @@ import logging
 from datetime import date
 from pathlib import Path
 
-# ── Logging setup ──────────────────────────────────────────────────────────
-LOG_DIR = Path.home() / "gym_ai" / "logs"
-LOG_DIR.mkdir(parents=True, exist_ok=True)
-log_file = LOG_DIR / f"{date.today().isoformat()}.log"
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(levelname)s  %(message)s",
-    handlers=[
-        logging.FileHandler(log_file),
-        logging.StreamHandler(sys.stdout),
-    ],
-)
 log = logging.getLogger(__name__)
+
+
+def _setup_logging(log_dir: str) -> None:
+    """Configure root logger to write to <user>/logs/<date>.log and stdout."""
+    log_path = Path(log_dir)
+    log_path.mkdir(parents=True, exist_ok=True)
+    log_file = log_path / f"{date.today().isoformat()}.log"
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s  %(levelname)s  %(message)s",
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler(sys.stdout),
+        ],
+    )
 
 
 def _send_proposal_notification(workout: dict, session_date: str) -> None:
@@ -284,7 +289,7 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
         ctx["creator_recommendations"] = []
 
     # Save context to log
-    ctx_file = LOG_DIR / f"{date.today().isoformat()}_context.json"
+    ctx_file = Path(_cfg.LOG_DIR) / f"{date.today().isoformat()}_context.json"
     ctx_file.write_text(json.dumps(ctx, indent=2, default=str))
 
     if context_only:
@@ -316,7 +321,7 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
     log.info(f"Reasoning: {workout.get('reasoning')}")
 
     # Save workout prescription to log
-    workout_file = LOG_DIR / f"{date.today().isoformat()}_workout.json"
+    workout_file = Path(_cfg.LOG_DIR) / f"{date.today().isoformat()}_workout.json"
     workout_file.write_text(json.dumps(workout, indent=2))
 
     _send_proposal_notification(workout, date.today().isoformat())
@@ -386,7 +391,55 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
     log.info("Done. Open Hevy to see today's session.")
 
 
+def _arg_value(flag: str) -> str | None:
+    """Return the argument after `flag`, or None if missing."""
+    if flag not in sys.argv:
+        return None
+    idx = sys.argv.index(flag)
+    return sys.argv[idx + 1] if idx + 1 < len(sys.argv) else None
+
+
+def _append_exclusion(name: str) -> None:
+    """Append an exercise to the active user's profile.py EXCLUDED_EXERCISES list."""
+    import config as _cfg
+    import re as _re
+    profile_path = Path(_cfg.USER_DIR) / "profile.py"
+    text = profile_path.read_text()
+    if _re.search(r'EXCLUDED_EXERCISES\s*[:=]', text):
+        text = _re.sub(
+            r'(EXCLUDED_EXERCISES[^=]*=\s*\[)(.*?)(\])',
+            lambda m: m.group(1) + m.group(2) + f'    "{name}",\n' + m.group(3),
+            text, flags=_re.DOTALL, count=1,
+        )
+    else:
+        text += f'\nEXCLUDED_EXERCISES = ["{name}"]\n'
+    profile_path.write_text(text)
+    print(f"Added '{name}' to EXCLUDED_EXERCISES in {profile_path}")
+
+
 if __name__ == "__main__":
+    # --add-user runs the wizard; doesn't need an existing user.
+    if "--add-user" in sys.argv:
+        new_user = _arg_value("--add-user")
+        if not new_user:
+            print("Usage: python run.py --add-user <name>")
+            sys.exit(1)
+        from add_user import run_wizard
+        run_wizard(new_user)
+        sys.exit(0)
+
+    user = _arg_value("--user")
+    if not user:
+        print("ERROR: --user <name> is required.\n"
+              "  Run a session:  python run.py --user <name>\n"
+              "  Create a user:  python run.py --add-user <name>")
+        sys.exit(2)
+
+    import config
+    config.activate(user)
+    _setup_logging(config.LOG_DIR)
+
+    # ── Argless flags ─────────────────────────────────────────────────────
     dry_run        = "--dry-run"        in sys.argv
     context_only   = "--context-only"   in sys.argv
     find_templates = "--find-templates" in sys.argv
@@ -395,10 +448,7 @@ if __name__ == "__main__":
     force          = "--force"          in sys.argv
     creator_recs   = "--creator-recs"   in sys.argv
 
-    note = ""
-    if "--note" in sys.argv:
-        idx  = sys.argv.index("--note")
-        note = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else ""
+    note = _arg_value("--note") or ""
 
     set_focus: tuple = ()
     if "--set-focus" in sys.argv:
@@ -406,6 +456,7 @@ if __name__ == "__main__":
         if idx + 2 < len(sys.argv):
             set_focus = (sys.argv[idx + 1], sys.argv[idx + 2])
 
+    # ── One-shot subcommands ─────────────────────────────────────────────
     if "--withings-auth" in sys.argv:
         from withings import start_oauth
         start_oauth()
@@ -445,11 +496,10 @@ if __name__ == "__main__":
 
     if "--activity-remove" in sys.argv:
         from activities import remove_activity
-        idx = sys.argv.index("--activity-remove")
-        if idx + 1 >= len(sys.argv):
+        name = _arg_value("--activity-remove")
+        if not name:
             print("Usage: --activity-remove NAME")
             sys.exit(1)
-        name = sys.argv[idx + 1]
         if remove_activity(name):
             print(f"Removed activity: {name}")
         else:
@@ -457,21 +507,9 @@ if __name__ == "__main__":
         sys.exit(0)
 
     if "--exclude" in sys.argv:
-        idx  = sys.argv.index("--exclude")
-        name = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else ""
+        name = _arg_value("--exclude")
         if name:
-            import config as _cfg
-            import re as _re
-            cfg_path = Path(__file__).parent / "config.py"
-            cfg_text = cfg_path.read_text()
-            # Insert the new entry before the closing bracket of EXCLUDED_EXERCISES
-            cfg_text = _re.sub(
-                r'(EXCLUDED_EXERCISES: list\[str\] = \[)(.*?)(\])',
-                lambda m: m.group(1) + m.group(2) + f'    "{name}",\n' + m.group(3),
-                cfg_text, flags=_re.DOTALL
-            )
-            cfg_path.write_text(cfg_text)
-            print(f"Added '{name}' to EXCLUDED_EXERCISES in config.py")
+            _append_exclusion(name)
         sys.exit(0)
 
     main(dry_run=dry_run, context_only=context_only, find_templates=find_templates,
