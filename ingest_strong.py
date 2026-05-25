@@ -1,10 +1,22 @@
-import pandas as pd
+"""
+ingest_strong.py — one-time backfill: parse a Strong app CSV export into the
+sets table for a user.
+
+Usage:
+    python ingest_strong.py --user <name> [--csv path/to/strong_workouts.csv]
+
+The CSV path defaults to ~/Downloads/strong_workouts.csv.
+"""
+import argparse
 import sqlite3
 import re
+import sys
 from pathlib import Path
 
-DB_PATH = Path("/Users/johnparry/projects/projects/personal/gym/gym.db")
-CSV_PATH = Path("/Users/johnparry/Downloads/strong_workouts.csv")
+import pandas as pd
+import config
+
+DEFAULT_CSV = Path.home() / "Downloads" / "strong_workouts.csv"
 
 # ---------------------------------------------------------------------------
 # Exercise name normalisation
@@ -232,4 +244,14 @@ def ingest(csv_path: Path, db_path: Path) -> None:
     print(f"Exercises mapped: {sets[sets['muscle_group'] != 'other']['exercise'].nunique()} / {sets['exercise'].nunique()}")
 
 if __name__ == "__main__":
-    ingest(CSV_PATH, DB_PATH)
+    parser = argparse.ArgumentParser(description="Backfill sets from a Strong CSV export.")
+    parser.add_argument("--user", required=True, help="User name (must exist under users/)")
+    parser.add_argument("--csv", type=Path, default=DEFAULT_CSV,
+                        help=f"Path to Strong CSV (default: {DEFAULT_CSV})")
+    args = parser.parse_args()
+
+    config.activate(args.user)
+    if not args.csv.is_file():
+        print(f"CSV not found: {args.csv}", file=sys.stderr)
+        sys.exit(1)
+    ingest(args.csv, Path(config.DB_PATH))
