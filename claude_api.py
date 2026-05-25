@@ -15,33 +15,42 @@ from typing import Optional
 import config
 
 
-def _extract_json(text: str) -> Optional[dict]:
-    """Pull a JSON object out of a Claude response.
+_WORKOUT_FIELDS = {"exercises", "title", "session_type", "reasoning", "rest_recommended"}
+_SET_ONLY_FIELDS = {"reps", "weight_kg", "is_warmup", "rpe"}
 
-    Handles three cases:
-      1. The whole response IS the JSON object.
-      2. The JSON sits inside a ```json … ``` fenced block, with prose around it.
-      3. No fences, but a JSON object appears somewhere in the text — take the
-         last balanced {…} run (Claude tends to put final answer at the end).
-    Returns the parsed dict, or None if nothing parses.
+
+def _workout_score(obj: dict) -> int:
+    """Heuristic: how workout-shaped is this dict? Higher = more likely the real workout.
+
+    Distinguishes the workout envelope from incidental nested objects (a single
+    set, an example fragment) that Claude sometimes emits alongside the real answer.
     """
-    text = text.strip()
+    keys = set(obj.keys())
+    score = len(keys & _WORKOUT_FIELDS) * 10
+    if "exercises" in obj and isinstance(obj["exercises"], list) and obj["exercises"]:
+        score += 50
+    if obj.get("rest_recommended"):
+        score += 50  # rest-day responses legitimately have no exercises
+    # Penalise objects that look like a single set leaked through
+    if keys <= _SET_ONLY_FIELDS:
+        score -= 100
+    return score
+
+
+def _iter_json_candidates(text: str):
+    """Yield every parseable JSON dict found in `text`: whole, fenced, balanced spans."""
     try:
-        return json.loads(text)
+        yield json.loads(text)
     except json.JSONDecodeError:
         pass
 
-    # Fenced ```json ... ``` (or plain ``` ... ```) — take the last fenced block.
-    fenced = re.findall(r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.DOTALL)
-    for candidate in reversed(fenced):
+    for candidate in re.findall(r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.DOTALL):
         try:
-            return json.loads(candidate)
+            yield json.loads(candidate)
         except json.JSONDecodeError:
             continue
 
-    # Unfenced: scan for the last balanced { … } run.
-    starts = [i for i, c in enumerate(text) if c == "{"]
-    for start in reversed(starts):
+    for start in [i for i, c in enumerate(text) if c == "{"]:
         depth = 0
         for i in range(start, len(text)):
             if text[i] == "{":
@@ -50,10 +59,33 @@ def _extract_json(text: str) -> Optional[dict]:
                 depth -= 1
                 if depth == 0:
                     try:
-                        return json.loads(text[start:i + 1])
+                        yield json.loads(text[start:i + 1])
                     except json.JSONDecodeError:
-                        break
-    return None
+                        pass
+                    break
+
+
+def _extract_json(text: str) -> Optional[dict]:
+    """Pull the workout JSON object out of a Claude response.
+
+    Claude is asked to return JSON only, but sometimes wraps it in prose or
+    follows up with an example fragment. Strategy:
+      1. Collect every parseable {…} we can find (whole response, fenced blocks,
+         balanced unfenced spans).
+      2. Score each by how workout-shaped it looks (workout-level keys present,
+         non-empty exercises, not a bare set object).
+      3. Return the highest-scoring dict.
+    """
+    text = text.strip()
+    best: Optional[dict] = None
+    best_score = -10**9
+    for obj in _iter_json_candidates(text):
+        if not isinstance(obj, dict):
+            continue
+        score = _workout_score(obj)
+        if score > best_score:
+            best, best_score = obj, score
+    return best
 
 
 def _load_state() -> dict:
@@ -894,6 +926,16 @@ def get_workout(context: dict, legacy: bool = False,
     resp.raise_for_status()
 
     raw = resp.json()["content"][0]["text"].strip()
+
+    # Always snapshot Claude's raw text under the user's log dir — invaluable
+    # when an empty/garbled workout slips through.
+    try:
+        from datetime import date as _d
+        raw_path = Path(config.LOG_DIR) / f"{_d.today().isoformat()}_claude_raw.txt"
+        raw_path.write_text(raw)
+    except Exception:
+        pass
+
     parsed = _extract_json(raw)
     if parsed is None:
         print(f"[claude_api] JSON parse error: no decodable object found.\nRaw response:\n{raw}")
