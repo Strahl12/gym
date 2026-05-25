@@ -170,7 +170,7 @@ def check_mode_change(context: dict) -> Optional[str]:
 
 CLAUDE_MODEL   = "claude-sonnet-4-6"
 ANTHROPIC_URL  = "https://api.anthropic.com/v1/messages"
-MAX_TOKENS     = 2000
+MAX_TOKENS     = 4096   # Sonnet's reasoning preamble can eat 1.5k tokens before the JSON
 
 LEGACY_SYSTEM_PROMPT = """
 You are a strength programming assistant. Your job is to prescribe today's gym session
@@ -925,7 +925,11 @@ def get_workout(context: dict, legacy: bool = False,
     resp = requests.post(ANTHROPIC_URL, headers=_headers(), json=payload)
     resp.raise_for_status()
 
-    raw = resp.json()["content"][0]["text"].strip()
+    body = resp.json()
+    if body.get("stop_reason") == "max_tokens":
+        print(f"[claude_api] WARNING: response truncated at max_tokens ({MAX_TOKENS}). "
+              "Workout JSON may be incomplete — consider raising MAX_TOKENS.")
+    raw = body["content"][0]["text"].strip()
 
     # Always snapshot Claude's raw text under the user's log dir — invaluable
     # when an empty/garbled workout slips through.
