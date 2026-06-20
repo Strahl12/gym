@@ -36,17 +36,70 @@ MUSCLE_TO_SESSION = {
 
 MAIN_LIFT_NAMES = set(config.MAIN_LIFTS.keys())
 
+# Hevy stores unweighted Pull Up / Chin Up / Chest Dip as exercise_type="reps_only"
+# (same bucket as Plank or Hanging Leg Raise), so we can't infer "loads bodyweight"
+# from the type alone. This list covers the reps_only exercises that do.
+REPS_ONLY_BODYWEIGHT_LIFTS = {
+    "Pull Up", "Chin Up", "Chest Dip", "Push Up", "Inverted Row",
+    "Muscle Up", "Pull Up (Assisted)", "Chin Up (Assisted)",
+}
+
 
 def _headers() -> dict:
     return {"api-key": config.HEVY_API_KEY, "Content-Type": "application/json"}
 
 
-def _epley(weight: float, reps: int) -> Optional[float]:
-    if reps == 1:
-        return float(weight)
-    if weight <= 0:
+def _epley(weight: float, reps: int, bodyweight: float = 0.0) -> Optional[float]:
+    total = float(weight) + float(bodyweight)
+    if total <= 0:
         return None
-    return weight * (1 + reps / 30)
+    if reps == 1:
+        return total
+    return total * (1 + reps / 30)
+
+
+def _bodyweight_lookup(con: sqlite3.Connection) -> list[tuple[str, float]]:
+    """Return [(date, weight_kg), ...] sorted newest-first for is_bodyweight set e1RM."""
+    return [(r["date"], float(r["weight_kg"]))
+            for r in con.execute("SELECT date, weight_kg FROM bodyweight ORDER BY date DESC")]
+
+
+def _bw_on_or_before(bw_readings: list[tuple[str, float]], target_date: str) -> float:
+    """Find the bodyweight reading on or before target_date (sorted newest-first). 0 if none."""
+    for d, w in bw_readings:
+        if d <= target_date:
+            return w
+    return 0.0
+
+
+def _backfill_bodyweight_e1rm(con: sqlite3.Connection) -> int:
+    """One-time/idempotent: flag known bodyweight lifts and recompute their e1RM."""
+    # Flag historical Pull Up / Chin Up / Dip rows that were mis-classified as not-bodyweight.
+    bw_names = REPS_ONLY_BODYWEIGHT_LIFTS | {"Weighted Dip"}
+    placeholders = ",".join("?" * len(bw_names))
+    con.execute(
+        f"UPDATE sets SET is_bodyweight = 1, e1rm = NULL "
+        f"WHERE is_bodyweight = 0 AND exercise IN ({placeholders})",
+        tuple(bw_names),
+    )
+
+    bw_readings = _bodyweight_lookup(con)
+    if not bw_readings:
+        return 0
+    rows = con.execute(
+        "SELECT id, date, weight_kg, reps FROM sets WHERE is_bodyweight = 1 AND e1rm IS NULL"
+    ).fetchall()
+    updated = 0
+    for row in rows:
+        bw = _bw_on_or_before(bw_readings, row["date"])
+        e1rm = _epley(float(row["weight_kg"] or 0), int(row["reps"] or 0), bw)
+        if e1rm is not None:
+            con.execute("UPDATE sets SET e1rm = ? WHERE id = ?", (e1rm, row["id"]))
+            updated += 1
+    if updated:
+        con.commit()
+        print(f"[hevy_sync] Backfilled e1RM for {updated} bodyweight sets.")
+    return updated
 
 
 def fetch_workouts(since: str) -> list[dict]:
@@ -94,6 +147,9 @@ def sync_to_db(days: int = 14) -> int:
 
     con = sqlite3.connect(config.DB_PATH)
     con.row_factory = sqlite3.Row
+
+    _backfill_bodyweight_e1rm(con)
+    bw_readings = _bodyweight_lookup(con)
 
     # exercise_template_id → {primary_muscle, exercise_type} from cached library
     lib: dict[str, dict] = {
@@ -163,7 +219,10 @@ def sync_to_db(days: int = 14) -> int:
             ex_type   = ex_info.get("type", "")
 
             is_main     = 1 if ex_name in main_lifts_in_roster else 0
-            is_bodyweight = 1 if ex_type == "body_weight" else 0
+            is_bodyweight = 1 if (
+                ex_type in ("body_weight", "bodyweight_weighted")
+                or (ex_type == "reps_only" and ex_name in REPS_ONLY_BODYWEIGHT_LIFTS)
+            ) else 0
 
             for s in (ex.get("sets") or []):
                 reps      = int(s.get("reps") or 0)
@@ -171,7 +230,8 @@ def sync_to_db(days: int = 14) -> int:
                     continue
                 weight_kg = float(s.get("weight_kg") or 0)
                 is_warmup = 1 if s.get("type") == "warmup" else 0
-                e1rm      = _epley(weight_kg, reps)
+                bw_for_set = _bw_on_or_before(bw_readings, workout_date) if is_bodyweight else 0.0
+                e1rm      = _epley(weight_kg, reps, bw_for_set)
                 rpe       = s.get("rpe")   # None if not recorded
 
                 con.execute("""
