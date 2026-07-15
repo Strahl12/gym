@@ -146,6 +146,13 @@ def migrate(reseed: bool = False) -> None:
             context_snippet   TEXT,
             mention_count     INTEGER NOT NULL DEFAULT 1
         );
+
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts      TEXT NOT NULL,
+            role    TEXT NOT NULL,
+            content TEXT NOT NULL
+        );
     """)
 
     # Add star_rating column if it was missing from a previous schema version

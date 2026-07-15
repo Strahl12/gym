@@ -140,6 +140,7 @@ def _render_secrets(values: dict) -> str:
     text = re.sub(r'^WITHINGS_CLIENT_ID=.*$',     f'WITHINGS_CLIENT_ID={values["withings_id"]}',     text, count=1, flags=re.MULTILINE)
     text = re.sub(r'^WITHINGS_CLIENT_SECRET=.*$', f'WITHINGS_CLIENT_SECRET={values["withings_secret"]}', text, count=1, flags=re.MULTILINE)
     text = re.sub(r'^WITHINGS_REFRESH_TOKEN=.*$', f'WITHINGS_REFRESH_TOKEN={values["withings_refresh"]}', text, count=1, flags=re.MULTILINE)
+    text = re.sub(r'^CHAT_TOKEN=.*$',             f'CHAT_TOKEN={values["chat_token"]}',         text, count=1, flags=re.MULTILINE)
     return text
 
 
@@ -204,7 +205,9 @@ def run_wizard(name: str) -> None:
     weight_rate   = _ask_float("Target weight change kg/wk (e.g. 0.25 bulk, -0.25 cut, blank = none)",
                                default=None, allow_blank=True)
 
+    import secrets as _secrets
     values = {
+        "chat_token":       _secrets.token_urlsafe(24),
         "hevy_key":         hevy_key,
         "withings_id":      withings_id,
         "withings_secret":  withings_secret,
@@ -239,3 +242,5 @@ def run_wizard(name: str) -> None:
         print(f"       python run.py --user {name} --withings-auth")
     print(f"  3. Trigger today's session:")
     print(f"       python run.py --user {name}")
+    print(f"  4. Their chat link (restart chat_server.py to pick up the new token):")
+    print(f"       https://<funnel-host>:8443/u/{values['chat_token']}")

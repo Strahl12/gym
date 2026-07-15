@@ -146,3 +146,33 @@ Adding a new user later requires no cron edit: drop a `users/<newname>/`
 There are no push notifications. The prescription lands directly in each
 user's Hevy app as the updated routine — open Hevy, today's session is there.
 Post-session reviews are logged to the DB and each user's daily log file.
+
+### Web chat
+
+`chat_server.py` serves a minimal per-user chat page where each user can talk
+to the AI coach about their training. Replies are grounded in the same context
+the morning engine uses (`build_context`), plus today's prescription.
+
+Each user has a secret link `/u/<CHAT_TOKEN>` (token in their
+`users/<name>/secrets.env`; the add-user wizard generates one). Chat history
+is stored in their `gym.db`. Messages are rate-limited (30/hour/user) to cap
+API spend.
+
+The server listens on `127.0.0.1:8090` and is published with Tailscale Funnel
+on its own port, leaving any tailnet-only serve on 443 untouched:
+
+```
+tailscale funnel --bg --https=8443 http://127.0.0.1:8090
+```
+
+Chat URLs are then `https://<machine>.<tailnet>.ts.net:8443/u/<token>`.
+
+Cron keeps it alive (no root needed — `flock` no-ops while it's running):
+
+```
+@reboot     sleep 20 && flock -n /tmp/gym_chat.lock -c '<venv-python> chat_server.py >> chat_server.log 2>&1'
+*/5 * * * * flock -n /tmp/gym_chat.lock -c '<venv-python> chat_server.py >> chat_server.log 2>&1'
+```
+
+Restart after adding a user (new tokens load at startup):
+`pkill -f chat_server.py` — cron relaunches it within 5 minutes.

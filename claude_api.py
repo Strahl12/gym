@@ -560,8 +560,14 @@ def _fmt_set_vector(sets: list[dict]) -> str:
     return " / ".join(parts)
 
 
-def _build_user_message(context: dict) -> str:
-    """Formats the context dict into a clear natural-language + JSON prompt."""
+def format_athlete_context(context: dict, all_lifts: bool = False) -> str:
+    """Formats the context dict into the athlete-data block.
+
+    Shared by the morning prescription prompt and the chat server, so the
+    coach in chat sees exactly what the prescription engine sees. The
+    prescription shows main-lift status only for today's session type;
+    chat passes all_lifts=True so questions about any lift are answerable.
+    """
     today          = context["today"]
     stype          = context["suggested_session_type"]
     bw             = context.get("bodyweight_kg")
@@ -730,7 +736,7 @@ def _build_user_message(context: dict) -> str:
     lines.append("\n## Main lift status")
 
     for lift, data in context["main_lifts"].items():
-        if data["session_type"] != stype:
+        if not all_lifts and data["session_type"] != stype:
             continue   # only show lifts relevant to today's session
 
         days_ago = data["days_since_last_session"]
@@ -891,8 +897,12 @@ def _build_user_message(context: dict) -> str:
             lines.append("  If any session-appropriate accessory slot can address a gap, prefer it.")
             lines.append("  Gaps are not mandatory overrides — only fill if the exercise fits this session type.")
 
-    lines.append("\nPrescribe today's full session as JSON.")
     return "\n".join(lines)
+
+
+def _build_user_message(context: dict) -> str:
+    """Athlete data block + the prescription instruction."""
+    return format_athlete_context(context) + "\n\nPrescribe today's full session as JSON."
 
 
 def get_workout(context: dict, legacy: bool = False,
