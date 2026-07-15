@@ -923,7 +923,14 @@ def get_workout(context: dict, legacy: bool = False,
     }
 
     resp = requests.post(ANTHROPIC_URL, headers=_headers(), json=payload)
-    resp.raise_for_status()
+    if not resp.ok:
+        try:
+            err_msg = resp.json().get("error", {}).get("message", "")
+        except ValueError:
+            err_msg = ""
+        if err_msg:
+            raise RuntimeError(f"Anthropic API {resp.status_code}: {err_msg}")
+        resp.raise_for_status()
 
     body = resp.json()
     if body.get("stop_reason") == "max_tokens":
