@@ -52,36 +52,6 @@ def _setup_logging(log_dir: str) -> None:
     )
 
 
-def _send_proposal_notification(workout: dict, session_date: str) -> None:
-    """Best-effort iMessage send of today's prescription. Silent on failure."""
-    try:
-        from notify import imessage_send
-        stype = (workout.get("session_type") or "?").upper()
-        lines = [f"== Session proposal — {session_date} {stype} =="]
-        if workout.get("title"):
-            lines.append(workout["title"])
-        lines.append("")
-        if workout.get("reasoning"):
-            lines.append(workout["reasoning"])
-            lines.append("")
-        lines.append("Exercises:")
-        for ex in workout.get("exercises", []):
-            working = [s for s in ex.get("sets", []) if not s.get("is_warmup")]
-            if not working:
-                continue
-            reps = working[0].get("reps")
-            top = max((s.get("weight_kg") or 0) for s in working)
-            load = f"{top:g}kg" if top else "BW"
-            line = f"- {ex['exercise_name']}: {len(working)}×{reps} @ {load}"
-            alts = [a for a in (ex.get("alternates") or []) if a]
-            if alts:
-                line += f"  (alt: {', '.join(alts)})"
-            lines.append(line)
-        imessage_send("\n".join(lines))
-    except Exception:
-        pass
-
-
 def main(dry_run: bool = False, context_only: bool = False, find_templates: bool = False,
          as_workout: bool = False, confirm: bool = False, note: str = "",
          set_focus: tuple = (), force: bool = False, creator_recs: bool = False):
@@ -323,8 +293,6 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
     # Save workout prescription to log
     workout_file = Path(_cfg.LOG_DIR) / f"{date.today().isoformat()}_workout.json"
     workout_file.write_text(json.dumps(workout, indent=2))
-
-    _send_proposal_notification(workout, date.today().isoformat())
 
     # ── 3b. Log prescription to DB ─────────────────────────────────────────
     from context import log_prescription, mark_posted_to_hevy, active_block_id

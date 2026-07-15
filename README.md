@@ -141,7 +141,8 @@ crontab -e
 Adding a new user later requires no cron edit: drop a `users/<newname>/`
 (via the wizard) and `run_all.py` picks them up automatically the next morning.
 
-### Notifications
+### Delivery
 
-iMessage is macOS-only; `notify.py` no-ops on Pi. A Telegram-bot replacement
-is on the roadmap (see TODO.md).
+There are no push notifications. The prescription lands directly in each
+user's Hevy app as the updated routine — open Hevy, today's session is there.
+Post-session reviews are logged to the DB and each user's daily log file.

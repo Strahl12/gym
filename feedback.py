@@ -166,16 +166,6 @@ def _get_session_notes(session_date: str) -> list[dict]:
     return [{"note": r["note"], "source": r["source"]} for r in rows]
 
 
-def _send_review_notification(session_date: str, session_type: str, analysis: str) -> None:
-    """Best-effort iMessage send. Silent if no recipient configured or on failure."""
-    try:
-        from notify import imessage_send
-        stype = (session_type or "?").upper()
-        imessage_send(f"== Session review — {session_date} {stype} ==\n\n{analysis}")
-    except Exception:
-        pass
-
-
 def run_feedback_for_date(session_date: str) -> Optional[dict]:
     """
     Find the prescription for session_date, pull actual sets, compute and store diff.
@@ -285,7 +275,6 @@ def run_feedback_for_date(session_date: str) -> Optional[dict]:
             if analysis:
                 print(f"[feedback] Review:\n{analysis}")
                 _store_review(actual_date, analysis, "completed_review")
-                _send_review_notification(actual_date, session_type, analysis)
         return stored_diff
 
     diff = compute_diff(prescription, actual)
@@ -301,7 +290,6 @@ def run_feedback_for_date(session_date: str) -> Optional[dict]:
         if analysis:
             print(f"[feedback] Review:\n{analysis}")
             _store_review(actual_date, analysis, "completed_review")
-            _send_review_notification(actual_date, session_type, analysis)
 
     return diff
 
