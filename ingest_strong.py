@@ -110,6 +110,10 @@ EXERCISE_ALIASES = {
     "Machine Dip":                        "Seated Dip Machine",
     "Narrow Parallel Pull Up":            "Pull Up",
     "One-arm Straight Lat Pull Down":     "Single Arm Lat Pulldown",
+    "Overhead Thing":                     "Pullover (Dumbbell)",
+    # Rotator-cuff drills from a physio programme ("Thorne"); no Hevy equivalent
+    "Thorne Shoulder 1":                  "Standing External Rotation (Dumbbell)",
+    "Thorne Shoulder 2":                  "Bent Over External Rotation (Dumbbell)",
     "Overhead Tricep Cable Extension":    "Overhead Triceps Extension (Cable)",
     "Pec Deck (Machine)":                 "Butterfly (Pec Deck)",
     "Pull Up (to Chest)":                 "Sternum Pull up (Gironda)",
@@ -164,6 +168,8 @@ MUSCLE_GROUPS = {
     "Dumbbell Curl":             "arms",
     "Hammer Curl":               "arms",
     "Preacher Curl":             "arms",
+    "Standing External Rotation (Dumbbell)": "push",
+    "Bent Over External Rotation (Dumbbell)": "push",
     # Legs
     "Front Squat":               "legs",
     "Barbell Back Squat":        "legs",
