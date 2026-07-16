@@ -72,6 +72,60 @@ def migrate(reseed: bool = False) -> None:
 
     # ── Create tables ─────────────────────────────────────────────────────
     con.executescript("""
+        CREATE TABLE IF NOT EXISTS sets (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            source        TEXT,
+            session_id    TEXT,
+            date          DATE,
+            workout_name  TEXT,
+            session_type  TEXT,
+            muscle_group  TEXT,
+            exercise      TEXT,
+            is_main_lift  INTEGER,
+            is_bodyweight INTEGER,
+            is_warmup     INTEGER DEFAULT 0,
+            set_number    INTEGER,
+            weight_kg     REAL,
+            reps          INTEGER,
+            e1rm          REAL,
+            notes         TEXT,
+            rpe           REAL
+        );
+
+        CREATE TABLE IF NOT EXISTS bodyweight (
+            date           DATE PRIMARY KEY,
+            weight_kg      REAL,
+            source         TEXT,
+            muscle_mass_kg REAL,
+            body_fat_pct   REAL
+        );
+
+        CREATE TABLE IF NOT EXISTS focus_lift_phases (
+            session_type     TEXT PRIMARY KEY,
+            focus_lift       TEXT NOT NULL,
+            phase            TEXT NOT NULL DEFAULT 'focus',
+            complement_lift  TEXT,
+            phase_started    TEXT NOT NULL DEFAULT (date('now')),
+            updated_at       TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS session_notes (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            date       TEXT NOT NULL,
+            note       TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now')),
+            source     TEXT NOT NULL DEFAULT 'manual'
+        );
+
+        CREATE TABLE IF NOT EXISTS workout_feedback (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            date            TEXT NOT NULL,
+            prescription_id INTEGER,
+            session_type    TEXT,
+            diff_json       TEXT NOT NULL,
+            created_at      TEXT DEFAULT (datetime('now'))
+        );
+
         CREATE TABLE IF NOT EXISTS exercise_roster (
             exercise_name    TEXT PRIMARY KEY,
             session_type     TEXT NOT NULL,

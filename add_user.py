@@ -192,10 +192,20 @@ def run_wizard(name: str) -> None:
     withings_id     = ""
     withings_secret = ""
     withings_refresh = ""
-    if _ask_yn("Configure Withings?", default=False):
-        withings_id     = _ask("Withings client ID")
-        withings_secret = _ask("Withings client secret")
-        withings_refresh = _ask("Withings refresh token (leave blank — you'll run --withings-auth)")
+    want_withings   = _ask_yn("Configure Withings?", default=False)
+    if want_withings:
+        # The app registration is shared: config falls back to the root
+        # secrets.env when these are blank per-user, so only ask if the
+        # root doesn't have one. The user authorizes their own Withings
+        # account against the shared app via --withings-auth.
+        import config as _config
+        shared = _config._read_dotenv(_ROOT / "secrets.env")
+        if shared.get("WITHINGS_CLIENT_ID") and shared.get("WITHINGS_CLIENT_SECRET"):
+            print("  Using the shared Withings app registration from the root secrets.env.")
+        else:
+            withings_id     = _ask("Withings client ID")
+            withings_secret = _ask("Withings client secret")
+            withings_refresh = _ask("Withings refresh token (leave blank — you'll run --withings-auth)")
 
     # ── Training profile ──────────────────────────────────────────────────
     print("\nTraining")
@@ -237,8 +247,8 @@ def run_wizard(name: str) -> None:
     print(f"  1. Populate main-lift template IDs:")
     print(f"       python run.py --user {name} --find-templates")
     print(f"     Then paste the IDs into {user_dir}/profile.py (MAIN_LIFTS).")
-    if withings_id:
-        print(f"  2. Run Withings OAuth:")
+    if want_withings:
+        print(f"  2. Run Withings OAuth (THEY log in, authorizing their own account):")
         print(f"       python run.py --user {name} --withings-auth")
     print(f"  3. Trigger today's session:")
     print(f"       python run.py --user {name}")

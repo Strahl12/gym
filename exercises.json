@@ -5868,5 +5868,14 @@
     "secondary_muscles": [
       "forearms"
     ]
+  },
+  "390cd42a-bf69-43ef-b5f9-19ce9413765a": {
+    "hevy_title": "Dumbbell Skullcrusher",
+    "canonical": "Dumbbell Skullcrusher",
+    "aliases": [],
+    "muscle": "triceps",
+    "equipment": "dumbbell",
+    "exercise_type": "weight_reps",
+    "session_type": ""
   }
 }
