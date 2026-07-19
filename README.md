@@ -153,6 +153,16 @@ Post-session reviews are logged to the DB and each user's daily log file.
 to the AI coach about their training. Replies are grounded in the same context
 the morning engine uses (`build_context`), plus today's prescription.
 
+The chat feeds back into programming two ways:
+
+- Anything the athlete says in the last 48h (illness, poor sleep, injuries,
+  limited time) is included in the morning engine's context.
+- The coach can change their training profile — main lifts, focus lifts,
+  training/goal mode, target weight — through a guided conversation. Changes
+  are validated and applied to `users/<name>/profile.py` by
+  `profile_editor.py` (previous version kept at `profile.py.bak`), only after
+  the athlete explicitly confirms.
+
 Each user has a secret link `/u/<CHAT_TOKEN>` (token in their
 `users/<name>/secrets.env`; the add-user wizard generates one). Chat history
 is stored in their `gym.db`. Messages are rate-limited (30/hour/user) to cap
@@ -170,8 +180,8 @@ Chat URLs are then `https://<machine>.<tailnet>.ts.net:8443/u/<token>`.
 Cron keeps it alive (no root needed — `flock` no-ops while it's running):
 
 ```
-@reboot     sleep 20 && flock -n /tmp/gym_chat.lock -c '<venv-python> chat_server.py >> chat_server.log 2>&1'
-*/5 * * * * flock -n /tmp/gym_chat.lock -c '<venv-python> chat_server.py >> chat_server.log 2>&1'
+@reboot     sleep 20 && flock -n /tmp/gym_chat.lock -c '<venv-python> -u chat_server.py >> chat_server.log 2>&1'
+*/5 * * * * flock -n /tmp/gym_chat.lock -c '<venv-python> -u chat_server.py >> chat_server.log 2>&1'
 ```
 
 Restart after adding a user (new tokens load at startup):

@@ -57,9 +57,78 @@ Rules:
   session. No special format needed; they just have to mention it before the morning run.
 - If the data doesn't answer their question, say so rather than guessing.
 
+## Changing training goals
+You CAN change their training profile — main lifts, focus lifts, training mode,
+goal mode, target weight — via the update_profile tool. This is a guided process:
+- When they start talking about changing a goal or lift, walk them through what the
+  app needs, one or two questions at a time. For a new main lift that means: which
+  exact Hevy exercise (use search_hevy_exercises and confirm the title with them),
+  which session type (push/pull/legs/arms), sets, rep range, and progression
+  increment. Suggest sensible defaults from their data instead of interrogating —
+  e.g. "4 sets of 4-6 reps, +2.5kg progression — sound good?".
+- Before applying, state the exact change in one message and get an explicit yes.
+  NEVER call update_profile without the athlete confirming in this conversation.
+- Changes take effect from the next morning's programming — say so after applying.
+- For anything the tool doesn't cover, explain it can't be changed from chat.
+
+## Their current profile
+{profile_block}
+
 ## Athlete data (generated fresh for this message — the same context the morning engine sees)
 {athlete_block}
 {today_block}"""
+
+CHAT_TOOLS = [
+    {
+        "name": "search_hevy_exercises",
+        "description": "Search the athlete's Hevy exercise library by name. Use this to find "
+                       "the exact exercise title before adding or changing a main/focus lift.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "update_profile",
+        "description": "Apply confirmed changes to the athlete's training profile. Only call "
+                       "after the athlete has explicitly confirmed the exact change in this "
+                       "conversation. Batch related operations into one call; the batch is "
+                       "all-or-nothing and errors return guidance on what is missing.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "operations": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "op": {"type": "string",
+                                   "enum": ["set_main_lift", "remove_main_lift", "set_focus_lift",
+                                            "set_training_mode", "set_goal_mode",
+                                            "set_target_weight_kg", "set_weight_rate_kg_per_week"]},
+                            "name": {"type": "string",
+                                     "description": "Lift name (set_main_lift / remove_main_lift / set_focus_lift)"},
+                            "hevy_exercise_title": {"type": "string",
+                                                    "description": "Exact Hevy library title (from search_hevy_exercises)"},
+                            "session_type": {"type": "string", "enum": ["push", "pull", "legs", "arms"]},
+                            "target_sets": {"type": "integer"},
+                            "rep_range": {"type": "array", "items": {"type": "integer"},
+                                          "description": "[low, high]"},
+                            "progression_kg": {"type": "number"},
+                            "is_bodyweight": {"type": "boolean"},
+                            "value": {"description": "Value for the scalar set_* ops"},
+                        },
+                        "required": ["op"],
+                    },
+                },
+            },
+            "required": ["operations"],
+        },
+    },
+]
+
+MAX_TOOL_ROUNDS = 6
 
 app = Flask(__name__)
 
@@ -156,6 +225,45 @@ def _to_api_messages(history: list[dict]) -> list[dict]:
     return merged
 
 
+def _profile_block(user: str) -> str:
+    import profile_editor
+    p = profile_editor.read_profile(user)
+    lines = [f"Training mode: {p['training_mode']} | goal mode: {p['goal_mode']}"
+             f" | target weight: {p['target_weight_kg']}kg"
+             f" | rate: {p['weight_rate_kg_per_week']}kg/wk"]
+    lines.append("Main lifts:")
+    for name, cfg in p["main_lifts"].items():
+        bw = ", bodyweight" if cfg.get("is_bodyweight") else ""
+        lines.append(f"  {name} → {cfg.get('hevy_name', name)} ({cfg['session_type']}): "
+                     f"{cfg['target_sets']} sets of {cfg['rep_range'][0]}-{cfg['rep_range'][1]}, "
+                     f"+{cfg['progression_kg']}kg{bw}")
+    lines.append("Focus lifts: " + ", ".join(f"{st}={n}" for st, n in p["default_focus_lifts"].items()))
+    return "\n".join(lines)
+
+
+def _run_tool(user: str, name: str, args: dict) -> tuple[str, bool]:
+    """Execute one tool call. Returns (result_text, is_error)."""
+    import json as _json
+    import profile_editor
+    try:
+        if name == "search_hevy_exercises":
+            matches = profile_editor.search_exercises(user, args.get("query", ""))
+            if not matches:
+                return "no matches — try a different search term", False
+            return "\n".join(f"{m['title']}  ({m['muscle']}, {m['equipment']})" for m in matches), False
+        if name == "update_profile":
+            with _CONFIG_LOCK:   # serialize profile writes
+                summaries = profile_editor.apply_operations(user, args.get("operations", []))
+            print(f"[chat] {user}: profile updated — {'; '.join(summaries)}")
+            return "Applied: " + "; ".join(summaries), False
+        return f"unknown tool {name!r}", True
+    except profile_editor.ProfileEditError as e:
+        return f"NO CHANGES APPLIED — {e} (fix and retry, or tell the athlete honestly)", True
+    except Exception as e:
+        print(f"[chat] {user}: tool {name} failed: {e}")
+        return "NO CHANGES APPLIED — internal error; tell the athlete it didn't work", True
+
+
 def _coach_reply(user: str, history: list[dict]) -> str:
     """Build athlete context under the config lock; call Claude outside it."""
     with _CONFIG_LOCK:
@@ -169,26 +277,45 @@ def _coach_reply(user: str, history: list[dict]) -> str:
         headers = _headers()
 
     system = CHAT_SYSTEM.format(name=user.title(), athlete_block=athlete_block,
-                                today_block=today_block)
+                                today_block=today_block, profile_block=_profile_block(user))
 
-    resp = requests.post(
-        ANTHROPIC_URL,
-        headers=headers,
-        json={
-            "model":      CLAUDE_MODEL,
-            "max_tokens": CHAT_MAX_TOKENS,
-            "system":     system,
-            "messages":   _to_api_messages(history),
-        },
-        timeout=120,
-    )
-    if not resp.ok:
-        try:
-            err_msg = resp.json().get("error", {}).get("message", "")
-        except ValueError:
-            err_msg = ""
-        raise RuntimeError(f"Anthropic API {resp.status_code}: {err_msg or resp.reason}")
-    return resp.json()["content"][0]["text"].strip()
+    messages = _to_api_messages(history)
+    for _ in range(MAX_TOOL_ROUNDS):
+        resp = requests.post(
+            ANTHROPIC_URL,
+            headers=headers,
+            json={
+                "model":      CLAUDE_MODEL,
+                "max_tokens": CHAT_MAX_TOKENS,
+                "system":     system,
+                "tools":      CHAT_TOOLS,
+                "messages":   messages,
+            },
+            timeout=120,
+        )
+        if not resp.ok:
+            try:
+                err_msg = resp.json().get("error", {}).get("message", "")
+            except ValueError:
+                err_msg = ""
+            raise RuntimeError(f"Anthropic API {resp.status_code}: {err_msg or resp.reason}")
+        data = resp.json()
+
+        if data.get("stop_reason") != "tool_use":
+            texts = [b["text"] for b in data["content"] if b["type"] == "text"]
+            return "\n".join(texts).strip()
+
+        messages.append({"role": "assistant", "content": data["content"]})
+        results = []
+        for block in data["content"]:
+            if block["type"] != "tool_use":
+                continue
+            result, is_error = _run_tool(user, block["name"], block["input"] or {})
+            results.append({"type": "tool_result", "tool_use_id": block["id"],
+                            "content": result, "is_error": is_error})
+        messages.append({"role": "user", "content": results})
+
+    raise RuntimeError("tool loop exceeded MAX_TOOL_ROUNDS")
 
 
 @app.get("/u/<token>")
