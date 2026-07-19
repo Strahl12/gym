@@ -397,7 +397,9 @@
   "ADA8623C": {
     "hevy_title": "Bicep Curl (Cable)",
     "canonical": "Bicep Curl (Cable)",
-    "aliases": [],
+    "aliases": [
+      "21s Bicep Curl (Cables)"
+    ],
     "muscle": "biceps",
     "equipment": "machine",
     "session_type": "arms",
