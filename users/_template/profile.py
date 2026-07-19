@@ -8,6 +8,12 @@ and edit the values below. This file is exec'd into config's namespace
 when config.activate(<name>) runs, overriding the defaults in config.py.
 """
 
+# ── Onboarding ────────────────────────────────────────────────────────────
+# True until the athlete confirms their goals with the coach in the web chat.
+# While True, the chat proactively walks them through training mode, goals,
+# and main lifts, then flips this flag via profile_editor.
+NEEDS_ONBOARDING = True
+
 # ── Training mode ─────────────────────────────────────────────────────────
 # "strength" | "hypertrophy" | "mixed"
 TRAINING_MODE = "hypertrophy"

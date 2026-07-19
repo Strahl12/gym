@@ -73,10 +73,28 @@ goal mode, target weight — via the update_profile tool. This is a guided proce
 
 ## Their current profile
 {profile_block}
-
+{onboarding_block}
 ## Athlete data (generated fresh for this message — the same context the morning engine sees)
 {athlete_block}
 {today_block}"""
+
+ONBOARDING_GUIDE = """
+## SETUP NEEDED — first-time onboarding
+This athlete has NOT confirmed their training profile yet; the profile above is
+template defaults. Before anything else, greet them, explain you'll set up their
+training together, and walk through it one or two questions at a time:
+1. Training mode (strength / hypertrophy / mixed) and goal mode (cut / bulk /
+   maintain) — if cutting or bulking, also target weight and kg/week rate.
+2. Main lifts, one per session type at minimum. If their data above shows
+   training history, suggest their most-trained movements as mains and confirm;
+   otherwise propose common defaults. Use search_hevy_exercises for exact
+   titles. Suggest sets / rep range / progression defaults rather than asking
+   for every number.
+3. Focus lifts per session type (default: their main lift for that type).
+Apply confirmed changes with update_profile as you go. When everything above is
+confirmed, include the complete_onboarding op in the final update — that ends
+setup mode. Until then, gently steer other questions back to finishing setup.
+"""
 
 CHAT_TOOLS = [
     {
@@ -106,7 +124,8 @@ CHAT_TOOLS = [
                             "op": {"type": "string",
                                    "enum": ["set_main_lift", "remove_main_lift", "set_focus_lift",
                                             "set_training_mode", "set_goal_mode",
-                                            "set_target_weight_kg", "set_weight_rate_kg_per_week"]},
+                                            "set_target_weight_kg", "set_weight_rate_kg_per_week",
+                                            "complete_onboarding"]},
                             "name": {"type": "string",
                                      "description": "Lift name (set_main_lift / remove_main_lift / set_focus_lift)"},
                             "hevy_exercise_title": {"type": "string",
@@ -225,7 +244,8 @@ def _to_api_messages(history: list[dict]) -> list[dict]:
     return merged
 
 
-def _profile_block(user: str) -> str:
+def _profile_block(user: str) -> tuple[str, bool]:
+    """Returns (rendered profile block, needs_onboarding)."""
     import profile_editor
     p = profile_editor.read_profile(user)
     lines = [f"Training mode: {p['training_mode']} | goal mode: {p['goal_mode']}"
@@ -238,7 +258,7 @@ def _profile_block(user: str) -> str:
                      f"{cfg['target_sets']} sets of {cfg['rep_range'][0]}-{cfg['rep_range'][1]}, "
                      f"+{cfg['progression_kg']}kg{bw}")
     lines.append("Focus lifts: " + ", ".join(f"{st}={n}" for st, n in p["default_focus_lifts"].items()))
-    return "\n".join(lines)
+    return "\n".join(lines), p["needs_onboarding"]
 
 
 def _run_tool(user: str, name: str, args: dict) -> tuple[str, bool]:
@@ -276,8 +296,10 @@ def _coach_reply(user: str, history: list[dict]) -> str:
                            + workout_file.read_text())
         headers = _headers()
 
+    profile_block, needs_onboarding = _profile_block(user)
     system = CHAT_SYSTEM.format(name=user.title(), athlete_block=athlete_block,
-                                today_block=today_block, profile_block=_profile_block(user))
+                                today_block=today_block, profile_block=profile_block,
+                                onboarding_block=ONBOARDING_GUIDE if needs_onboarding else "")
 
     messages = _to_api_messages(history)
     for _ in range(MAX_TOOL_ROUNDS):

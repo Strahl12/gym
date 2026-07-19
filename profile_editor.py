@@ -46,6 +46,7 @@ def read_profile(user: str) -> dict:
     """Current editable values, straight from the user's profile.py."""
     ns = _exec_profile(_profile_path(user).read_text())
     return {
+        "needs_onboarding":        ns.get("NEEDS_ONBOARDING", False),
         "training_mode":           ns.get("TRAINING_MODE"),
         "goal_mode":               ns.get("GOAL_MODE"),
         "target_weight_kg":        ns.get("TARGET_WEIGHT_KG"),
@@ -223,6 +224,9 @@ def _apply_scalar(profile: dict, op: dict) -> str:
             raise ProfileEditError(f"weight_rate_kg_per_week must be -1.5 to 1.5 or null, got {val!r}")
         profile["weight_rate_kg_per_week"] = float(val) if val is not None else None
         return f"weight rate: {val:+.2f}kg/wk" if val is not None else "weight rate: cleared"
+    if kind == "complete_onboarding":
+        profile["needs_onboarding"] = False
+        return "onboarding complete"
     raise ProfileEditError(f"unknown op {kind!r}")
 
 
@@ -287,13 +291,17 @@ def apply_operations(user: str, operations: list[dict]) -> list[str]:
         elif kind == "set_focus_lift":
             summaries.append(_apply_set_focus_lift(user, profile, op))
         elif kind in ("set_training_mode", "set_goal_mode",
-                      "set_target_weight_kg", "set_weight_rate_kg_per_week"):
+                      "set_target_weight_kg", "set_weight_rate_kg_per_week",
+                      "complete_onboarding"):
             summaries.append(_apply_scalar(profile, op))
         else:
             raise ProfileEditError(f"unknown op {op.get('op')!r}")
 
     text = _sub_block(text, "MAIN_LIFTS", _render_main_lifts(profile["main_lifts"]))
     text = _sub_block(text, "DEFAULT_FOCUS_LIFTS", _render_focus_lifts(profile["default_focus_lifts"]))
+    # Older profiles predate the onboarding flag — only sub when the line exists
+    if re.search(r"^NEEDS_ONBOARDING = ", text, flags=re.MULTILINE):
+        text = _sub_line(text, "NEEDS_ONBOARDING", profile["needs_onboarding"])
     text = _sub_line(text, "TRAINING_MODE", profile["training_mode"])
     text = _sub_line(text, "GOAL_MODE", profile["goal_mode"])
     text = _sub_line(text, "TARGET_WEIGHT_KG", profile["target_weight_kg"])

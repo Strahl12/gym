@@ -37,31 +37,6 @@ def _ask(prompt: str, default: str = "", required: bool = False) -> str:
         print("    (required)")
 
 
-def _ask_choice(prompt: str, choices: list[str], default: str) -> str:
-    options = "/".join(f"[{c.upper()[0]}]{c[1:]}" if c == default else c for c in choices)
-    while True:
-        val = (input(f"  {prompt} ({options}): ").strip().lower() or default)
-        if val in choices:
-            return val
-        # accept first-letter shortcut
-        match = [c for c in choices if c.startswith(val)]
-        if len(match) == 1:
-            return match[0]
-        print(f"    pick one of: {', '.join(choices)}")
-
-
-def _ask_float(prompt: str, default: float | None = None, allow_blank: bool = False) -> float | None:
-    hint = f" [{default}]" if default is not None else (" [skip]" if allow_blank else "")
-    while True:
-        raw = input(f"  {prompt}{hint}: ").strip()
-        if not raw:
-            return default if default is not None else None
-        try:
-            return float(raw)
-        except ValueError:
-            print("    enter a number, e.g. 87.5")
-
-
 def _ask_int(prompt: str, default: int | None = None) -> int | None:
     hint = f" [{default}]" if default is not None else " [skip]"
     while True:
@@ -122,12 +97,6 @@ def _render_profile(values: dict) -> str:
         nonlocal text
         text = re.sub(pattern, replacement, text, count=1, flags=re.MULTILINE)
 
-    sub(r'^TRAINING_MODE = .*$',          f'TRAINING_MODE = "{values["training_mode"]}"')
-    sub(r'^GOAL_MODE = .*$',              f'GOAL_MODE = "{values["goal_mode"]}"')
-    sub(r'^TARGET_WEIGHT_KG = .*$',
-        f'TARGET_WEIGHT_KG = {values["target_weight_kg"]!r}')
-    sub(r'^WEIGHT_RATE_KG_PER_WEEK = .*$',
-        f'WEIGHT_RATE_KG_PER_WEEK = {values["weight_rate"]!r}')
     sub(r'^HEVY_ROUTINE_FOLDER_ID = .*$',
         f'HEVY_ROUTINE_FOLDER_ID = {values["folder_id"]!r}')
     return text
@@ -207,13 +176,8 @@ def run_wizard(name: str) -> None:
             withings_secret = _ask("Withings client secret")
             withings_refresh = _ask("Withings refresh token (leave blank — you'll run --withings-auth)")
 
-    # ── Training profile ──────────────────────────────────────────────────
-    print("\nTraining")
-    training_mode = _ask_choice("Training mode", ["strength", "hypertrophy", "mixed"], default="hypertrophy")
-    goal_mode     = _ask_choice("Goal mode",     ["cut", "bulk", "maintain"],        default="maintain")
-    target_weight = _ask_float("Target bodyweight in kg", default=None, allow_blank=True)
-    weight_rate   = _ask_float("Target weight change kg/wk (e.g. 0.25 bulk, -0.25 cut, blank = none)",
-                               default=None, allow_blank=True)
+    # Training goals (mode, target weight, main lifts) are set conversationally
+    # in the web chat — the coach onboards them on their first visit.
 
     import secrets as _secrets
     values = {
@@ -223,10 +187,6 @@ def run_wizard(name: str) -> None:
         "withings_secret":  withings_secret,
         "withings_refresh": withings_refresh,
         "folder_id":        folder_id,
-        "training_mode":    training_mode,
-        "goal_mode":        goal_mode,
-        "target_weight_kg": target_weight,
-        "weight_rate":      weight_rate,
     }
 
     # ── Write files ───────────────────────────────────────────────────────
@@ -244,13 +204,12 @@ def run_wizard(name: str) -> None:
 
     print(f"\nDone. User '{name}' created at {user_dir}/\n")
     print("Next steps:")
-    print(f"  1. Populate main-lift template IDs:")
-    print(f"       python run.py --user {name} --find-templates")
-    print(f"     Then paste the IDs into {user_dir}/profile.py (MAIN_LIFTS).")
+    print(f"  1. Send them their chat link (restart chat_server.py to pick up the new token):")
+    print(f"       https://<funnel-host>:8443/u/{values['chat_token']}")
+    print(f"     The coach onboards them there — training mode, goals, target weight,")
+    print(f"     and main lifts are all confirmed through that conversation.")
     if want_withings:
         print(f"  2. Run Withings OAuth (THEY log in, authorizing their own account):")
         print(f"       python run.py --user {name} --withings-auth")
-    print(f"  3. Trigger today's session:")
+    print(f"  3. After onboarding, trigger their first session:")
     print(f"       python run.py --user {name}")
-    print(f"  4. Their chat link (restart chat_server.py to pick up the new token):")
-    print(f"       https://<funnel-host>:8443/u/{values['chat_token']}")

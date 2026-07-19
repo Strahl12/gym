@@ -49,24 +49,27 @@ cp secrets.env.example secrets.env
 .env/bin/python run.py --add-user <name>
 ```
 
-The wizard prompts for the Hevy API key (verified live), Withings credentials
-(optional), training mode, goal mode, target weight, and the Hevy routine
-folder ID (picked from your account). It creates `users/<name>/` with
-`profile.py`, `secrets.env`, an empty `gym.db`, and a `logs/` directory.
+The wizard prompts only for credentials and plumbing: the Hevy API key
+(verified live), Withings yes/no, and the Hevy routine folder ID (picked from
+your account). It creates `users/<name>/` with `profile.py` (template defaults,
+flagged `NEEDS_ONBOARDING`), `secrets.env`, an empty `gym.db`, and a `logs/`
+directory.
+
+Training setup happens in the web chat: send the user their chat link and the
+coach walks them through training mode, goal mode, target weight, and main
+lifts conversationally, applying everything to their `profile.py` as they
+confirm (see Web chat below).
 
 Then:
 
 ```bash
-# 1. Find Hevy template IDs for the user's main lifts and paste them into profile.py
-.env/bin/python run.py --user <name> --find-templates
-
-# 2. (optional) Withings OAuth — one-time
+# 1. (optional) Withings OAuth — one-time
 .env/bin/python run.py --user <name> --withings-auth
 
-# 3. Test without posting to Hevy
+# 2. After chat onboarding: test without posting to Hevy
 .env/bin/python run.py --user <name> --dry-run
 
-# 4. Go live
+# 3. Go live
 .env/bin/python run.py --user <name>
 ```
 
@@ -152,6 +155,10 @@ Post-session reviews are logged to the DB and each user's daily log file.
 `chat_server.py` serves a minimal per-user chat page where each user can talk
 to the AI coach about their training. Replies are grounded in the same context
 the morning engine uses (`build_context`), plus today's prescription.
+
+New users are onboarded here: while their profile is flagged
+`NEEDS_ONBOARDING`, the coach proactively walks them through training mode,
+goals, and main lifts, then clears the flag once everything is confirmed.
 
 The chat feeds back into programming two ways:
 
