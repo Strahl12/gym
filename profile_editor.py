@@ -53,6 +53,11 @@ def read_profile(user: str) -> dict:
         "weight_rate_kg_per_week": ns.get("WEIGHT_RATE_KG_PER_WEEK"),
         "main_lifts":              ns.get("MAIN_LIFTS", {}),
         "default_focus_lifts":     ns.get("DEFAULT_FOCUS_LIFTS", {}),
+        "goal_text":               " ".join((ns.get("GOAL") or "").split()),
+        "target_duration_minutes": ns.get("TARGET_DURATION_MINUTES", {}),
+        "excluded_exercises":      ns.get("EXCLUDED_EXERCISES", []),
+        "skill_work":              ns.get("SKILL_WORK", []),
+        "hevy_routine_folder_id":  ns.get("HEVY_ROUTINE_FOLDER_ID"),
     }
 
 
@@ -227,7 +232,61 @@ def _apply_scalar(profile: dict, op: dict) -> str:
     if kind == "complete_onboarding":
         profile["needs_onboarding"] = False
         return "onboarding complete"
+    if kind == "set_session_duration":
+        dt = op.get("day_type")
+        if dt not in ("weekday", "weekend"):
+            raise ProfileEditError(f"day_type must be 'weekday' or 'weekend', got {dt!r}")
+        if not isinstance(val, int) or not 20 <= val <= 240:
+            raise ProfileEditError(f"duration must be an integer 20-240 minutes, got {val!r}")
+        profile["target_duration_minutes"][dt] = val
+        return f"{dt} session duration: {val} min"
     raise ProfileEditError(f"unknown op {kind!r}")
+
+
+def _known_exercise_names(user: str) -> dict[str, str]:
+    """lowercase → canonical name, from the Hevy library plus training history
+    (exclusions are matched against canonical names, which aren't always
+    library titles)."""
+    con = sqlite3.connect(_USERS_ROOT / user / "gym.db")
+    try:
+        names = {}
+        for (n,) in con.execute("SELECT DISTINCT exercise FROM sets"):
+            names[n.lower()] = n
+        for (t,) in con.execute("SELECT title FROM hevy_exercise_library"):
+            names[t.lower()] = t
+    finally:
+        con.close()
+    try:
+        import json
+        lib = json.loads((Path(__file__).parent / "exercises.json").read_text())
+        for entry in lib.values():
+            for n in (entry.get("canonical"), entry.get("hevy_title"), *entry.get("aliases", [])):
+                if n:
+                    names.setdefault(n.lower(), n)
+    except Exception:
+        pass
+    return names
+
+
+def _apply_set_excluded(user: str, profile: dict, op: dict) -> str:
+    val = op.get("value")
+    if not isinstance(val, list) or not all(isinstance(x, str) and x.strip() for x in val):
+        raise ProfileEditError("set_excluded_exercises needs 'value': a list of exercise names "
+                               "(the FULL new list — it replaces the old one)")
+    known = _known_exercise_names(user)
+    resolved = []
+    for name in val:
+        canon = known.get(name.strip().lower())
+        if canon is None:
+            close = difflib.get_close_matches(name.strip().lower(), known, n=5, cutoff=0.5)
+            raise ProfileEditError(
+                f"unknown exercise {name!r} — close matches: "
+                f"{', '.join(known[c] for c in close) or 'none'}. "
+                f"Confirm the exact name with the athlete."
+            )
+        resolved.append(canon)
+    profile["excluded_exercises"] = resolved
+    return "excluded exercises: " + (", ".join(resolved) or "none")
 
 
 # ── Rendering + write ──────────────────────────────────────────────────────
@@ -251,6 +310,26 @@ def _render_focus_lifts(focus: dict) -> str:
         out.append(f"    {st!r}: {name!r},")
     out.append("}")
     return "\n".join(out)
+
+
+def _render_durations(durations: dict) -> str:
+    out = ["TARGET_DURATION_MINUTES = {"]
+    for dt in ("weekday", "weekend"):
+        if dt in durations:
+            out.append(f"    {dt!r}: {durations[dt]!r},")
+    out.append("}")
+    return "\n".join(out)
+
+
+def _sub_excluded(text: str, excluded: list[str]) -> str:
+    # Handles both the annotated single-line form and a hand-written
+    # multi-line list.
+    rendered = f"EXCLUDED_EXERCISES: list[str] = {excluded!r}"
+    new, n = re.subn(r"^EXCLUDED_EXERCISES[^=\n]*= *\[.*?\]", rendered, text, count=1,
+                     flags=re.MULTILINE | re.DOTALL)
+    if n != 1:
+        raise ProfileEditError("could not locate EXCLUDED_EXERCISES in profile.py")
+    return new
 
 
 def _sub_block(text: str, var: str, rendered: str) -> str:
@@ -278,8 +357,10 @@ def apply_operations(user: str, operations: list[dict]) -> list[str]:
     path    = _profile_path(user)
     text    = path.read_text()
     profile = read_profile(user)
-    profile["main_lifts"]         = {k: dict(v) for k, v in profile["main_lifts"].items()}
+    profile["main_lifts"]          = {k: dict(v) for k, v in profile["main_lifts"].items()}
     profile["default_focus_lifts"] = dict(profile["default_focus_lifts"])
+    profile["target_duration_minutes"] = dict(profile["target_duration_minutes"])
+    profile["excluded_exercises"]      = list(profile["excluded_exercises"])
 
     summaries = []
     for op in operations:
@@ -290,15 +371,19 @@ def apply_operations(user: str, operations: list[dict]) -> list[str]:
             summaries.append(_apply_remove_main_lift(user, profile, op))
         elif kind == "set_focus_lift":
             summaries.append(_apply_set_focus_lift(user, profile, op))
+        elif kind == "set_excluded_exercises":
+            summaries.append(_apply_set_excluded(user, profile, op))
         elif kind in ("set_training_mode", "set_goal_mode",
                       "set_target_weight_kg", "set_weight_rate_kg_per_week",
-                      "complete_onboarding"):
+                      "complete_onboarding", "set_session_duration"):
             summaries.append(_apply_scalar(profile, op))
         else:
             raise ProfileEditError(f"unknown op {op.get('op')!r}")
 
     text = _sub_block(text, "MAIN_LIFTS", _render_main_lifts(profile["main_lifts"]))
     text = _sub_block(text, "DEFAULT_FOCUS_LIFTS", _render_focus_lifts(profile["default_focus_lifts"]))
+    text = _sub_block(text, "TARGET_DURATION_MINUTES", _render_durations(profile["target_duration_minutes"]))
+    text = _sub_excluded(text, profile["excluded_exercises"])
     # Older profiles predate the onboarding flag — only sub when the line exists
     if re.search(r"^NEEDS_ONBOARDING = ", text, flags=re.MULTILINE):
         text = _sub_line(text, "NEEDS_ONBOARDING", profile["needs_onboarding"])
@@ -310,6 +395,8 @@ def apply_operations(user: str, operations: list[dict]) -> list[str]:
     # Prove the regenerated file is valid Python with the values we intended
     check = _exec_profile(text)
     assert check["MAIN_LIFTS"] == profile["main_lifts"]
+    assert check["EXCLUDED_EXERCISES"] == profile["excluded_exercises"]
+    assert check["TARGET_DURATION_MINUTES"] == profile["target_duration_minutes"]
 
     path.with_suffix(".py.bak").write_text(path.read_text())
     tmp = path.with_suffix(".py.tmp")

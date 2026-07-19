@@ -69,7 +69,13 @@ goal mode, target weight — via the update_profile tool. This is a guided proce
 - Before applying, state the exact change in one message and get an explicit yes.
   NEVER call update_profile without the athlete confirming in this conversation.
 - Changes take effect from the next morning's programming — say so after applying.
+- Session durations and the excluded-exercises list are also changeable here.
 - For anything the tool doesn't cover, explain it can't be changed from chat.
+- If they ask how their coaching is set up or configured (their goals, lifts,
+  linked accounts, "what do you know about me", etc.), give a plain-language
+  rundown of the profile below — aims, main and focus lifts, session durations,
+  exclusions, and linked accounts — then ask if they'd like to change any of it.
+  Plain text, remember: simple labelled lines and dashes, no ** or ## markdown.
 
 ## Their current profile
 {profile_block}
@@ -125,6 +131,7 @@ CHAT_TOOLS = [
                                    "enum": ["set_main_lift", "remove_main_lift", "set_focus_lift",
                                             "set_training_mode", "set_goal_mode",
                                             "set_target_weight_kg", "set_weight_rate_kg_per_week",
+                                            "set_session_duration", "set_excluded_exercises",
                                             "complete_onboarding"]},
                             "name": {"type": "string",
                                      "description": "Lift name (set_main_lift / remove_main_lift / set_focus_lift)"},
@@ -136,7 +143,12 @@ CHAT_TOOLS = [
                                           "description": "[low, high]"},
                             "progression_kg": {"type": "number"},
                             "is_bodyweight": {"type": "boolean"},
-                            "value": {"description": "Value for the scalar set_* ops"},
+                            "day_type": {"type": "string", "enum": ["weekday", "weekend"],
+                                         "description": "For set_session_duration"},
+                            "value": {"description": "Value for the scalar set_* ops. For "
+                                      "set_excluded_exercises: the FULL new list of exact "
+                                      "Hevy titles (replaces the old list). For "
+                                      "set_session_duration: minutes."},
                         },
                         "required": ["op"],
                     },
@@ -245,12 +257,16 @@ def _to_api_messages(history: list[dict]) -> list[dict]:
 
 
 def _profile_block(user: str) -> tuple[str, bool]:
-    """Returns (rendered profile block, needs_onboarding)."""
+    """Returns (rendered profile + linked-accounts block, needs_onboarding)."""
     import profile_editor
     p = profile_editor.read_profile(user)
     lines = [f"Training mode: {p['training_mode']} | goal mode: {p['goal_mode']}"
              f" | target weight: {p['target_weight_kg']}kg"
              f" | rate: {p['weight_rate_kg_per_week']}kg/wk"]
+    if p["goal_text"]:
+        lines.append(f"Goal: {p['goal_text']}")
+    dur = p["target_duration_minutes"]
+    lines.append(f"Session duration: weekday {dur.get('weekday')} min, weekend {dur.get('weekend')} min")
     lines.append("Main lifts:")
     for name, cfg in p["main_lifts"].items():
         bw = ", bodyweight" if cfg.get("is_bodyweight") else ""
@@ -258,6 +274,19 @@ def _profile_block(user: str) -> tuple[str, bool]:
                      f"{cfg['target_sets']} sets of {cfg['rep_range'][0]}-{cfg['rep_range'][1]}, "
                      f"+{cfg['progression_kg']}kg{bw}")
     lines.append("Focus lifts: " + ", ".join(f"{st}={n}" for st, n in p["default_focus_lifts"].items()))
+    lines.append("Excluded exercises: " + (", ".join(p["excluded_exercises"]) or "none"))
+    if p["skill_work"]:
+        lines.append("Skill work: " + ", ".join(p["skill_work"]))
+
+    withings_linked = (USERS_ROOT / user / "withings_token.json").exists()
+    lines.append("Linked accounts:")
+    lines.append(f"  Hevy: connected — sessions are delivered to routine folder"
+                 f" {p['hevy_routine_folder_id']} in their Hevy app")
+    lines.append("  Withings (bodyweight scale): "
+                 + ("linked — weight syncs automatically"
+                    if withings_linked else
+                    "NOT linked — bodyweight tracking is off. Linking can't be done from "
+                    "chat; the server admin runs the Withings sign-in with them."))
     return "\n".join(lines), p["needs_onboarding"]
 
 
