@@ -854,6 +854,15 @@ def format_athlete_context(context: dict, all_lifts: bool = False) -> str:
         for n in directives:
             lines.append(f"  {n['date']}: {n['note']}")
 
+    chat_msgs = context.get("recent_chat_messages", [])
+    if chat_msgs:
+        lines.append("\n## Recent chat messages from athlete (last 48h, web chat)")
+        lines.append("  Factor in any readiness signals — illness, poor sleep, injury, soreness,")
+        lines.append("  stress, limited time. Reduce load/volume, substitute movements, or recommend")
+        lines.append("  rest as warranted, and say so in the reasoning. Ignore pure questions.")
+        for m in chat_msgs:
+            lines.append(f"  {m['ts']}: {m['message']}")
+
     if regular_notes:
         lines.append("\n## Session notes (injury signs / observations from Hevy and manual logs)")
         lines.append("  Reduce load or substitute exercises for any flagged movements.")

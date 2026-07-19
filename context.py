@@ -11,7 +11,7 @@ Reads from the SQLite DB and computes:
 """
 import sqlite3
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 import config
 
@@ -1211,6 +1211,28 @@ def mark_posted_to_hevy(prescribed_session_id: int) -> None:
 
 # ── Main context builder ───────────────────────────────────────────────────
 
+def recent_chat_messages(hours: int = 48, limit: int = 15) -> list[dict]:
+    """Messages the athlete sent in the web chat (chat_server.py) recently.
+
+    This is how wellness signals mentioned in chat — illness, poor sleep,
+    injuries, time constraints — reach the prescription engine. The table
+    may not exist for users who have never chatted.
+    """
+    cutoff = (datetime.now() - timedelta(hours=hours)).isoformat(timespec="seconds")
+    con = _con()
+    try:
+        rows = con.execute("""
+            SELECT ts, content FROM chat_messages
+            WHERE role = 'user' AND ts >= ?
+            ORDER BY id DESC LIMIT ?
+        """, (cutoff, limit)).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    finally:
+        con.close()
+    return [{"ts": r["ts"], "message": r["content"][:500]} for r in reversed(rows)]
+
+
 def build_context() -> dict:
     """
     Returns a dict with all context needed by Claude to prescribe today's workout.
@@ -1295,6 +1317,7 @@ def build_context() -> dict:
         "days_since_last_session_of_type": days_since_this_type,
         "recent_workout_feedback":         feedback,
         "session_notes":                   notes,
+        "recent_chat_messages":            recent_chat_messages(),
         "focus_phase":                     phase,
         "creator_recommendations":         creator_recs,
         "movement_coverage":               movement_coverage_audit(days=14),
