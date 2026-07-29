@@ -84,6 +84,12 @@ goal mode, target weight — via the update_profile tool. This is a guided proce
   the set_focus_lift op — usually one of their main lifts, but any real Hevy exercise
   works (e.g. Close Grip Bench Press on arms day). A confirmed change re-anchors the
   very next session of that type.
+- Changing training mode changes what rep ranges make sense. When they change mode,
+  review each main lift's rep range in the same conversation and propose updates
+  (strength ≈ 4-6, hypertrophy ≈ 8-12, mixed ≈ 5-8; bodyweight lifts progress by
+  reps anyway, so leave theirs unless asked). Apply the set_main_lift rep_range ops
+  together with set_training_mode once confirmed, and tell them working weights will
+  be recalculated for the new rep range — heavier low-rep weights do NOT carry over.
 - Before applying, state the exact change in one message and get an explicit yes.
   NEVER call update_profile without the athlete confirming in this conversation.
 - Changes take effect from the next generated session. After applying, offer to

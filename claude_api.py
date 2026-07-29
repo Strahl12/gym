@@ -406,6 +406,9 @@ def _build_system_prompt(block_directive: Optional[str] = None) -> str:
         f"  last_set_rpe 8–9 (optimal stimulus): same weight",
         f"  last_set_rpe ≥9.5 or reps cut short: −{pr['increase_kg']}kg",
         f"  no RPE data: +{pr['increase_kg']}kg if all sets hit top of rep range; else same weight",
+        f"ONE AXIS PER SESSION: never increase weight and target reps in the same prescription. If reps are going up, weight stays (or drops); if weight is going up, reps reset to the bottom of the range. A weight-increase rule firing does NOT license a rep increase too.",
+        f"REP-TARGET JUMP: if today's target reps exceed the previous session's working reps by more than 2 (typical after a training-mode change), do NOT carry the old working weight — recompute from e1RM for the new target: weight ≈ e1RM / (1 + target_reps/30), rounded DOWN to the equipment increment. Then build reps within the new range before adding load. Sanity check: prescribed weight × target reps must not imply an e1RM above the current one.",
+        f"If the Block directive specifies a progression structure (e.g. double progression, add load only at N clean reps), it OVERRIDES the weight-increase rules above, including the no-RPE rule.",
         f"plateau (≥{config.PLATEAU_SESSIONS} sessions flat): reset to {int(pr['plateau_reset_pct']*100)}% working weight rounded down to nearest {config.EQUIPMENT_INCREMENTS['barbell']}kg, reps {pr['plateau_reps'][0]}–{pr['plateau_reps'][1]}, note in reasoning",
         "bodyweight lifts: apply rules to added weight only; prescribe pure BW only if no added-weight history",
         f"HARD CAP: prescribed weight must NOT exceed previous session's working_weight + {pr['max_increase_kg']}kg. Reject any output that would jump further, even if the top set was higher.",
@@ -467,10 +470,12 @@ Rest seconds per exercise type are provided in the user message — set rest_sec
   maintain: standard volume
 
 ## Training mode (rep range bias)
-  strength:    main lifts at BOTTOM of rep range (1–6); accessories 4–8. Prioritise load over volume.
-  hypertrophy: main lifts at TOP of rep range or extend to 12; accessories 8–12. Prioritise volume/TUT.
-  mixed:       main lifts at MIDDLE of rep range (5–8); accessories 6–10.
+  strength:    main lifts at BOTTOM of rep range; accessories 4–8. Prioritise load over volume.
+  hypertrophy: main lifts work TOWARD the top of their rep range; accessories 8–12. Prioritise volume/TUT.
+  mixed:       main lifts at MIDDLE of rep range; accessories 6–10.
 The user message will state the active training mode — apply it to ALL rep prescriptions this session.
+Mode bias never overrides the Progression rules: reps climb across sessions (ONE AXIS rule),
+they do not jump to the mode's ideal in a single prescription.
 
 ## Muscle clash rule
 FIXED slots are always included regardless of last session. For PICK slots only: skip any
@@ -668,7 +673,8 @@ def format_athlete_context(context: dict, all_lifts: bool = False) -> str:
     tm = getattr(config, "TRAINING_MODE", "mixed")
     tm_guide = {
         "strength":    "Use BOTTOM of each main lift's rep range. Accessories 4-8 reps. Load priority.",
-        "hypertrophy": "Use TOP of each main lift's rep range (extend to 12 if range permits). Accessories 8-12 reps. Volume priority.",
+        "hypertrophy": "Work toward the TOP of each main lift's rep range — climbing across sessions, "
+                       "never jumping there in one prescription. Accessories 8-12 reps. Volume priority.",
         "mixed":       "Use MIDDLE of each main lift's rep range (5-8). Accessories 6-10 reps.",
     }.get(tm, "Use middle of each main lift's rep range.")
     lines.append(f"\n## Training mode: {tm}\n  {tm_guide}")
