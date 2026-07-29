@@ -77,6 +77,13 @@ goal mode, target weight — via the update_profile tool. This is a guided proce
   which session type (push/pull/legs/arms), sets, rep range, and progression
   increment. Suggest sensible defaults from their data instead of interrogating —
   e.g. "4 sets of 4-6 reps, +2.5kg progression — sound good?".
+- "Anchor lift" means the focus lift: the lift each session type (push/pull/legs/arms)
+  is built around — every session anchors on it and accessories support it. If they ask
+  to see their anchor lifts, list them per session type from the profile below (plain
+  lines, one per session type), noting any temporary complement phase. Change one with
+  the set_focus_lift op — usually one of their main lifts, but any real Hevy exercise
+  works (e.g. Close Grip Bench Press on arms day). A confirmed change re-anchors the
+  very next session of that type.
 - Before applying, state the exact change in one message and get an explicit yes.
   NEVER call update_profile without the athlete confirming in this conversation.
 - Changes take effect from the next generated session. After applying, offer to
@@ -304,7 +311,20 @@ def _profile_block(user: str) -> tuple[str, bool]:
         lines.append(f"  {name} → {cfg.get('hevy_name', name)} ({cfg['session_type']}): "
                      f"{cfg['target_sets']} sets of {cfg['rep_range'][0]}-{cfg['rep_range'][1]}, "
                      f"+{cfg['progression_kg']}kg{bw}")
-    lines.append("Focus lifts: " + ", ".join(f"{st}={n}" for st, n in p["default_focus_lifts"].items()))
+    phases = profile_editor.focus_phase_state(user)
+    lines.append("Anchor (focus) lifts — the lift each session type is built around:")
+    for st in ("push", "pull", "legs", "arms"):
+        live = phases.get(st)
+        if live is None:
+            if st in p["default_focus_lifts"]:
+                lines.append(f"  {st}: {p['default_focus_lifts'][st]}")
+            continue
+        if live["phase"] == "complement" and live["complement_lift"]:
+            lines.append(f"  {st}: {live['focus_lift']} — temporarily in a complement phase "
+                         f"emphasising {live['complement_lift']} since {live['phase_started']} "
+                         f"(anchor is progressing well; emphasis returns to it automatically)")
+        else:
+            lines.append(f"  {st}: {live['focus_lift']}")
     lines.append("Excluded exercises: " + (", ".join(p["excluded_exercises"]) or "none"))
     if p["skill_work"]:
         lines.append("Skill work: " + ", ".join(p["skill_work"]))

@@ -164,11 +164,14 @@ The chat feeds back into programming three ways:
 
 - Anything the athlete says in the last 48h (illness, poor sleep, injuries,
   limited time) is included in the morning engine's context.
-- The coach can change their training profile — main lifts, focus lifts,
-  training/goal mode, target weight — through a guided conversation. Changes
-  are validated and applied to `users/<name>/profile.py` by
+- The coach can change their training profile — main lifts, anchor (focus)
+  lifts, training/goal mode, target weight — through a guided conversation.
+  Changes are validated and applied to `users/<name>/profile.py` by
   `profile_editor.py` (previous version kept at `profile.py.bak`), only after
-  the athlete explicitly confirms.
+  the athlete explicitly confirms. Anchor-lift changes also reset the live
+  phase row in `focus_lift_phases`, so they anchor the next session of that
+  type immediately. "Show me my anchor lifts" lists them per session type,
+  including any temporary complement phase.
 - The coach can regenerate today's routine on request: it re-runs the full
   engine (`run.py --user <name>` as a subprocess) and the fresh prescription
   replaces today's session in their Hevy app. Because the engine reads recent

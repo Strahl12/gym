@@ -14,6 +14,7 @@ never depends on (or mutates) config's process-global active user.
 import difflib
 import re
 import sqlite3
+from datetime import date
 from pathlib import Path
 
 _USERS_ROOT = Path(__file__).parent / "users"
@@ -59,6 +60,61 @@ def read_profile(user: str) -> dict:
         "skill_work":              ns.get("SKILL_WORK", []),
         "hevy_routine_folder_id":  ns.get("HEVY_ROUTINE_FOLDER_ID"),
     }
+
+
+def focus_phase_state(user: str) -> dict[str, dict]:
+    """Live anchor (focus) lift state per session type, from focus_lift_phases.
+
+    The engine's phase rotation can put a session type in 'complement' phase,
+    where emphasis temporarily shifts off the anchor — so the live DB row, not
+    DEFAULT_FOCUS_LIFTS, is the truth about what today's session is built on.
+    Returns {} if the table doesn't exist yet (fresh user, no run yet).
+    """
+    con = sqlite3.connect(_USERS_ROOT / user / "gym.db")
+    con.row_factory = sqlite3.Row
+    try:
+        rows = con.execute("SELECT * FROM focus_lift_phases").fetchall()
+    except sqlite3.OperationalError:
+        return {}
+    finally:
+        con.close()
+    return {r["session_type"]: {"focus_lift": r["focus_lift"], "phase": r["phase"],
+                                "complement_lift": r["complement_lift"],
+                                "phase_started": r["phase_started"]}
+            for r in rows}
+
+
+def _reset_focus_phase(user: str, session_type: str, lift_name: str) -> None:
+    """Mirror focus.set_focus_lift without touching config's global state:
+    point the live phase row at the new anchor and restart the focus phase,
+    so the change applies to the very next generated session even if the
+    engine was mid-complement-phase."""
+    con = sqlite3.connect(_USERS_ROOT / user / "gym.db")
+    try:
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS focus_lift_phases (
+                session_type     TEXT PRIMARY KEY,
+                focus_lift       TEXT NOT NULL,
+                phase            TEXT NOT NULL DEFAULT 'focus',
+                complement_lift  TEXT,
+                phase_started    TEXT NOT NULL DEFAULT (date('now')),
+                updated_at       TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        con.execute("""
+            INSERT INTO focus_lift_phases
+                (session_type, focus_lift, phase, complement_lift, phase_started, updated_at)
+            VALUES (?, ?, 'focus', NULL, ?, datetime('now'))
+            ON CONFLICT(session_type) DO UPDATE SET
+                focus_lift      = excluded.focus_lift,
+                phase           = 'focus',
+                complement_lift = NULL,
+                phase_started   = excluded.phase_started,
+                updated_at      = excluded.updated_at
+        """, (session_type, lift_name, date.today().isoformat()))
+        con.commit()
+    finally:
+        con.close()
 
 
 # ── Hevy exercise library lookup ───────────────────────────────────────────
@@ -363,6 +419,7 @@ def apply_operations(user: str, operations: list[dict]) -> list[str]:
     profile["excluded_exercises"]      = list(profile["excluded_exercises"])
 
     summaries = []
+    focus_changes: list[tuple[str, str]] = []
     for op in operations:
         kind = op.get("op")
         if kind == "set_main_lift":
@@ -371,6 +428,7 @@ def apply_operations(user: str, operations: list[dict]) -> list[str]:
             summaries.append(_apply_remove_main_lift(user, profile, op))
         elif kind == "set_focus_lift":
             summaries.append(_apply_set_focus_lift(user, profile, op))
+            focus_changes.append((op["session_type"], op["name"].strip()))
         elif kind == "set_excluded_exercises":
             summaries.append(_apply_set_excluded(user, profile, op))
         elif kind in ("set_training_mode", "set_goal_mode",
@@ -402,4 +460,9 @@ def apply_operations(user: str, operations: list[dict]) -> list[str]:
     tmp = path.with_suffix(".py.tmp")
     tmp.write_text(text)
     tmp.replace(path)
+
+    # Profile is on disk; now sync the live phase rows so anchor changes take
+    # effect from the next generated session, not the next phase transition.
+    for st, name in focus_changes:
+        _reset_focus_phase(user, st, name)
     return summaries
