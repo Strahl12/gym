@@ -179,6 +179,16 @@ The chat feeds back into programming three ways:
   profile changes. Rest-day and activity blocks still apply; the coach relays
   the reason and only overrides (`--force`) if the athlete insists.
 
+Announcements (feature changes, downtime, etc.) go through the same channel:
+
+```
+.env/bin/python announce.py "Programming update: ..."          # all users
+.env/bin/python announce.py --user oliver "..."                # one user
+```
+
+The message lands in each user's chat history as a coach message — they see
+it next time they open their link, and can ask follow-ups right there.
+
 Each user has a secret link `/u/<CHAT_TOKEN>` (token in their
 `users/<name>/secrets.env`; the add-user wizard generates one). Chat history
 is stored in their `gym.db`. Messages are rate-limited (30/hour/user) to cap
