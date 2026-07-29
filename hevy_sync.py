@@ -189,25 +189,42 @@ def sync_to_db(days: int = 14) -> int:
             _store_hevy_notes(con, workout_date, workout, exercises)
             continue
 
-        # Determine session_type: title keywords first, fall back to muscle-group vote
+        # Determine session_type: title keywords, sanity-checked against what was
+        # actually performed. Athletes deviate from the routine they started (e.g.
+        # doing legs off an arms-titled template), so a strong muscle-group vote
+        # overrides the title.
         def _parse_title(name: str) -> str:
             n = name.lower()
-            if any(x in n for x in ["push", "chest"]):        return "push"
-            if any(x in n for x in ["pull", "back", "bicep"]): return "pull"
+            # leg/arm first: engine titles lead with the session type, and subtitle
+            # words like "Bicep Volume" on an arms title would otherwise hit pull.
             if "leg" in n:                                      return "legs"
             if "arm" in n:                                      return "arms"
+            if any(x in n for x in ["push", "chest"]):          return "push"
+            if any(x in n for x in ["pull", "back", "bicep"]):  return "pull"
             return "unknown"
 
-        session_type = _parse_title(workout_name)
+        title_type = _parse_title(workout_name)
+        type_votes: dict[str, int] = {}
+        for ex in exercises:
+            tid    = ex.get("exercise_template_id", "")
+            muscle = lib.get(tid, {}).get("muscle", "")
+            stype  = MUSCLE_TO_SESSION.get(muscle)
+            if stype:
+                type_votes[stype] = type_votes.get(stype, 0) + len(ex.get("sets") or [])
+        vote_type  = max(type_votes, key=type_votes.get) if type_votes else "unknown"
+        vote_share = type_votes[vote_type] / sum(type_votes.values()) if type_votes else 0.0
+
+        session_type = title_type
         if session_type == "unknown":
-            type_votes: dict[str, int] = {}
-            for ex in exercises:
-                tid    = ex.get("exercise_template_id", "")
-                muscle = lib.get(tid, {}).get("muscle", "")
-                stype  = MUSCLE_TO_SESSION.get(muscle)
-                if stype:
-                    type_votes[stype] = type_votes.get(stype, 0) + len(ex.get("sets") or [])
-            session_type = max(type_votes, key=type_votes.get) if type_votes else "unknown"
+            session_type = vote_type
+        elif (vote_type not in ("unknown", session_type) and vote_share >= 0.7
+                and not (session_type == "arms" and vote_type == "push")):
+            # ≥70% of logged sets belong to a different session type — they did a
+            # different workout than the routine title suggests. (arms→push is
+            # exempt: triceps map to push, so genuine arms days often vote push.)
+            print(f"[hevy_sync] {workout_date}: title says {title_type!r} but "
+                  f"{int(vote_share * 100)}% of sets are {vote_type!r} — classifying as {vote_type!r}")
+            session_type = vote_type
 
         set_number = 0
         for ex in exercises:
