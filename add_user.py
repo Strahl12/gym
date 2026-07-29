@@ -211,5 +211,5 @@ def run_wizard(name: str) -> None:
     if want_withings:
         print(f"  2. Run Withings OAuth (THEY log in, authorizing their own account):")
         print(f"       python run.py --user {name} --withings-auth")
-    print(f"  3. After onboarding, trigger their first session:")
-    print(f"       python run.py --user {name}")
+    print(f"  3. After onboarding the coach offers to generate their first session")
+    print(f"     right from the chat. (Manual alternative: python run.py --user {name})")

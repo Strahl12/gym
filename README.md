@@ -160,7 +160,7 @@ New users are onboarded here: while their profile is flagged
 `NEEDS_ONBOARDING`, the coach proactively walks them through training mode,
 goals, and main lifts, then clears the flag once everything is confirmed.
 
-The chat feeds back into programming two ways:
+The chat feeds back into programming three ways:
 
 - Anything the athlete says in the last 48h (illness, poor sleep, injuries,
   limited time) is included in the morning engine's context.
@@ -169,6 +169,12 @@ The chat feeds back into programming two ways:
   are validated and applied to `users/<name>/profile.py` by
   `profile_editor.py` (previous version kept at `profile.py.bak`), only after
   the athlete explicitly confirms.
+- The coach can regenerate today's routine on request: it re-runs the full
+  engine (`run.py --user <name>` as a subprocess) and the fresh prescription
+  replaces today's session in their Hevy app. Because the engine reads recent
+  chat, one-off requests ("only have 40 minutes today") are picked up without
+  profile changes. Rest-day and activity blocks still apply; the coach relays
+  the reason and only overrides (`--force`) if the athlete insists.
 
 Each user has a secret link `/u/<CHAT_TOKEN>` (token in their
 `users/<name>/secrets.env`; the add-user wizard generates one). Chat history

@@ -17,6 +17,8 @@ Kept alive by cron — @reboot start plus a */5 flock watchdog (see README).
 import hmac
 import re
 import sqlite3
+import subprocess
+import sys
 import threading
 import time
 from collections import defaultdict, deque
@@ -40,6 +42,7 @@ MAX_MESSAGE_CHARS   = 2000
 RATE_LIMIT_MESSAGES = 30      # per user...
 RATE_LIMIT_WINDOW_S = 3600    # ...per hour — caps the Anthropic bill
 CHAT_MAX_TOKENS     = 1024
+REGEN_TIMEOUT_S     = 240     # full engine run: syncs + prescription + Hevy POST
 
 CHAT_SYSTEM = """You are {name}'s strength coach — the same AI that writes their daily gym programming.
 Answer questions about their training using the athlete data below.
@@ -47,10 +50,18 @@ Answer questions about their training using the athlete data below.
 Rules:
 - Be concise and specific to the data. Plain text only — no markdown headings or tables
   (replies render in a small chat bubble). Weights in kg.
-- You cannot modify routines or log anything from this chat. If they want today's session
-  changed, tell them to edit it in the Hevy app. If they want future programming to behave
-  differently, tell them to add an exercise note in Hevy starting with "NOTE:" — the morning
-  engine reads those as directives.
+- You CAN regenerate today's routine: regenerate_routine re-runs the programming engine
+  (fresh Hevy/Withings sync, fresh prescription) and replaces today's session in their
+  Hevy app. The engine reads this chat, so whatever they've told you here — less time,
+  feeling beaten up, want a different session type, a movement swap — gets factored in.
+  Confirm what they want changed and get an explicit yes before calling it; warn that it
+  replaces the current routine and takes a minute or two. If the engine declines (rest
+  day, activity day, Claude recommends rest), relay the reason and stop — only retry with
+  force=true if they explicitly insist on training anyway. Tiny tweaks (one weight, one
+  set) are quicker edited directly in the Hevy app.
+- You cannot log workouts or completed sets from this chat. If they want future
+  programming to behave differently on a specific exercise, they can add an exercise
+  note in Hevy starting with "NOTE:" — the morning engine reads those as directives.
 - However, what they tell you HERE about their readiness — illness, poor sleep, injury,
   soreness, stress, limited time — IS read by the morning engine (it sees chat messages from
   the last 48h). Acknowledge such reports and confirm they'll be factored into the next
@@ -68,7 +79,8 @@ goal mode, target weight — via the update_profile tool. This is a guided proce
   e.g. "4 sets of 4-6 reps, +2.5kg progression — sound good?".
 - Before applying, state the exact change in one message and get an explicit yes.
   NEVER call update_profile without the athlete confirming in this conversation.
-- Changes take effect from the next morning's programming — say so after applying.
+- Changes take effect from the next generated session. After applying, offer to
+  regenerate today's routine so they kick in immediately; otherwise it's tomorrow.
 - Session durations and the excluded-exercises list are also changeable here.
 - For anything the tool doesn't cover, explain it can't be changed from chat.
 - If they ask how their coaching is set up or configured (their goals, lifts,
@@ -100,6 +112,8 @@ training together, and walk through it one or two questions at a time:
 Apply confirmed changes with update_profile as you go. When everything above is
 confirmed, include the complete_onboarding op in the final update — that ends
 setup mode. Until then, gently steer other questions back to finishing setup.
+Once setup is complete, offer to generate their first session right now with
+regenerate_routine — it lands in their Hevy app a minute or two later.
 """
 
 CHAT_TOOLS = [
@@ -155,6 +169,23 @@ CHAT_TOOLS = [
                 },
             },
             "required": ["operations"],
+        },
+    },
+    {
+        "name": "regenerate_routine",
+        "description": "Re-run the programming engine for the athlete NOW: syncs their latest "
+                       "Hevy workouts and bodyweight, rebuilds context (including this chat, so "
+                       "their requests here are factored in), gets a fresh prescription, and "
+                       "replaces today's routine in their Hevy app. Use after profile changes or "
+                       "when they want today's session redone. Takes a minute or two. Only call "
+                       "after the athlete has explicitly confirmed in this conversation.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "force": {"type": "boolean",
+                          "description": "Override a rest-day or activity-day block. Only after "
+                                         "the athlete explicitly insists on training despite it."},
+            },
         },
     },
 ]
@@ -290,6 +321,54 @@ def _profile_block(user: str) -> tuple[str, bool]:
     return "\n".join(lines), p["needs_onboarding"]
 
 
+def _regenerate_routine(user: str, force: bool) -> tuple[str, bool]:
+    """Run the full engine (run.py) as a subprocess and summarize the outcome.
+
+    A subprocess keeps the engine's config.activate / logging setup out of this
+    process; sys.executable is the same venv python that launched us.
+    """
+    import json as _json
+    started = time.time()
+    cmd = [sys.executable, str(ROOT / "run.py"), "--user", user]
+    if force:
+        cmd.append("--force")
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True,
+                              timeout=REGEN_TIMEOUT_S, cwd=ROOT)
+    except subprocess.TimeoutExpired:
+        print(f"[chat] {user}: regenerate timed out after {REGEN_TIMEOUT_S}s")
+        return ("NO ROUTINE POSTED — the engine timed out; tell the athlete to "
+                "try again in a few minutes"), True
+
+    workout_file = USERS_ROOT / user / "logs" / f"{date.today().isoformat()}_workout.json"
+    posted = (proc.returncode == 0 and workout_file.exists()
+              and workout_file.stat().st_mtime >= started)
+    if posted:
+        w = _json.loads(workout_file.read_text())
+        lines = [f"Routine posted to their Hevy app: {w.get('title')}"]
+        for ex in w.get("exercises", []):
+            working = [s for s in ex.get("sets", []) if not s.get("is_warmup")]
+            if working:
+                top = max(s.get("weight_kg") or 0 for s in working)
+                load = f" @ {top}kg" if top else " (bodyweight)"
+                lines.append(f"  {ex['exercise_name']}: {len(working)}x{working[0].get('reps')}{load}")
+            else:
+                lines.append(f"  {ex['exercise_name']}")
+        if w.get("reasoning"):
+            lines.append(f"Engine reasoning: {w['reasoning']}")
+        return "\n".join(lines), False
+
+    if proc.returncode != 0:
+        err_tail = "\n".join((proc.stderr or proc.stdout or "").strip().splitlines()[-8:])
+        print(f"[chat] {user}: regenerate failed rc={proc.returncode}:\n{err_tail}")
+        return "NO ROUTINE POSTED — the engine hit an error; tell the athlete it didn't work", True
+
+    tail = "\n".join((proc.stdout or "").strip().splitlines()[-12:])
+    return ("NO ROUTINE POSTED — the engine declined to program a session. Its output is "
+            "below; explain the reason to the athlete in plain words. Only retry with "
+            "force=true if they explicitly insist.\n" + tail), False
+
+
 def _run_tool(user: str, name: str, args: dict) -> tuple[str, bool]:
     """Execute one tool call. Returns (result_text, is_error)."""
     import json as _json
@@ -305,6 +384,9 @@ def _run_tool(user: str, name: str, args: dict) -> tuple[str, bool]:
                 summaries = profile_editor.apply_operations(user, args.get("operations", []))
             print(f"[chat] {user}: profile updated — {'; '.join(summaries)}")
             return "Applied: " + "; ".join(summaries), False
+        if name == "regenerate_routine":
+            print(f"[chat] {user}: regenerating routine (force={bool(args.get('force'))})")
+            return _regenerate_routine(user, bool(args.get("force")))
         return f"unknown tool {name!r}", True
     except profile_editor.ProfileEditError as e:
         return f"NO CHANGES APPLIED — {e} (fix and retry, or tell the athlete honestly)", True
