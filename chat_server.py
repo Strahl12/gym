@@ -15,6 +15,7 @@ existing tailnet-only serve on 443 stays private:
 Kept alive by cron — @reboot start plus a */5 flock watchdog (see README).
 """
 import hmac
+import os
 import re
 import sqlite3
 import subprocess
@@ -26,8 +27,9 @@ from datetime import date, datetime
 from pathlib import Path
 
 import requests
-from flask import Flask, abort, jsonify, render_template, request
+from flask import Flask, abort, jsonify, make_response, redirect, render_template, request
 
+import chat_auth
 import config
 from context import build_context
 from claude_api import ANTHROPIC_URL, CLAUDE_MODEL, _headers, format_athlete_context
@@ -35,7 +37,8 @@ from claude_api import ANTHROPIC_URL, CLAUDE_MODEL, _headers, format_athlete_con
 ROOT       = Path(__file__).parent
 USERS_ROOT = ROOT / "users"
 
-HOST, PORT          = "127.0.0.1", 8090
+HOST = os.environ.get("GYM_CHAT_HOST", "127.0.0.1")
+PORT = int(os.environ.get("GYM_CHAT_PORT", "8090"))
 HISTORY_TO_MODEL    = 20      # messages of continuity sent to Claude
 HISTORY_ON_PAGE     = 100     # messages rendered on page load
 MAX_MESSAGE_CHARS   = 2000
@@ -233,6 +236,7 @@ def _load_tokens() -> dict[str, str]:
 
 
 TOKENS = _load_tokens()
+SECRET = chat_auth.load_secret(USERS_ROOT / ".chat_session_secret")
 
 
 def _user_for(token: str) -> str | None:
@@ -240,6 +244,31 @@ def _user_for(token: str) -> str | None:
         if hmac.compare_digest(known, token):
             return user
     return None
+
+
+def _session_user() -> str | None:
+    """User name from a valid session cookie, if the account still exists."""
+    cookie = request.cookies.get(chat_auth.SESSION_COOKIE)
+    if not cookie:
+        return None
+    user = chat_auth.read_session(SECRET, cookie)
+    if user and (USERS_ROOT / user).is_dir() and not user.startswith("_"):
+        return user
+    return None
+
+
+def _login_redirect(user: str):
+    resp = make_response(redirect("/app", code=303))
+    resp.set_cookie(
+        chat_auth.SESSION_COOKIE,
+        chat_auth.make_session(SECRET, user),
+        max_age=chat_auth.SESSION_TTL_S,
+        httponly=True,
+        secure=True,
+        samesite="Lax",
+        path="/",
+    )
+    return resp
 
 
 def _db(user: str) -> sqlite3.Connection:
@@ -477,19 +506,7 @@ def _coach_reply(user: str, history: list[dict]) -> str:
     raise RuntimeError("tool loop exceeded MAX_TOOL_ROUNDS")
 
 
-@app.get("/u/<token>")
-def chat_page(token: str):
-    user = _user_for(token)
-    if user is None:
-        abort(404)
-    return render_template("chat.html", user=user.title())
-
-
-@app.get("/u/<token>/history")
-def chat_history(token: str):
-    user = _user_for(token)
-    if user is None:
-        abort(404)
+def _history_response(user: str):
     con = _db(user)
     try:
         return jsonify(_history(con, HISTORY_ON_PAGE))
@@ -497,11 +514,7 @@ def chat_history(token: str):
         con.close()
 
 
-@app.post("/u/<token>/chat")
-def chat_post(token: str):
-    user = _user_for(token)
-    if user is None:
-        abort(404)
+def _chat_response(user: str):
     body    = request.get_json(silent=True) or {}
     message = (body.get("message") or "").strip()
     if not message:
@@ -526,6 +539,138 @@ def chat_post(token: str):
         return jsonify({"reply": reply})
     finally:
         con.close()
+
+
+# ------------------------------------------------------- legacy token urls
+
+
+@app.get("/u/<token>")
+def chat_page(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return render_template("chat.html", user=user.title())
+
+
+@app.get("/u/<token>/history")
+def chat_history(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return _history_response(user)
+
+
+@app.post("/u/<token>/chat")
+def chat_post(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return _chat_response(user)
+
+
+# ------------------------------------------------------------ login + app
+
+
+@app.get("/")
+def root():
+    return redirect("/app" if _session_user() else "/login", code=302)
+
+
+@app.get("/login")
+def login_form():
+    return render_template("login.html", error=None, username="")
+
+
+@app.post("/login")
+def login_submit():
+    username = (request.form.get("username") or "").strip().lower()
+    password = request.form.get("password") or ""
+
+    if chat_auth.throttled(username):
+        return render_template(
+            "login.html", username=username,
+            error="Too many attempts — try again in 15 minutes.",
+        ), 429
+
+    found = chat_auth.user_for_username(USERS_ROOT, username) if username else None
+    if (
+        found is None
+        or not found[1].get("password_hash")
+        or not chat_auth.verify_password(password, found[1]["password_hash"])
+    ):
+        chat_auth.record_failure(username)
+        time.sleep(0.4)  # blunt the cost of online guessing
+        return render_template(
+            "login.html", username=username, error="Wrong username or password.",
+        ), 401
+
+    print(f"[chat] login: {username}")
+    return _login_redirect(found[0])
+
+
+@app.get("/setup/<token>")
+def setup_form(token: str):
+    found = chat_auth.user_for_setup_token(USERS_ROOT, token)
+    if found is None:
+        abort(404)
+    user, record = found
+    return render_template(
+        "setup.html", token=token, username=record["username"],
+        name=user.title(), min_len=chat_auth.MIN_PASSWORD_LEN, error=None,
+    )
+
+
+@app.post("/setup")
+def setup_submit():
+    token = request.form.get("t") or ""
+    found = chat_auth.user_for_setup_token(USERS_ROOT, token)
+    if found is None:
+        abort(404)
+    user, record = found
+    password = request.form.get("password") or ""
+    if len(password) < chat_auth.MIN_PASSWORD_LEN:
+        return render_template(
+            "setup.html", token=token, username=record["username"],
+            name=user.title(), min_len=chat_auth.MIN_PASSWORD_LEN,
+            error=f"At least {chat_auth.MIN_PASSWORD_LEN} characters.",
+        ), 400
+
+    record["password_hash"] = chat_auth.hash_password(password)
+    record["setup_token"] = None  # single-use
+    chat_auth.save_auth(USERS_ROOT, user, record)
+    print(f"[chat] password set: {record['username']}")
+    return _login_redirect(user)
+
+
+@app.get("/app")
+def app_page():
+    user = _session_user()
+    if user is None:
+        return redirect("/login", code=302)
+    return render_template("chat.html", user=user.title())
+
+
+@app.get("/app/history")
+def app_history():
+    user = _session_user()
+    if user is None:
+        abort(401)
+    return _history_response(user)
+
+
+@app.post("/app/chat")
+def app_chat():
+    user = _session_user()
+    if user is None:
+        abort(401)
+    return _chat_response(user)
+
+
+@app.post("/logout")
+def logout():
+    resp = make_response(redirect("/login", code=303))
+    resp.delete_cookie(chat_auth.SESSION_COOKIE, path="/")
+    return resp
 
 
 if __name__ == "__main__":
