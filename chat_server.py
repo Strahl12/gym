@@ -642,7 +642,7 @@ def setup_submit():
     return _login_redirect(user)
 
 
-@app.get("/app")
+@app.get("/app", strict_slashes=False)
 def app_page():
     user = _session_user()
     if user is None:
