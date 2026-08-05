@@ -133,29 +133,52 @@ def load_secret(path: Path) -> bytes:
     return secret
 
 
-def make_session(secret: bytes, user: str) -> str:
+def _user_key(secret: bytes, password_hash: str) -> bytes:
+    """Per-user signing key, derived from their current password hash.
+
+    Changing the password changes the hash, which changes this key, which
+    invalidates every session cookie already issued to that user. That is the
+    whole mechanism — no epoch counter to keep in step.
+    """
+    return hmac.new(
+        secret, b"session:" + (password_hash or "").encode(), hashlib.sha256
+    ).digest()
+
+
+def make_session(secret: bytes, user: str, password_hash: str) -> str:
     expires = int(time.time()) + SESSION_TTL_S
     msg = f"{user}.{expires}"
-    sig = hmac.new(secret, msg.encode(), hashlib.sha256).hexdigest()
-    return f"v1.{msg}.{sig}"
+    sig = hmac.new(
+        _user_key(secret, password_hash), msg.encode(), hashlib.sha256
+    ).hexdigest()
+    return f"v2.{msg}.{sig}"
 
 
-def read_session(secret: bytes, cookie: str) -> str | None:
-    """Returns the user name, or None for anything invalid or expired."""
+def read_session(secret: bytes, cookie: str, lookup) -> str | None:
+    """Returns the user name, or None for anything invalid, stale or expired.
+
+    `lookup(user)` must return that user's current password hash, or None if
+    the account is gone or has no password.
+    """
     try:
         version, user, expires, sig = cookie.split(".")
     except (ValueError, AttributeError):
         return None
-    if version != "v1":
-        return None
-    msg = f"{user}.{expires}"
-    want = hmac.new(secret, msg.encode(), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(want, sig):
+    if version != "v2":  # v1 cookies predate password-bound sessions
         return None
     try:
         if time.time() > int(expires):
             return None
     except ValueError:
+        return None
+    password_hash = lookup(user)
+    if not password_hash:
+        return None
+    msg = f"{user}.{expires}"
+    want = hmac.new(
+        _user_key(secret, password_hash), msg.encode(), hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(want, sig):
         return None
     return user
 

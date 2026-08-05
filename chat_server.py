@@ -246,22 +246,26 @@ def _user_for(token: str) -> str | None:
     return None
 
 
+def _password_hash_for(user: str) -> str | None:
+    if user.startswith("_") or not (USERS_ROOT / user).is_dir():
+        return None
+    record = chat_auth.load_auth(USERS_ROOT, user)
+    return record.get("password_hash") if record else None
+
+
 def _session_user() -> str | None:
     """User name from a valid session cookie, if the account still exists."""
     cookie = request.cookies.get(chat_auth.SESSION_COOKIE)
     if not cookie:
         return None
-    user = chat_auth.read_session(SECRET, cookie)
-    if user and (USERS_ROOT / user).is_dir() and not user.startswith("_"):
-        return user
-    return None
+    return chat_auth.read_session(SECRET, cookie, _password_hash_for)
 
 
-def _login_redirect(user: str):
+def _login_redirect(user: str, password_hash: str):
     resp = make_response(redirect("/app", code=303))
     resp.set_cookie(
         chat_auth.SESSION_COOKIE,
-        chat_auth.make_session(SECRET, user),
+        chat_auth.make_session(SECRET, user, password_hash),
         max_age=chat_auth.SESSION_TTL_S,
         httponly=True,
         secure=True,
@@ -605,7 +609,7 @@ def login_submit():
         ), 401
 
     print(f"[chat] login: {username}")
-    return _login_redirect(found[0])
+    return _login_redirect(found[0], found[1]["password_hash"])
 
 
 @app.get("/setup/<token>")
@@ -638,8 +642,8 @@ def setup_submit():
     record["password_hash"] = chat_auth.hash_password(password)
     record["setup_token"] = None  # single-use
     chat_auth.save_auth(USERS_ROOT, user, record)
-    print(f"[chat] password set: {record['username']}")
-    return _login_redirect(user)
+    print(f"[chat] password set: {record['username']} (other sessions signed out)")
+    return _login_redirect(user, record["password_hash"])
 
 
 @app.get("/app", strict_slashes=False)
