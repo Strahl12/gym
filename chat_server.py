@@ -46,6 +46,8 @@ RATE_LIMIT_MESSAGES = 30      # per user...
 RATE_LIMIT_WINDOW_S = 3600    # ...per hour — caps the Anthropic bill
 CHAT_MAX_TOKENS     = 1024
 REGEN_TIMEOUT_S     = 240     # full engine run: syncs + prescription + Hevy POST
+CHAT_SYNC_THROTTLE_S = 600    # re-pull Hevy at most once per 10 min per user in chat
+CHAT_SYNC_DAYS       = 14     # how far back the on-demand chat sync looks
 
 CHAT_SYSTEM = """You are {name}'s strength coach — the same AI that writes their daily gym programming.
 Answer questions about their training using the athlete data below.
@@ -212,6 +214,27 @@ app = Flask(__name__)
 
 _CONFIG_LOCK = threading.Lock()          # config.activate() mutates process-global state
 _RATE: dict[str, deque] = defaultdict(deque)
+_LAST_SYNC: dict[str, float] = {}        # user → last on-demand Hevy sync (throttle)
+
+
+def _sync_recent(user: str) -> None:
+    """Pull the user's latest Hevy workouts into their DB so the coach sees
+    self-directed sessions right after they finish, not just after the 7:30am
+    cron. Throttled per user; failures are non-fatal (fall back to synced data).
+
+    Must be called with _CONFIG_LOCK held and config already activated for user.
+    """
+    now = time.time()
+    if now - _LAST_SYNC.get(user, 0.0) < CHAT_SYNC_THROTTLE_S:
+        return
+    _LAST_SYNC[user] = now
+    try:
+        from hevy_sync import sync_to_db
+        n = sync_to_db(days=CHAT_SYNC_DAYS)
+        if n:
+            print(f"[chat] {user}: on-demand Hevy sync wrote {n} new sets")
+    except Exception as e:
+        print(f"[chat] {user}: on-demand Hevy sync failed (using existing data): {e}")
 
 
 def _load_tokens() -> dict[str, str]:
@@ -458,6 +481,7 @@ def _coach_reply(user: str, history: list[dict]) -> str:
     """Build athlete context under the config lock; call Claude outside it."""
     with _CONFIG_LOCK:
         config.activate(user)
+        _sync_recent(user)
         athlete_block = format_athlete_context(build_context(), all_lifts=True)
         today_block = ""
         workout_file = Path(config.LOG_DIR) / f"{date.today().isoformat()}_workout.json"
@@ -520,6 +544,9 @@ def _history_response(user: str):
 
 def _stats_response(user: str):
     import stats
+    with _CONFIG_LOCK:            # _sync_recent needs the active user + serialised writes
+        config.activate(user)
+        _sync_recent(user)
     try:
         return jsonify(stats.stats_payload(user))
     except Exception as e:
