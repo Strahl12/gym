@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ user }} — Training Stats</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, system-ui, sans-serif;
+         background: Canvas; color: CanvasText; line-height: 1.4; }
+  header { position: sticky; top: 0; z-index: 5; background: Canvas;
+           display: flex; align-items: center; gap: .75rem;
+           padding: .75rem 1rem; font-weight: 600;
+           border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent); }
+  header a { margin-left: auto; font-weight: 600; text-decoration: none;
+             color: #2563eb; font-size: .95rem; }
+  main { padding: 1rem; max-width: 720px; margin: 0 auto;
+         padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
+  h2 { font-size: 1rem; margin: 1.5rem 0 .6rem; }
+  .muted { color: color-mix(in srgb, CanvasText 55%, transparent); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .6rem; }
+  .card { border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+          border-radius: .8rem; padding: .7rem .8rem; }
+  .card .n { font-size: 1.5rem; font-weight: 700; }
+  .card .l { font-size: .78rem; }
+  .bars { display: flex; flex-direction: column; gap: .45rem; }
+  .bar-row { display: flex; align-items: center; gap: .6rem; font-size: .85rem; }
+  .bar-label { width: 3.2rem; text-transform: capitalize; }
+  .bar-track { flex: 1; background: color-mix(in srgb, CanvasText 10%, transparent);
+               border-radius: .5rem; height: 1.1rem; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: .5rem; }
+  .bar-n { width: 2rem; text-align: right; font-variant-numeric: tabular-nums; }
+  .chart { border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+           border-radius: .8rem; padding: .7rem .8rem; margin-bottom: .7rem; }
+  .chart-head { display: flex; align-items: baseline; gap: .5rem; margin-bottom: .4rem; }
+  .chart-title { font-weight: 600; font-size: .92rem; }
+  .chart-sub { font-size: .78rem; }
+  .chart svg { width: 100%; height: 120px; display: block; overflow: visible; }
+  .legend { display: flex; flex-wrap: wrap; gap: .8rem; font-size: .8rem; margin: .3rem 0 .9rem; }
+  .legend span { display: inline-flex; align-items: center; gap: .35rem; text-transform: capitalize; }
+  .dot { width: .8rem; height: .8rem; border-radius: .25rem; display: inline-block; }
+  .cal-month { margin-bottom: 1rem; }
+  .cal-title { font-size: .85rem; font-weight: 600; margin-bottom: .35rem; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .cal-dow { font-size: .65rem; text-align: center; color: color-mix(in srgb, CanvasText 50%, transparent); }
+  .cal-cell { aspect-ratio: 1; border-radius: .3rem; display: flex;
+              align-items: center; justify-content: center; font-size: .7rem;
+              background: color-mix(in srgb, CanvasText 7%, transparent); }
+  .cal-cell.empty { background: transparent; }
+  .cal-cell.trained { color: #fff; font-weight: 600; }
+  #err { color: #dc2626; padding: 1rem; }
+</style>
+</head>
+<body>
+<header>
+  <span>Training Stats — {{ user }}</span>
+  <a id="back" href="{{ chat_url }}">← Chat</a>
+</header>
+<main id="main"><p class="muted">Loading…</p></main>
+<div id="err"></div>
+
+<script>
+const DATA_URL = {{ data_url | tojson }};
+const main = document.getElementById("main");
+const errEl = document.getElementById("err");
+
+function el(tag, cls, txt) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (txt != null) e.textContent = txt;
+  return e;
+}
+
+function card(n, label) {
+  const c = el("div", "card");
+  c.appendChild(el("div", "n", n));
+  c.appendChild(el("div", "l muted", label));
+  return c;
+}
+
+function balanceBars(balance, colours, title) {
+  const wrap = el("div");
+  wrap.appendChild(el("h2", null, title));
+  const bars = el("div", "bars");
+  const max = Math.max(1, ...Object.values(balance));
+  for (const st of ["push", "pull", "legs", "arms"]) {
+    const n = balance[st] || 0;
+    const row = el("div", "bar-row");
+    row.appendChild(el("div", "bar-label", st));
+    const track = el("div", "bar-track");
+    const fill = el("div", "bar-fill");
+    fill.style.width = (100 * n / max) + "%";
+    fill.style.background = colours[st];
+    track.appendChild(fill);
+    row.appendChild(track);
+    row.appendChild(el("div", "bar-n", n));
+    bars.appendChild(row);
+  }
+  wrap.appendChild(bars);
+  return wrap;
+}
+
+const SVGNS = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+function lineChart(series, colour) {
+  // viewBox coords; CSS scales width. Padding leaves room for y labels.
+  const W = 300, H = 120, padL = 34, padR = 8, padT = 10, padB = 18;
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none" });
+  const vals = series.map(p => p.e1rm);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (lo === hi) { lo -= 1; hi += 1; }
+  const pad = (hi - lo) * 0.12;
+  lo -= pad; hi += pad;
+  const x = i => padL + (W - padL - padR) * (series.length === 1 ? 0.5 : i / (series.length - 1));
+  const y = v => padT + (H - padT - padB) * (1 - (v - lo) / (hi - lo));
+
+  // horizontal gridlines + y labels at lo/hi
+  for (const v of [lo + pad, hi - pad]) {
+    svg.appendChild(svgEl("line", { x1: padL, y1: y(v), x2: W - padR, y2: y(v),
+      stroke: "currentColor", "stroke-opacity": .12 }));
+    const t = svgEl("text", { x: padL - 4, y: y(v) + 3, "text-anchor": "end",
+      "font-size": 9, fill: "currentColor", "fill-opacity": .55 });
+    t.textContent = Math.round(v);
+    svg.appendChild(t);
+  }
+  // path
+  const d = series.map((p, i) => (i ? "L" : "M") + x(i) + " " + y(p.e1rm)).join(" ");
+  svg.appendChild(svgEl("path", { d, fill: "none", stroke: colour, "stroke-width": 2,
+    "stroke-linejoin": "round", "stroke-linecap": "round" }));
+  // dots
+  for (let i = 0; i < series.length; i++) {
+    svg.appendChild(svgEl("circle", { cx: x(i), cy: y(series[i].e1rm), r: 2.5, fill: colour }));
+  }
+  // x labels: first + last date (YYYY-MM-DD -> MMM 'YY)
+  const fmt = ds => { const d = new Date(ds);
+    return d.toLocaleString("en", { month: "short", year: "2-digit" }); };
+  const first = svgEl("text", { x: padL, y: H - 5, "font-size": 9, fill: "currentColor", "fill-opacity": .55 });
+  first.textContent = fmt(series[0].date);
+  svg.appendChild(first);
+  if (series.length > 1) {
+    const last = svgEl("text", { x: W - padR, y: H - 5, "text-anchor": "end",
+      "font-size": 9, fill: "currentColor", "fill-opacity": .55 });
+    last.textContent = fmt(series[series.length - 1].date);
+    svg.appendChild(last);
+  }
+  return svg;
+}
+
+function anchorChart(a) {
+  const box = el("div", "chart");
+  const head = el("div", "chart-head");
+  const title = el("div", "chart-title", a.session_type.toUpperCase() + " · " + a.lift);
+  title.style.color = a.colour;
+  head.appendChild(title);
+  if (a.series.length >= 2) {
+    head.appendChild(el("div", "chart-sub muted",
+      `latest ${a.latest_e1rm}kg · best ${a.best_e1rm}kg · ${a.sessions} sessions`));
+  }
+  box.appendChild(head);
+  if (a.series.length >= 2) {
+    box.appendChild(lineChart(a.series, a.colour));
+  } else {
+    box.appendChild(el("div", "chart-sub muted",
+      a.series.length === 1 ? "Only one logged session so far — need 2+ to chart a trend."
+                            : "No logged sessions for this lift yet."));
+  }
+  return box;
+}
+
+const MONTHS = ["January","February","March","April","May","June","July",
+                "August","September","October","November","December"];
+const DOW = ["M","T","W","T","F","S","S"];
+
+function monthGrid(year, month, calendar, colours) {
+  const wrap = el("div", "cal-month");
+  wrap.appendChild(el("div", "cal-title", MONTHS[month] + " " + year));
+  const grid = el("div", "cal-grid");
+  for (const d of DOW) grid.appendChild(el("div", "cal-dow", d));
+  const first = new Date(year, month, 1);
+  let lead = (first.getDay() + 6) % 7; // Mon=0
+  for (let i = 0; i < lead; i++) grid.appendChild(el("div", "cal-cell empty"));
+  const days = new Date(year, month + 1, 0).getDate();
+  for (let day = 1; day <= days; day++) {
+    const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const st = calendar[iso];
+    const cell = el("div", "cal-cell" + (st ? " trained" : ""), String(day));
+    if (st) { cell.style.background = colours[st]; cell.title = `${iso} — ${st}`; }
+    grid.appendChild(cell);
+  }
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+function render(data) {
+  main.textContent = "";
+  const s = data.summary, colours = data.colours;
+
+  // headline cards
+  const cards = el("div", "cards");
+  cards.appendChild(card(s.total_sessions, "total sessions"));
+  cards.appendChild(card(s.sessions_this_week, "this week"));
+  cards.appendChild(card(s.sessions_this_month, "this month"));
+  cards.appendChild(card(s.current_streak, "day streak"));
+  main.appendChild(cards);
+
+  // legend
+  const legend = el("div", "legend");
+  for (const st of ["push", "pull", "legs", "arms"]) {
+    const sp = el("span");
+    const dot = el("span", "dot"); dot.style.background = colours[st];
+    sp.appendChild(dot); sp.appendChild(document.createTextNode(st));
+    legend.appendChild(sp);
+  }
+
+  // balance
+  main.appendChild(balanceBars(s.balance_28d, colours, "Split balance (last 28 days)"));
+  main.appendChild(legend);
+
+  // anchor charts
+  main.appendChild(el("h2", null, "Anchor lift progress (e1RM)"));
+  if (!data.anchors.length) main.appendChild(el("p", "muted", "No anchor lifts configured."));
+  for (const a of data.anchors) main.appendChild(anchorChart(a));
+
+  // calendar — current month back 3 (4 months total), newest first
+  main.appendChild(el("h2", null, "Training calendar"));
+  const now = new Date();
+  for (let i = 0; i < 4; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    main.appendChild(monthGrid(d.getFullYear(), d.getMonth(), data.calendar, colours));
+  }
+}
+
+fetch(DATA_URL)
+  .then(r => r.ok ? r.json() : Promise.reject(new Error("could not load stats")))
+  .then(render)
+  .catch(e => { main.textContent = ""; errEl.textContent = e.message; });
+</script>
+</body>
+</html>
