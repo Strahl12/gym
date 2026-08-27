@@ -37,6 +37,15 @@
   .chart-title { font-weight: 600; font-size: .92rem; }
   .chart-sub { font-size: .78rem; }
   .chart svg { width: 100%; height: 120px; display: block; overflow: visible; }
+  .pie-wrap { display: flex; align-items: center; gap: 1.1rem; flex-wrap: wrap;
+              border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+              border-radius: .8rem; padding: .8rem; }
+  .pie-wrap svg { width: 130px; height: 130px; flex: 0 0 auto; }
+  .pie-legend { display: flex; flex-direction: column; gap: .35rem; font-size: .85rem; }
+  .pie-legend .row { display: flex; align-items: center; gap: .5rem; }
+  .pie-legend .name { width: 3.2rem; text-transform: capitalize; }
+  .pie-legend .pct { font-variant-numeric: tabular-nums;
+                     color: color-mix(in srgb, CanvasText 55%, transparent); }
   .legend { display: flex; flex-wrap: wrap; gap: .8rem; font-size: .8rem; margin: .3rem 0 .9rem; }
   .legend span { display: inline-flex; align-items: center; gap: .35rem; text-transform: capitalize; }
   .dot { width: .8rem; height: .8rem; border-radius: .25rem; display: inline-block; }
@@ -102,6 +111,59 @@ function balanceBars(balance, colours, title) {
 }
 
 const SVGNS = "http://www.w3.org/2000/svg";
+
+function pieChart(balance, colours, title) {
+  const wrap = el("div");
+  wrap.appendChild(el("h2", null, title));
+  const order = ["push", "pull", "legs", "arms"];
+  const total = order.reduce((s, st) => s + (balance[st] || 0), 0);
+  if (!total) { wrap.appendChild(el("p", "muted", "No sessions logged yet.")); return wrap; }
+
+  const box = el("div", "pie-wrap");
+  const R = 16, C = 18;                       // radius, centre (viewBox 36x36)
+  const svg = document.createElementNS(SVGNS, "svg");
+  svg.setAttribute("viewBox", "0 0 36 36");
+  const arc = (cx, cy, r, a0, a1) => {
+    const p = (a) => [cx + r * Math.cos((a - 90) * Math.PI / 180),
+                      cy + r * Math.sin((a - 90) * Math.PI / 180)];
+    const [x0, y0] = p(a0), [x1, y1] = p(a1);
+    const large = (a1 - a0) > 180 ? 1 : 0;
+    return `M${cx},${cy} L${x0},${y0} A${r},${r} 0 ${large} 1 ${x1},${y1} Z`;
+  };
+  let angle = 0;
+  for (const st of order) {
+    const n = balance[st] || 0;
+    if (!n) continue;
+    const sweep = 360 * n / total;
+    let shape;
+    if (n === total) {                        // single slice = full circle (arc degenerates)
+      shape = document.createElementNS(SVGNS, "circle");
+      shape.setAttribute("cx", C); shape.setAttribute("cy", C); shape.setAttribute("r", R);
+    } else {
+      shape = document.createElementNS(SVGNS, "path");
+      shape.setAttribute("d", arc(C, C, R, angle, angle + sweep));
+    }
+    shape.setAttribute("fill", colours[st]);
+    svg.appendChild(shape);
+    angle += sweep;
+  }
+  box.appendChild(svg);
+
+  const leg = el("div", "pie-legend");
+  for (const st of order) {
+    const n = balance[st] || 0;
+    const row = el("div", "row");
+    const dot = el("span", "dot"); dot.style.background = colours[st];
+    row.appendChild(dot);
+    row.appendChild(el("span", "name", st));
+    row.appendChild(el("span", "pct", `${n} · ${Math.round(100 * n / total)}%`));
+    leg.appendChild(row);
+  }
+  box.appendChild(leg);
+  wrap.appendChild(box);
+  return wrap;
+}
+
 function svgEl(tag, attrs) {
   const e = document.createElementNS(SVGNS, tag);
   for (const k in attrs) e.setAttribute(k, attrs[k]);
@@ -226,6 +288,9 @@ function render(data) {
   main.appendChild(el("h2", null, "Anchor lift progress (e1RM)"));
   if (!data.anchors.length) main.appendChild(el("p", "muted", "No anchor lifts configured."));
   for (const a of data.anchors) main.appendChild(anchorChart(a));
+
+  // overall split pie (all-time), just before the calendar
+  main.appendChild(pieChart(s.balance_all_time, colours, "Overall split balance (all time)"));
 
   // calendar — current month back 3 (4 months total), newest first
   main.appendChild(el("h2", null, "Training calendar"));
