@@ -148,11 +148,13 @@ def bodyweight(user: str) -> dict:
     finally:
         con.close()
     series = [{"date": r["date"], "weight": round(r["weight_kg"], 1)} for r in rows]
+    target = profile_editor.read_profile(user).get("target_weight_kg")
     return {
         "linked": linked,
         "colour": BODYWEIGHT_COLOUR,
         "series": series,
         "latest": series[-1]["weight"] if series else None,
+        "target": target,
     }
 
 
