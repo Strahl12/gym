@@ -908,6 +908,67 @@ def app_invite_new():
     return jsonify({"path": f"/join/{_new_invite()}"})
 
 
+def _ago(day: str | None) -> str:
+    if not day:
+        return "never"
+    try:
+        n = (date.today() - date.fromisoformat(day[:10])).days
+    except ValueError:
+        return "—"
+    return "today" if n == 0 else ("yesterday" if n == 1 else f"{n}d ago")
+
+
+def _users_overview() -> list[dict]:
+    """Basic per-user info for the dev users page: activity, sessions, status."""
+    import profile_editor
+    rows = []
+    for d in sorted(USERS_ROOT.glob("*/")):
+        user = d.name
+        if user.startswith("_") or user.startswith(".") or not (d / "gym.db").is_file():
+            continue
+        rec = chat_auth.load_auth(USERS_ROOT, user) or {}
+        con = sqlite3.connect(d / "gym.db")
+        con.row_factory = sqlite3.Row
+        try:
+            last_chat = con.execute("SELECT MAX(ts) FROM chat_messages").fetchone()[0]
+        except sqlite3.OperationalError:
+            last_chat = None
+        try:
+            srow = con.execute(
+                "SELECT MAX(date) d, COUNT(DISTINCT date) n FROM sets "
+                "WHERE session_type != 'unknown' AND session_type IS NOT NULL"
+            ).fetchone()
+            last_workout, sessions = srow["d"], srow["n"]
+        except sqlite3.OperationalError:
+            last_workout, sessions = None, 0
+        con.close()
+        try:
+            onboarding = profile_editor.read_profile(user)["needs_onboarding"]
+        except Exception:
+            onboarding = None
+        last_active = max([x for x in (last_chat and last_chat[:10], last_workout) if x], default=None)
+        rows.append({
+            "user": user,
+            "username": rec.get("username") or "—",
+            "has_password": bool(rec.get("password_hash")),
+            "status": "setup pending" if onboarding else ("active" if onboarding is False else "?"),
+            "last_active": _ago(last_active),
+            "last_workout": _ago(last_workout),
+            "sessions": sessions,
+            "withings": (d / "withings_token.json").is_file(),
+        })
+    rows.sort(key=lambda r: (r["last_active"] == "never", r["user"]))
+    return rows
+
+
+@app.get("/app/users")
+def app_users():
+    if _session_user() != DEV_USER:
+        abort(404)
+    users = _users_overview()
+    return render_template("users.html", users=users, count=len(users))
+
+
 # -------------------------------------------------- new-user self-signup
 
 
