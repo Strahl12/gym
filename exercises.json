@@ -286,7 +286,9 @@
   "3601968B": {
     "hevy_title": "Bench Press (Dumbbell)",
     "canonical": "Bench Press (Dumbbell)",
-    "aliases": [],
+    "aliases": [
+      "Dumbbell Bench Press"
+    ],
     "muscle": "chest",
     "equipment": "dumbbell",
     "session_type": "push",
@@ -531,7 +533,9 @@
   "B5D3A742": {
     "hevy_title": "Bulgarian Split Squat",
     "canonical": "Bulgarian Split Squat",
-    "aliases": [],
+    "aliases": [
+      "Bulgarian Split Squat (Dumbbell)"
+    ],
     "muscle": "quadriceps",
     "equipment": "dumbbell",
     "session_type": "legs",
@@ -2175,7 +2179,9 @@
   "07B38369": {
     "hevy_title": "Incline Bench Press (Dumbbell)",
     "canonical": "Incline Bench Press (Dumbbell)",
-    "aliases": [],
+    "aliases": [
+      "Incline Dumbbell Bench Press"
+    ],
     "muscle": "chest",
     "equipment": "dumbbell",
     "session_type": "push",
@@ -5877,6 +5883,33 @@
     "aliases": [],
     "muscle": "triceps",
     "equipment": "dumbbell",
+    "exercise_type": "weight_reps",
+    "session_type": ""
+  },
+  "8247b323-383b-4638-a605-0d38317499e0": {
+    "hevy_title": "Straight Arm Lateral Pull Down (one-arm)",
+    "canonical": "Straight Arm Lateral Pull Down (one-arm)",
+    "aliases": [],
+    "muscle": "lats",
+    "equipment": "machine",
+    "exercise_type": "weight_reps",
+    "session_type": ""
+  },
+  "60dcf75f-e507-46ea-8a2e-bd239970fa63": {
+    "hevy_title": "Machine Calf Raise",
+    "canonical": "Machine Calf Raise",
+    "aliases": [],
+    "muscle": "calves",
+    "equipment": "machine",
+    "exercise_type": "weight_reps",
+    "session_type": ""
+  },
+  "164a30bb-8aeb-40cf-9a1c-49bf2b7f2570": {
+    "hevy_title": "Isolated One-Arm Preacher Curl",
+    "canonical": "Isolated One-Arm Preacher Curl",
+    "aliases": [],
+    "muscle": "biceps",
+    "equipment": "machine",
     "exercise_type": "weight_reps",
     "session_type": ""
   }
