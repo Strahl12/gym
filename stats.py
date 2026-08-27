@@ -129,6 +129,46 @@ def calendar_days(user: str, days: int = 365) -> dict[str, str]:
 
 
 BODYWEIGHT_COLOUR = "#0891b2"   # cyan — distinct from the PPLA palette
+BODYWEIGHT_RATE_DAYS = 30       # window for the current kg/week rate
+
+
+def _centered_ma(series: list[dict], half_window_days: int = 7) -> list[dict]:
+    """Lag-free smoothing: each point is the mean of all readings within
+    ±half_window_days. Date-based (not point-based) so it's robust to gaps and
+    irregular weigh-in spacing. Same length as the input."""
+    pts = [(date.fromisoformat(p["date"]), p["weight"]) for p in series]
+    out = []
+    for d0, _ in pts:
+        lo, hi = d0 - timedelta(days=half_window_days), d0 + timedelta(days=half_window_days)
+        vals = [w for dj, w in pts if lo <= dj <= hi]
+        out.append({"date": d0.isoformat(), "weight": round(sum(vals) / len(vals), 2)})
+    return out
+
+
+def _weekly_rate(series: list[dict], days: int = BODYWEIGHT_RATE_DAYS):
+    """Least-squares slope of weight vs. time over the last `days`, as kg/week.
+    None if the recent window is too thin to be meaningful."""
+    if not series:
+        return None
+    latest = date.fromisoformat(series[-1]["date"])
+    cutoff = latest - timedelta(days=days)
+    window = [(date.fromisoformat(p["date"]), p["weight"]) for p in series
+              if date.fromisoformat(p["date"]) >= cutoff]
+    if len(window) < 3:
+        return None
+    xs = [(d - window[0][0]).days for d, _ in window]
+    ys = [w for _, w in window]
+    if xs[-1] - xs[0] < 7:        # span under a week — not a stable rate
+        return None
+    n = len(xs)
+    sx, sy = sum(xs), sum(ys)
+    sxx = sum(x * x for x in xs)
+    sxy = sum(x * y for x, y in zip(xs, ys))
+    denom = n * sxx - sx * sx
+    if denom == 0:
+        return None
+    slope_per_day = (n * sxy - sx * sy) / denom
+    return round(slope_per_day * 7, 2)
 
 
 def bodyweight(user: str) -> dict:
@@ -153,8 +193,11 @@ def bodyweight(user: str) -> dict:
         "linked": linked,
         "colour": BODYWEIGHT_COLOUR,
         "series": series,
+        "smoothed": _centered_ma(series) if len(series) >= 2 else [],
         "latest": series[-1]["weight"] if series else None,
         "target": target,
+        "rate_kg_per_week": _weekly_rate(series),
+        "rate_days": BODYWEIGHT_RATE_DAYS,
     }
 
 

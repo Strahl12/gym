@@ -170,13 +170,14 @@ function svgEl(tag, attrs) {
   return e;
 }
 
-function lineChart(series, colour, valKey = "e1rm", refLine = null) {
+function lineChart(series, colour, valKey = "e1rm", refLine = null, overlay = null) {
   // viewBox coords; CSS scales width. Padding leaves room for y labels.
   const W = 300, H = 120, padL = 34, padR = 8, padT = 10, padB = 18;
   const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none" });
   const vals = series.map(p => p[valKey]);
   // A reference line (e.g. target bodyweight) must fit inside the y-range.
   if (refLine != null) vals.push(refLine.value);
+  if (overlay) for (const p of overlay.series) vals.push(p[valKey]);
   let lo = Math.min(...vals), hi = Math.max(...vals);
   if (lo === hi) { lo -= 1; hi += 1; }
   const pad = (hi - lo) * 0.12;
@@ -193,15 +194,22 @@ function lineChart(series, colour, valKey = "e1rm", refLine = null) {
     t.textContent = Math.round(v);
     svg.appendChild(t);
   }
-  // path
+  // main series path — faded/thin when a smoothed overlay sits on top of it
   const d = series.map((p, i) => (i ? "L" : "M") + x(i) + " " + y(p[valKey])).join(" ");
-  svg.appendChild(svgEl("path", { d, fill: "none", stroke: colour, "stroke-width": 2,
+  svg.appendChild(svgEl("path", { d, fill: "none", stroke: colour,
+    "stroke-width": overlay ? 1 : 2, "stroke-opacity": overlay ? 0.3 : 1,
     "stroke-linejoin": "round", "stroke-linecap": "round" }));
-  // dots — skip on dense series (e.g. daily bodyweight) to keep the line readable
-  if (series.length <= 40) {
+  // dots — skip on dense series (bodyweight) or when an overlay carries the trend
+  if (series.length <= 40 && !overlay) {
     for (let i = 0; i < series.length; i++) {
       svg.appendChild(svgEl("circle", { cx: x(i), cy: y(series[i][valKey]), r: 2.5, fill: colour }));
     }
+  }
+  // smoothed trend overlay (drawn bold, indices aligned with the raw series)
+  if (overlay && overlay.series.length) {
+    const d2 = overlay.series.map((p, i) => (i ? "L" : "M") + x(i) + " " + y(p[valKey])).join(" ");
+    svg.appendChild(svgEl("path", { d: d2, fill: "none", stroke: overlay.colour || colour,
+      "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
   }
   // reference line (dashed) + label, e.g. target bodyweight
   if (refLine != null) {
@@ -310,12 +318,19 @@ function render(data) {
     const box = el("div", "chart");
     const head = el("div", "chart-head");
     let sub = `latest ${bw.latest}kg · ${bw.series.length} readings`;
+    if (bw.rate_kg_per_week != null) {
+      const r = bw.rate_kg_per_week;
+      const sign = r > 0 ? "+" : (r < 0 ? "−" : "±");
+      sub += ` · ${sign}${Math.abs(r)} kg/wk (${bw.rate_days}d)`;
+    }
     if (bw.target != null) sub += ` · target ${bw.target}kg`;
     head.appendChild(el("div", "chart-sub muted", sub));
     box.appendChild(head);
     const ref = bw.target != null
       ? { value: bw.target, label: `target ${bw.target}kg`, colour: "#dc2626" } : null;
-    box.appendChild(lineChart(bw.series, bw.colour, "weight", ref));
+    const overlay = (bw.smoothed && bw.smoothed.length)
+      ? { series: bw.smoothed, colour: bw.colour } : null;
+    box.appendChild(lineChart(bw.series, bw.colour, "weight", ref, overlay));
     main.appendChild(box);
   } else {
     main.appendChild(el("p", "muted", "weight tracker not connected"));
