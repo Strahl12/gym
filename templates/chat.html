@@ -34,10 +34,25 @@
   button { border: 0; border-radius: 1rem; padding: 0 1.1rem; font: inherit;
            font-weight: 600; background: #2563eb; color: #fff; }
   button:disabled { opacity: .5; }
+  #dev { display: flex; align-items: center; gap: .5rem;
+         padding: .35rem .8rem; font: .72rem/1.3 ui-monospace, Menlo, monospace;
+         background: color-mix(in srgb, CanvasText 8%, Canvas);
+         border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent); }
+  #dev.bad { background: #dc2626; color: #fff; }
+  #dev-status { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #dev button { padding: .1rem .5rem; font: inherit; font-weight: 600;
+                border-radius: .5rem; background: color-mix(in srgb, CanvasText 20%, transparent);
+                color: inherit; }
 </style>
 </head>
 <body>
 <header><span>Gym Coach — {{ user }}</span><a id="stats-link" href="#">📊 Stats</a></header>
+{% if dev %}
+<div id="dev">
+  <span id="dev-status">dev: loading…</span>
+  <button id="dev-check" type="button">Check credit</button>
+</div>
+{% endif %}
 <div id="msgs"></div>
 <div id="err"></div>
 <form id="f">
@@ -47,6 +62,39 @@
 <script>
 const base = location.pathname.replace(/\/$/, "");
 document.getElementById("stats-link").href = base + "/stats";
+
+// Dev panel (rendered only for the dev user) — Anthropic API / credit health.
+let refreshDev = () => {};
+const devBar = document.getElementById("dev");
+if (devBar) {
+  const devStatus = document.getElementById("dev-status");
+  const devCheck  = document.getElementById("dev-check");
+  const render = (d) => {
+    if (d.credit_ok) {
+      devBar.classList.remove("bad");
+      devStatus.textContent = "dev: API OK"
+        + (d.last_ok_ts ? " · last ok " + d.last_ok_ts.slice(11, 16) : "")
+        + " · " + d.model;
+    } else {
+      devBar.classList.add("bad");
+      devStatus.textContent = "dev: ⚠ CLAUDE OUT OF CREDIT"
+        + (d.last_error_ts ? " · since " + d.last_error_ts.slice(5, 16).replace("T", " ") : "");
+    }
+    devStatus.title = d.last_error || "";
+  };
+  refreshDev = async () => {
+    try { const r = await fetch(base + "/devinfo"); if (r.ok) render(await r.json()); } catch (e) {}
+  };
+  devCheck.addEventListener("click", async () => {
+    devCheck.disabled = true;
+    devStatus.textContent = "dev: checking credit…";
+    try { const r = await fetch(base + "/devinfo/ping", { method: "POST" });
+          if (r.ok) render(await r.json()); } catch (e) {}
+    finally { devCheck.disabled = false; }
+  });
+  refreshDev();
+  setInterval(refreshDev, 60000);
+}
 const msgs = document.getElementById("msgs");
 const box  = document.getElementById("box");
 const send = document.getElementById("send");
@@ -97,6 +145,7 @@ async function submit(e) {
     send.disabled = false;
     msgs.scrollTop = msgs.scrollHeight;
     box.focus();
+    refreshDev();   // a failed send may have flipped credit state
   }
 }
 

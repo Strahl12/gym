@@ -49,6 +49,8 @@ REGEN_TIMEOUT_S     = 240     # full engine run: syncs + prescription + Hevy POS
 CHAT_SYNC_THROTTLE_S = 600    # re-pull Hevy at most once per 10 min per user in chat
 CHAT_SYNC_DAYS       = 14     # how far back the on-demand chat sync looks
 
+DEV_USER = "john"             # only this user sees the dev status panel in their chat
+
 CHAT_SYSTEM = """You are {name}'s strength coach — the same AI that writes their daily gym programming.
 Answer questions about their training using the athlete data below.
 
@@ -222,6 +224,74 @@ app = Flask(__name__)
 _CONFIG_LOCK = threading.Lock()          # config.activate() mutates process-global state
 _RATE: dict[str, deque] = defaultdict(deque)
 _LAST_SYNC: dict[str, float] = {}        # user → last on-demand Hevy sync (throttle)
+
+# Anthropic API health, updated from every coach call + the dev credit ping.
+# Surfaced only to DEV_USER via the dev panel in their chat page.
+_API_LOCK = threading.Lock()
+_API_STATUS: dict = {
+    "credit_ok":     True,   # False once the API reports the credit balance is too low
+    "last_error":    None,   # human-readable last API error (any kind)
+    "last_error_ts": None,
+    "last_ok_ts":    None,   # last time a call to Anthropic succeeded
+}
+
+
+def _is_credit_error(status: int, msg: str) -> bool:
+    """Anthropic signals an exhausted balance as HTTP 400 whose message says the
+    credit balance is too low. 402 is treated as billing defensively."""
+    m = (msg or "").lower()
+    return status == 402 or "credit balance" in m or "insufficient credit" in m
+
+
+def _note_api_ok() -> None:
+    with _API_LOCK:
+        _API_STATUS["credit_ok"] = True
+        _API_STATUS["last_ok_ts"] = datetime.now().isoformat(timespec="seconds")
+
+
+def _note_api_error(status: int, msg: str) -> None:
+    ts = datetime.now().isoformat(timespec="seconds")
+    with _API_LOCK:
+        if _is_credit_error(status, msg):
+            _API_STATUS["credit_ok"] = False
+            _API_STATUS["last_error"] = f"OUT OF CREDIT — {(msg or '')[:240]}"
+        else:
+            _API_STATUS["last_error"] = f"HTTP {status} — {(msg or '')[:240]}"
+        _API_STATUS["last_error_ts"] = ts
+
+
+def _devinfo_payload() -> dict:
+    with _API_LOCK:
+        payload = dict(_API_STATUS)
+    payload["model"] = CLAUDE_MODEL
+    return payload
+
+
+def _credit_ping() -> dict:
+    """Cheap live probe: a 1-token message call that reveals credit state without
+    real cost. Updates _API_STATUS and returns the fresh payload. DEV_USER only."""
+    with _CONFIG_LOCK:
+        config.activate(DEV_USER)
+        headers = _headers()
+    try:
+        resp = requests.post(
+            ANTHROPIC_URL, headers=headers,
+            json={"model": CLAUDE_MODEL, "max_tokens": 1,
+                  "messages": [{"role": "user", "content": "ping"}]},
+            timeout=30,
+        )
+    except Exception as e:
+        _note_api_error(0, str(e))
+        return _devinfo_payload()
+    if resp.ok:
+        _note_api_ok()
+    else:
+        try:
+            msg = resp.json().get("error", {}).get("message", "")
+        except ValueError:
+            msg = resp.reason
+        _note_api_error(resp.status_code, msg)
+    return _devinfo_payload()
 
 
 def _sync_recent(user: str) -> None:
@@ -521,7 +591,9 @@ def _coach_reply(user: str, history: list[dict]) -> str:
                 err_msg = resp.json().get("error", {}).get("message", "")
             except ValueError:
                 err_msg = ""
+            _note_api_error(resp.status_code, err_msg or resp.reason)
             raise RuntimeError(f"Anthropic API {resp.status_code}: {err_msg or resp.reason}")
+        _note_api_ok()
         data = resp.json()
 
         if data.get("stop_reason") != "tool_use":
@@ -596,7 +668,7 @@ def chat_page(token: str):
     user = _user_for(token)
     if user is None:
         abort(404)
-    return render_template("chat.html", user=user.title())
+    return render_template("chat.html", user=user.title(), dev=(user == DEV_USER))
 
 
 @app.get("/u/<token>/history")
@@ -630,6 +702,20 @@ def chat_stats_data(token: str):
     if user is None:
         abort(404)
     return _stats_response(user)
+
+
+@app.get("/u/<token>/devinfo")
+def chat_devinfo(token: str):
+    if _user_for(token) != DEV_USER:
+        abort(404)
+    return jsonify(_devinfo_payload())
+
+
+@app.post("/u/<token>/devinfo/ping")
+def chat_devinfo_ping(token: str):
+    if _user_for(token) != DEV_USER:
+        abort(404)
+    return jsonify(_credit_ping())
 
 
 # ------------------------------------------------------------ login + app
@@ -711,7 +797,7 @@ def app_page():
     user = _session_user()
     if user is None:
         return redirect("/login", code=302)
-    return render_template("chat.html", user=user.title())
+    return render_template("chat.html", user=user.title(), dev=(user == DEV_USER))
 
 
 @app.get("/app/history")
@@ -745,6 +831,20 @@ def app_stats_data():
     if user is None:
         abort(401)
     return _stats_response(user)
+
+
+@app.get("/app/devinfo")
+def app_devinfo():
+    if _session_user() != DEV_USER:
+        abort(404)
+    return jsonify(_devinfo_payload())
+
+
+@app.post("/app/devinfo/ping")
+def app_devinfo_ping():
+    if _session_user() != DEV_USER:
+        abort(404)
+    return jsonify(_credit_ping())
 
 
 @app.post("/logout")
