@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Join — Gym Coach</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100dvh; display: grid; place-items: center;
+         font-family: -apple-system, system-ui, sans-serif;
+         background: Canvas; color: CanvasText; }
+  .card { width: min(90vw, 23rem); padding: 2rem 1.5rem; }
+  h1 { font-size: 1.6rem; margin: 0 0 .4rem; }
+  .lede { opacity: .7; font-size: .9rem; margin: 0 0 1.4rem; line-height: 1.45; }
+  label { display: block; font-size: .85rem; opacity: .75; margin: 0 0 1rem; }
+  input { display: block; width: 100%; margin-top: .35rem; padding: .6rem .8rem;
+          font: inherit; font-size: 1rem; color: inherit; background: transparent;
+          border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+          border-radius: .6rem; }
+  button { width: 100%; padding: .65rem; margin-top: .25rem; font: inherit;
+           font-weight: 600; font-size: 1rem; background: #2563eb; color: #fff;
+           border: 0; border-radius: .6rem; }
+  .err { color: #dc2626; font-size: .85rem; margin: 0 0 1rem; }
+  .hint { opacity: .6; font-size: .8rem; line-height: 1.45; margin-top: 1.25rem; }
+  a { color: #2563eb; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Welcome</h1>
+  <p class="lede">Set up your account, then your coach will walk you through your
+  training goals in the chat.</p>
+  {% if error %}<p class="err">{{ error }}</p>{% endif %}
+  <form method="post" action="/join">
+    <input type="hidden" name="t" value="{{ token }}">
+    <label>Pick a name (lowercase, no spaces)
+      <input name="name" value="{{ name }}" required autocapitalize="none"
+             autocomplete="username" pattern="[a-z][a-z0-9_-]*" inputmode="latin">
+    </label>
+    <label>Choose a password
+      <input type="password" name="password" autocomplete="new-password"
+             minlength="{{ min_len }}" required>
+    </label>
+    <label>Hevy API key
+      <input name="hevy_key" required autocapitalize="none" autocomplete="off"
+             spellcheck="false">
+    </label>
+    <button type="submit">Create account</button>
+  </form>
+  <p class="hint">Get your Hevy API key from
+  <a href="{{ hevy_url }}" target="_blank" rel="noopener">hevy.com developer settings</a>
+  (you'll need a Hevy account). Your phone can generate and remember the password
+  for you.</p>
+</div>
+</body>
+</html>

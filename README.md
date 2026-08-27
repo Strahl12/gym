@@ -160,6 +160,14 @@ New users are onboarded here: while their profile is flagged
 `NEEDS_ONBOARDING`, the coach proactively walks them through training mode,
 goals, and main lifts, then clears the flag once everything is confirmed.
 
+Self-service signup (no CLI needed): the dev user (`DEV_USER` in
+`chat_server.py`) has an **Invite user** button in their chat's dev bar that
+mints a single-use link (`/join/<token>`, stored in the gitignored
+`users/.invites.json`). The new user opens it, picks a name + password and
+pastes their Hevy API key; the server creates `users/<name>/` (same as the
+`add-user` wizard), logs them in, and drops them into their chat where the
+coach's onboarding begins. Invites are burned on success and dev-only to mint.
+
 The chat feeds back into programming three ways:
 
 - Anything the athlete says in the last 48h (illness, poor sleep, injuries,

@@ -43,6 +43,16 @@
   #dev button { padding: .1rem .5rem; font: inherit; font-weight: 600;
                 border-radius: .5rem; background: color-mix(in srgb, CanvasText 20%, transparent);
                 color: inherit; }
+  #dev-link { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
+              padding: .4rem .8rem; font: .72rem/1.3 ui-monospace, Menlo, monospace;
+              background: color-mix(in srgb, CanvasText 12%, Canvas);
+              border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent); }
+  #dev-link .note { width: 100%; opacity: .7; }
+  #dev-link input { flex: 1; min-width: 11rem; font: inherit; padding: .2rem .45rem;
+                    border-radius: .4rem; color: inherit; background: Canvas;
+                    border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); }
+  #dev-link button { padding: .15rem .55rem; font: inherit; font-weight: 600;
+                     border-radius: .4rem; background: #2563eb; color: #fff; }
 </style>
 </head>
 <body>
@@ -50,8 +60,10 @@
 {% if dev %}
 <div id="dev">
   <span id="dev-status">dev: loading…</span>
+  <button id="dev-invite" type="button">Invite user</button>
   <button id="dev-check" type="button">Check credit</button>
 </div>
+<div id="dev-link" hidden></div>
 {% endif %}
 <div id="msgs"></div>
 <div id="err"></div>
@@ -92,6 +104,36 @@ if (devBar) {
           if (r.ok) render(await r.json()); } catch (e) {}
     finally { devCheck.disabled = false; }
   });
+
+  // One-use new-user signup link. Endpoint is session-gated to the dev.
+  const devInvite = document.getElementById("dev-invite");
+  const devLink   = document.getElementById("dev-link");
+  devInvite.addEventListener("click", async () => {
+    devInvite.disabled = true;
+    try {
+      const r = await fetch("/app/invite/new", { method: "POST" });
+      if (!r.ok) throw new Error();
+      const url = location.origin + (await r.json()).path;
+      devLink.hidden = false;
+      devLink.textContent = "";
+      const note = document.createElement("span");
+      note.className = "note"; note.textContent = "single-use signup link — send it to the new user:";
+      const inp = document.createElement("input");
+      inp.readOnly = true; inp.value = url;
+      const copy = document.createElement("button");
+      copy.type = "button"; copy.textContent = "Copy";
+      copy.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(url); }
+        catch (e) { inp.select(); document.execCommand("copy"); }
+        copy.textContent = "Copied"; setTimeout(() => copy.textContent = "Copy", 1500);
+      });
+      devLink.append(note, inp, copy);
+      inp.focus(); inp.select();
+    } catch (e) {
+      devLink.hidden = false; devLink.textContent = "invite failed — are you signed in as the dev?";
+    } finally { devInvite.disabled = false; }
+  });
+
   refreshDev();
   setInterval(refreshDev, 60000);
 }

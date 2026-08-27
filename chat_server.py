@@ -15,8 +15,10 @@ existing tailnet-only serve on 443 stays private:
 Kept alive by cron — @reboot start plus a */5 flock watchdog (see README).
 """
 import hmac
+import json
 import os
 import re
+import secrets
 import sqlite3
 import subprocess
 import sys
@@ -265,6 +267,56 @@ def _devinfo_payload() -> dict:
         payload = dict(_API_STATUS)
     payload["model"] = CLAUDE_MODEL
     return payload
+
+
+# ---- new-user invites (dev-generated, single-use) ------------------------
+# Stored in users/.invites.json (gitignored under users/*). Each token gates
+# one self-service signup at /join/<token>.
+INVITES_PATH = USERS_ROOT / ".invites.json"
+_INVITE_LOCK = threading.Lock()
+
+
+def _load_invites() -> dict:
+    try:
+        return json.loads(INVITES_PATH.read_text())
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+def _save_invites(data: dict) -> None:
+    tmp = INVITES_PATH.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, indent=2))
+    tmp.replace(INVITES_PATH)
+
+
+def _new_invite() -> str:
+    token = secrets.token_urlsafe(24)
+    with _INVITE_LOCK:
+        inv = _load_invites()
+        inv[token] = {"created": datetime.now().isoformat(timespec="seconds"), "used_by": None}
+        _save_invites(inv)
+    return token
+
+
+def _invite_open(token: str) -> bool:
+    if not token:
+        return False
+    with _INVITE_LOCK:
+        rec = _load_invites().get(token)
+    return bool(rec and rec.get("used_by") is None)
+
+
+def _consume_invite(token: str, user: str) -> bool:
+    """Mark an invite used. Returns False if it was already spent or unknown."""
+    with _INVITE_LOCK:
+        inv = _load_invites()
+        rec = inv.get(token)
+        if not rec or rec.get("used_by") is not None:
+            return False
+        rec["used_by"] = user
+        rec["used_at"] = datetime.now().isoformat(timespec="seconds")
+        _save_invites(inv)
+    return True
 
 
 def _credit_ping() -> dict:
@@ -845,6 +897,77 @@ def app_devinfo_ping():
     if _session_user() != DEV_USER:
         abort(404)
     return jsonify(_credit_ping())
+
+
+@app.post("/app/invite/new")
+def app_invite_new():
+    """Dev-only: mint a single-use signup link. The client turns the returned
+    path into a full URL with its own origin (the funnel host)."""
+    if _session_user() != DEV_USER:
+        abort(404)
+    return jsonify({"path": f"/join/{_new_invite()}"})
+
+
+# -------------------------------------------------- new-user self-signup
+
+
+def _render_join(token: str, error=None, name="", status=200):
+    return render_template(
+        "join.html", token=token, name=name, error=error,
+        min_len=chat_auth.MIN_PASSWORD_LEN,
+        hevy_url="https://hevy.com/settings?developer",
+    ), status
+
+
+@app.get("/join/<token>")
+def join_form(token: str):
+    if not _invite_open(token):
+        abort(404)
+    return _render_join(token)
+
+
+@app.post("/join")
+def join_submit():
+    import add_user
+    token = request.form.get("t") or ""
+    if not _invite_open(token):
+        abort(404)
+    name     = (request.form.get("name") or "").strip().lower()
+    password = request.form.get("password") or ""
+    hevy_key = (request.form.get("hevy_key") or "").strip()
+
+    if not add_user._NAME_RE.match(name):
+        return _render_join(token, "Name: lowercase letters, digits, _ or - (start with a letter).", name, 400)
+    if (USERS_ROOT / name).exists():
+        return _render_join(token, f"The name '{name}' is taken — pick another.", name, 400)
+    if len(password) < chat_auth.MIN_PASSWORD_LEN:
+        return _render_join(token, f"Password must be at least {chat_auth.MIN_PASSWORD_LEN} characters.", name, 400)
+    if not hevy_key or not add_user._verify_hevy_key(hevy_key):
+        return _render_join(token, "That Hevy API key didn't work — check it and try again.", name, 400)
+
+    # Use an existing routine folder if the account has one; else leave unset.
+    folders   = add_user._list_hevy_folders(hevy_key)
+    folder_id = folders[0]["id"] if folders else None
+
+    try:
+        with _CONFIG_LOCK:               # create_user activates config + seeds the DB
+            add_user.create_user(name, hevy_key, folder_id)
+    except ValueError as e:
+        return _render_join(token, str(e), name, 400)
+    except Exception as e:
+        print(f"[chat] join: create_user failed for {name!r}: {e}")
+        return _render_join(token, "Something went wrong creating the account — try again.", name, 500)
+
+    password_hash = chat_auth.hash_password(password)
+    chat_auth.save_auth(USERS_ROOT, name, {
+        "username": f"{name}-gym", "password_hash": password_hash, "setup_token": None,
+    })
+    _consume_invite(token, name)
+
+    global TOKENS
+    TOKENS = _load_tokens()              # register the new user's chat token
+    print(f"[chat] new user via invite: {name}")
+    return _login_redirect(name, password_hash)
 
 
 @app.post("/logout")

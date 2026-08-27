@@ -113,6 +113,48 @@ def _render_secrets(values: dict) -> str:
     return text
 
 
+def create_user(name: str, hevy_key: str, folder_id=None,
+                withings_id: str = "", withings_secret: str = "",
+                withings_refresh: str = "") -> str:
+    """Non-interactive user creation, shared by the CLI wizard and the web
+    invite flow. Creates users/<name>/ from the template, seeds gym.db, and
+    returns the generated CHAT_TOKEN. Raises ValueError on a bad or taken name.
+
+    The caller is responsible for any process-global concerns: this activates
+    config for `name` to seed the DB, so serialise it against other config use.
+    """
+    import secrets as _secrets
+    if not _NAME_RE.match(name):
+        raise ValueError("Use lowercase letters/digits/_/- , starting with a letter (max 31 chars).")
+    if name == "_template":
+        raise ValueError("'_template' is reserved.")
+    user_dir = _USERS_ROOT / name
+    if user_dir.exists():
+        raise ValueError(f"User '{name}' already exists.")
+    if not _TEMPLATE.is_dir():
+        raise ValueError("Missing template directory.")
+
+    chat_token = _secrets.token_urlsafe(24)
+    values = {
+        "chat_token":       chat_token,
+        "hevy_key":         hevy_key,
+        "withings_id":      withings_id,
+        "withings_secret":  withings_secret,
+        "withings_refresh": withings_refresh,
+        "folder_id":        folder_id,
+    }
+    user_dir.mkdir(parents=True)
+    (user_dir / "profile.py").write_text(_render_profile(values))
+    (user_dir / "secrets.env").write_text(_render_secrets(values))
+    (user_dir / "logs").mkdir()
+
+    import config
+    config.activate(name)
+    import migrate
+    migrate.migrate()
+    return chat_token
+
+
 def run_wizard(name: str) -> None:
     if not _NAME_RE.match(name):
         print(f"Invalid name {name!r}. Use lowercase letters, digits, _ or - (start with a letter).")
@@ -179,33 +221,15 @@ def run_wizard(name: str) -> None:
     # Training goals (mode, target weight, main lifts) are set conversationally
     # in the web chat — the coach onboards them on their first visit.
 
-    import secrets as _secrets
-    values = {
-        "chat_token":       _secrets.token_urlsafe(24),
-        "hevy_key":         hevy_key,
-        "withings_id":      withings_id,
-        "withings_secret":  withings_secret,
-        "withings_refresh": withings_refresh,
-        "folder_id":        folder_id,
-    }
-
-    # ── Write files ───────────────────────────────────────────────────────
-    user_dir.mkdir(parents=True)
-    (user_dir / "profile.py").write_text(_render_profile(values))
-    (user_dir / "secrets.env").write_text(_render_secrets(values))
-    (user_dir / "logs").mkdir()
-
-    # ── Seed the DB ───────────────────────────────────────────────────────
+    # ── Create + seed (shared with the web invite flow) ──────────────────
     print("\nSeeding gym.db...")
-    import config
-    config.activate(name)
-    import migrate
-    migrate.migrate()
+    chat_token = create_user(name, hevy_key, folder_id,
+                             withings_id, withings_secret, withings_refresh)
 
     print(f"\nDone. User '{name}' created at {user_dir}/\n")
     print("Next steps:")
     print(f"  1. Send them their chat link (restart chat_server.py to pick up the new token):")
-    print(f"       https://<funnel-host>:8443/u/{values['chat_token']}")
+    print(f"       https://<funnel-host>:8443/u/{chat_token}")
     print(f"     The coach onboards them there — training mode, goals, target weight,")
     print(f"     and main lifts are all confirmed through that conversation.")
     if want_withings:
