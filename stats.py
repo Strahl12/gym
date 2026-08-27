@@ -128,6 +128,34 @@ def calendar_days(user: str, days: int = 365) -> dict[str, str]:
     return {d: t for d, (n, t) in best.items()}
 
 
+BODYWEIGHT_COLOUR = "#0891b2"   # cyan — distinct from the PPLA palette
+
+
+def bodyweight(user: str) -> dict:
+    """Bodyweight time series for the weight-over-time chart.
+
+    'linked' reflects whether a Withings token exists; the frontend shows
+    'weight tracker not connected' when there's no usable series.
+    """
+    linked = (_USERS_ROOT / user / "withings_token.json").is_file()
+    con = _con(user)
+    try:
+        rows = con.execute("""
+            SELECT date, weight_kg FROM bodyweight
+            WHERE weight_kg IS NOT NULL AND weight_kg > 0
+            ORDER BY date ASC
+        """).fetchall()
+    finally:
+        con.close()
+    series = [{"date": r["date"], "weight": round(r["weight_kg"], 1)} for r in rows]
+    return {
+        "linked": linked,
+        "colour": BODYWEIGHT_COLOUR,
+        "series": series,
+        "latest": series[-1]["weight"] if series else None,
+    }
+
+
 def summary(user: str) -> dict:
     """Headline counts: totals, per-type balance, this week/month, streak."""
     con = _con(user)
@@ -184,6 +212,7 @@ def stats_payload(user: str) -> dict:
     return {
         "summary": summary(user),
         "anchors": anchor_progress(user),
+        "bodyweight": bodyweight(user),
         "calendar": calendar_days(user),
         "colours": SESSION_COLOURS,
     }
