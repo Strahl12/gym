@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ user }} — Training Stats</title>
-<link rel="stylesheet" href="/static/tdr.css?v=2">
+<link rel="stylesheet" href="/static/tdr.css?v=6">
 <style>
   body { margin: 0; line-height: 1.4; }
   main { padding: 1rem; max-width: 720px; margin: 0 auto;
@@ -24,10 +24,24 @@
   .bar-row { display: flex; align-items: center; gap: .6rem; font-size: .85rem; }
   .bar-label { width: 3.2rem; text-transform: capitalize; }
   .bar-track { flex: 1; position: relative; background: rgba(255,255,255,.06);
-               border: 1px solid var(--line); border-radius: 0; height: 1.15rem; overflow: hidden; }
-  .bar-fill { height: 100%; border-radius: 0; }
+               border: 1px solid var(--line); border-radius: 0; height: 1.15rem; }
+  .bar-fill { height: 100%; border-radius: 0; transform-origin: left center;
+              animation: barFill .9s cubic-bezier(.22,1,.36,1) both,
+                         barPulse 2.4s ease-in-out .9s infinite; }
   .bar-track::after { content: ""; position: absolute; inset: 0; pointer-events: none;
     background: repeating-linear-gradient(90deg, transparent 0 6px, var(--bg) 6px 8px); }
+  @keyframes barFill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  @keyframes barPulse {
+    0%, 100% { box-shadow: 0 0 6px var(--glow), 0 0 14px var(--glow); }
+    50%      { box-shadow: 0 0 11px var(--glow), 0 0 24px var(--glow); filter: brightness(1.18); }
+  }
+  /* target reference line: dashes march to the right + a glow pulse */
+  .refline { animation: refMarch .9s linear infinite, refPulse 1.9s ease-in-out infinite; }
+  @keyframes refMarch { to { stroke-dashoffset: -6; } }
+  @keyframes refPulse {
+    0%, 100% { filter: drop-shadow(0 0 2px var(--rc)) drop-shadow(0 0 5px var(--rc)); }
+    50%      { filter: drop-shadow(0 0 3px var(--rc)) drop-shadow(0 0 10px var(--rc)); }
+  }
   .bar-n { width: 2rem; text-align: right; font-variant-numeric: tabular-nums; }
   .chart { border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
            border-radius: .8rem; padding: .7rem .8rem; margin-bottom: .7rem; }
@@ -109,6 +123,7 @@ function balanceBars(balance, colours, title) {
     const fill = el("div", "bar-fill");
     fill.style.width = (100 * n / max) + "%";
     fill.style.background = colours[st];
+    fill.style.setProperty("--glow", colours[st]);
     fill.style.boxShadow = `0 0 6px ${colours[st]}, 0 0 14px ${colours[st]}`;
     track.appendChild(fill);
     row.appendChild(track);
@@ -275,7 +290,8 @@ function lineChart(series, colour, valKey = "e1rm", refLine = null, overlay = nu
   if (refLine != null) {
     const ry = y(refLine.value), rc = refLine.colour || colour;
     svg.appendChild(svgEl("line", { x1: x0, y1: ry, x2: x1, y2: ry, stroke: rc,
-      "stroke-width": 1.1, "stroke-dasharray": "3 3", "stroke-opacity": .95, style: glow(rc) }));
+      "stroke-width": 1.1, "stroke-dasharray": "3 3", "stroke-opacity": .95,
+      "stroke-dashoffset": 0, class: "refline", style: glow(rc) + `; --rc: ${rc}` }));
     const t = svgEl("text", { x: x1, y: ry - 3, "text-anchor": "end",
       "font-size": 8, "font-family": MONO, fill: rc, style: glow(rc) });
     t.textContent = refLine.label; svg.appendChild(t);

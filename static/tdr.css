@@ -71,7 +71,14 @@ a:hover { color: #fff; text-shadow: 0 0 8px rgba(0,229,255,.6); }
                     text-shadow: 0 0 8px rgba(0,229,255,.7); }
 .hud__hazard { height: 4px;
   background: repeating-linear-gradient(-45deg, var(--magenta) 0 9px, transparent 9px 18px);
-  box-shadow: 0 0 11px rgba(255,0,102,.55); }
+  background-size: 25.46px 25.46px;                 /* 18px period × √2 → seamless scroll */
+  box-shadow: 0 0 11px rgba(255,0,102,.55);
+  animation: hazardMove .8s linear infinite, hazardPulse 1.9s ease-in-out infinite; }
+@keyframes hazardMove { to { background-position: 25.46px 0; } }
+@keyframes hazardPulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(255,0,102,.5); }
+  50%      { box-shadow: 0 0 17px rgba(255,0,102,.95); }
+}
 
 /* small mono chips / codes / registration marks */
 .tag { font-family: var(--mono); font-size: .62rem; letter-spacing: .1em;
@@ -99,3 +106,8 @@ a:hover { color: #fff; text-shadow: 0 0 8px rgba(0,229,255,.6); }
        text-transform: uppercase; cursor: pointer; }
 .btn:hover { box-shadow: 0 0 16px rgba(255,0,102,.55); }
 .btn:disabled { opacity: .4; box-shadow: none; cursor: default; }
+
+/* Honour reduced-motion: skip the fill/pulse, show bars at rest. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; }
+}
