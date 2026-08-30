@@ -13,8 +13,9 @@
            display: flex; align-items: center; gap: .75rem;
            padding: .75rem 1rem; font-weight: 600;
            border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent); }
-  header a { margin-left: auto; font-weight: 600; text-decoration: none;
+  header a { font-weight: 600; text-decoration: none;
              color: #2563eb; font-size: .95rem; }
+  header a:first-of-type { margin-left: auto; }
   main { padding: 1rem; max-width: 720px; margin: 0 auto;
          padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
   h2 { font-size: 1rem; margin: 1.5rem 0 .6rem; }
@@ -64,6 +65,7 @@
 <body>
 <header>
   <span>Training Stats — {{ user }}</span>
+  <a id="review" href="{{ chat_url }}/review">📅 Review</a>
   <a id="back" href="{{ chat_url }}">← Chat</a>
 </header>
 <main id="main"><p class="muted">Loading…</p></main>

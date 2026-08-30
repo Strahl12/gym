@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Weekly Review — {{ user }}</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, system-ui, sans-serif;
+         background: Canvas; color: CanvasText; }
+  header { position: sticky; top: 0; z-index: 5; background: Canvas;
+           display: flex; align-items: center; gap: .75rem;
+           padding: .75rem 1rem; font-weight: 600;
+           border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent); }
+  header a { font-weight: 600; text-decoration: none; color: #2563eb; font-size: .95rem; }
+  header a:first-of-type { margin-left: auto; }
+  main { padding: 1rem; max-width: 720px; margin: 0 auto;
+         padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
+  h2 { font-size: 1rem; margin: 1.6rem 0 .7rem; }
+  h2:first-child { margin-top: 0; }
+  .muted { opacity: .6; }
+  .card { border: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
+          border-radius: .8rem; padding: .9rem 1rem; margin-bottom: .8rem; }
+  .weeks { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
+  .week h3 { margin: 0 0 .5rem; font-size: .8rem; text-transform: uppercase;
+             letter-spacing: .03em; opacity: .6; }
+  .big { font-size: 1.5rem; font-weight: 700; }
+  .sub { font-size: .82rem; opacity: .7; margin-top: .1rem; }
+  .strip { display: flex; gap: 3px; margin: .6rem 0 .2rem; }
+  .strip .d { flex: 1; height: 26px; border-radius: .3rem; display: grid;
+              place-items: center; font-size: .6rem; font-weight: 700; color: #fff;
+              background: color-mix(in srgb, CanvasText 8%, Canvas); }
+  .strip .d.rest { color: color-mix(in srgb, CanvasText 45%, transparent); font-weight: 500; }
+  .dows { display: flex; gap: 3px; }
+  .dows .l { flex: 1; text-align: center; font-size: .58rem; opacity: .5; }
+  .delta.up { color: #16a34a; } .delta.down { color: #dc2626; }
+  .freq { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 60px; margin: .7rem 0 .3rem; }
+  .bars .col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end;
+               align-items: center; gap: 3px; height: 100%; }
+  .bars .bar { width: 70%; min-height: 2px; border-radius: .25rem 0.25rem 0 0;
+               background: #2563eb; }
+  .bars .bar.typ { background: #2563eb; } .bars .bar.non { background: color-mix(in srgb, CanvasText 20%, transparent); }
+  .bars .lab { font-size: .58rem; opacity: .55; }
+  .chip { display: inline-block; font-size: .72rem; padding: .12rem .5rem;
+          border-radius: .5rem; background: color-mix(in srgb, CanvasText 12%, transparent);
+          margin: 0 .3rem .3rem 0; }
+  .sugg { border: 1px solid color-mix(in srgb, #2563eb 40%, transparent);
+          background: color-mix(in srgb, #2563eb 7%, Canvas); }
+  .sugg.match { border-color: color-mix(in srgb, #16a34a 40%, transparent);
+                background: color-mix(in srgb, #16a34a 7%, Canvas); }
+  .sugg .name { font-size: 1.15rem; font-weight: 700; }
+  .sugg .why { font-size: .85rem; opacity: .8; line-height: 1.45; margin-top: .5rem; }
+  .sample { display: flex; gap: 4px; flex-wrap: wrap; margin: .6rem 0 .2rem; }
+  .sample .s { font-size: .7rem; font-weight: 600; color: #fff; padding: .15rem .5rem;
+               border-radius: .4rem; background: #64748b; }
+  .foot { font-size: .8rem; opacity: .7; line-height: 1.5; margin-top: .9rem; }
+  .foot a { color: #2563eb; }
+</style>
+</head>
+<body>
+<header>
+  <span>Weekly Review — {{ user }}</span>
+  <a id="stats" href="{{ chat_url }}/stats">📊 Stats</a>
+  <a href="{{ chat_url }}">← Chat</a>
+</header>
+<main id="main"><p class="muted">Loading…</p></main>
+<script>
+const DATA_URL = "{{ data_url }}";
+const CHAT_URL = "{{ chat_url }}";
+const TYPE_LABEL = { push: "Push", pull: "Pull", legs: "Legs", arms: "Arms" };
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function weekCard(w, label, colours) {
+  const c = el("div", "week");
+  c.appendChild(el("h3", null, label));
+  c.appendChild(el("div", "big", w.sessions + (w.sessions === 1 ? " session" : " sessions")));
+  c.appendChild(el("div", "sub", w.sets + " working sets"));
+
+  const strip = el("div", "strip");
+  const dows = el("div", "dows");
+  for (const day of w.days) {
+    const d = el("div", "d" + (day.session_type ? "" : " rest"));
+    if (day.session_type) {
+      d.style.background = colours[day.session_type];
+      d.textContent = TYPE_LABEL[day.session_type][0];
+      d.title = day.weekday + " · " + TYPE_LABEL[day.session_type] + " · " + day.sets + " sets";
+    } else {
+      d.textContent = "·";
+    }
+    strip.appendChild(d);
+    dows.appendChild(el("div", "l", day.weekday[0]));
+  }
+  c.appendChild(strip);
+  c.appendChild(dows);
+
+  if (w.bodyweight_change != null && w.bodyweight_change !== 0) {
+    const up = w.bodyweight_change > 0;
+    const s = el("div", "sub delta " + (up ? "up" : "down"),
+                 (up ? "▲ +" : "▼ ") + w.bodyweight_change + " kg bodyweight");
+    c.appendChild(s);
+  }
+  return c;
+}
+
+function render(d) {
+  const main = document.getElementById("main");
+  main.textContent = "";
+  const colours = d.colours;
+
+  // ── This week vs last week ──
+  main.appendChild(el("h2", null, "This week vs last"));
+  const weeks = el("div", "weeks");
+  weeks.appendChild(weekCard(d.this_week, "This week", colours));
+  weeks.appendChild(weekCard(d.prev_week, "Last week", colours));
+  main.appendChild(weeks);
+
+  // ── Cadence ──
+  const f = d.frequency;
+  main.appendChild(el("h2", null, "How often you train"));
+  const fc = el("div", "card");
+  if (!f.weeks_analysed) {
+    fc.appendChild(el("div", "muted", "Not enough history yet — train for a couple of weeks and this fills in."));
+  } else {
+    const line = el("div", "freq");
+    line.appendChild(el("span", "big", f.avg_per_week));
+    const span = f.weeks_analysed >= 9
+      ? "last " + Math.round(f.weeks_analysed / 4.33) + " months"
+      : "last " + f.weeks_analysed + (f.weeks_analysed === 1 ? " week" : " weeks");
+    line.appendChild(el("span", "sub", "sessions/week on average · " + span
+                        + (f.target_per_week ? " · you aim for " + f.target_per_week : "")));
+    fc.appendChild(line);
+
+    // Day-of-week histogram.
+    const max = Math.max(1, ...Object.values(f.day_counts));
+    const bars = el("div", "bars");
+    for (const wd of ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]) {
+      const col = el("div", "col");
+      const n = f.day_counts[wd] || 0;
+      const bar = el("div", "bar " + (f.typical_days.includes(wd) ? "typ" : "non"));
+      bar.style.height = (n / max * 100) + "%";
+      bar.title = wd + ": trained " + n + " of " + f.weeks_analysed + " weeks";
+      col.appendChild(bar);
+      col.appendChild(el("div", "lab", wd[0]));
+      bars.appendChild(col);
+    }
+    fc.appendChild(bars);
+    if (f.typical_days.length) {
+      fc.appendChild(el("div", "sub", "Your usual days: " + f.typical_days.join(", ")));
+    }
+  }
+  main.appendChild(fc);
+
+  // ── Suggested split ──
+  main.appendChild(el("h2", null, "Suggested split"));
+  const s = d.suggestion;
+  if (!s) {
+    main.appendChild(el("div", "card muted", "Need a bit more training history to suggest a split."));
+  } else {
+    const match = !s.changes_recommended;
+    const sc = el("div", "card sugg" + (match ? " match" : ""));
+    sc.appendChild(el("div", "name", s.name));
+    sc.appendChild(el("div", "sub", s.cadence + " · " + s.per_muscle));
+
+    const sample = el("div", "sample");
+    for (const day of s.sample) {
+      const tag = el("div", "s", day);
+      const key = day.toLowerCase();
+      if (colours[key]) tag.style.background = colours[key];
+      sample.appendChild(tag);
+    }
+    sc.appendChild(sample);
+    sc.appendChild(el("div", "sub muted", "a sample week"));
+    sc.appendChild(el("div", "why", s.rationale));
+    main.appendChild(sc);
+
+    const foot = el("div", "foot");
+    if (match) {
+      foot.innerHTML = "This is the split you're already on (<b>" + d.current_split
+        + "</b>) — your training frequency fits it well. Nothing to change.";
+    } else {
+      foot.innerHTML = "You're currently programmed on <b>" + d.current_split + "</b> ("
+        + d.current_split_days + "×/week), but you're averaging " + f.avg_per_week
+        + " sessions. The split above fits your real cadence better. "
+        + "Nothing changes automatically — if you'd like to switch, "
+        + "<a href=\"" + CHAT_URL + "\">tell your coach in the chat</a> and they'll set it up.";
+    }
+    main.appendChild(foot);
+  }
+}
+
+fetch(DATA_URL)
+  .then(r => r.json())
+  .then(d => { if (d.error) throw new Error(d.error); render(d); })
+  .catch(e => {
+    document.getElementById("main").innerHTML =
+      '<p class="muted">Could not load your review (' + e.message + ').</p>';
+  });
+</script>
+</body>
+</html>

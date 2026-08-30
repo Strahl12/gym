@@ -13,8 +13,9 @@
   header { padding: .75rem 1rem; font-weight: 600;
            display: flex; align-items: center; gap: .75rem;
            border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent); }
-  header a { margin-left: auto; font-weight: 600; text-decoration: none;
+  header a { font-weight: 600; text-decoration: none;
              color: #2563eb; font-size: .95rem; }
+  header a:first-of-type { margin-left: auto; }
   #msgs { flex: 1; overflow-y: auto; padding: 1rem;
           display: flex; flex-direction: column; gap: .5rem; }
   .msg { max-width: 85%; padding: .55rem .8rem; border-radius: 1rem;
@@ -62,7 +63,7 @@
 </style>
 </head>
 <body>
-<header><span>Gym Coach — {{ user }}</span><a id="stats-link" href="#">📊 Stats</a></header>
+<header><span>Gym Coach — {{ user }}</span><a id="review-link" href="#">📅 Review</a><a id="stats-link" href="#">📊 Stats</a></header>
 {% if dev %}
 <div id="dev">
   <span id="dev-status">dev: loading…</span>
@@ -81,6 +82,7 @@
 <script>
 const base = location.pathname.replace(/\/$/, "");
 document.getElementById("stats-link").href = base + "/stats";
+document.getElementById("review-link").href = base + "/review";
 
 // Dev panel (rendered only for the dev user) — Anthropic API / credit health.
 let refreshDev = () => {};

@@ -76,6 +76,12 @@ Rules:
   the last 48h). Acknowledge such reports and confirm they'll be factored into the next
   session. No special format needed; they just have to mention it before the morning run.
 - If the data doesn't answer their question, say so rather than guessing.
+- You CAN pull their Weekly Review: get_weekly_review returns this-week vs last-week
+  sessions/sets/bodyweight, their real training cadence over the last ~4 months, and the
+  split that fits it. Call it whenever they want to discuss the review, their weekly
+  summary, how often they train, or whether their split suits their schedule. Ground your
+  reply in those numbers. The split it names is a suggestion — talk it through, but only
+  change anything if they explicitly confirm (then use update_profile).
 
 ## Changing training goals
 You CAN change their training profile — main lifts, focus lifts, training mode,
@@ -216,6 +222,17 @@ CHAT_TOOLS = [
                                          "the athlete explicitly insists on training despite it."},
             },
         },
+    },
+    {
+        "name": "get_weekly_review",
+        "description": "Pull the athlete's Weekly Review data: this-week vs last-week sessions, "
+                       "sets and bodyweight change, their real training cadence over the last ~4 "
+                       "months (average sessions/week and which weekdays they usually train), and "
+                       "the split that best fits that cadence. Call this whenever the athlete wants "
+                       "to talk about their review, their weekly summary, how often they train, or "
+                       "whether their split suits their schedule — it's the same data behind the "
+                       "Review tab. Read-only; changes nothing.",
+        "input_schema": {"type": "object", "properties": {}},
     },
 ]
 
@@ -580,6 +597,46 @@ def _regenerate_routine(user: str, force: bool) -> tuple[str, bool]:
             "force=true if they explicitly insist.\n" + tail), False
 
 
+def _review_block(user: str) -> str:
+    """Render the Weekly Review into a compact text block for the coach to reason
+    over — same numbers the Review tab shows."""
+    import stats
+    r = stats.weekly_review(user)
+
+    def _wk(w, label):
+        types = ", ".join(f"{t} {n}" for t, n in w["types"].items() if n) or "no sessions"
+        bw = w.get("bodyweight_change")
+        bw_txt = f", bodyweight {bw:+.1f}kg" if bw not in (None, 0) else ""
+        return f"- {label}: {w['sessions']} sessions, {w['sets']} working sets ({types}){bw_txt}"
+
+    f = r["frequency"]
+    lines = [
+        "WEEKLY REVIEW",
+        _wk(r["this_week"], "This week"),
+        _wk(r["prev_week"], "Last week"),
+    ]
+    if f["weeks_analysed"]:
+        typical = ", ".join(f["typical_days"]) or "no consistent days"
+        target = f" (they aim for {f['target_per_week']})" if f["target_per_week"] else ""
+        lines.append(
+            f"- Cadence over the last {f['weeks_analysed']} weeks: "
+            f"{f['avg_per_week']} sessions/week on average{target}; usual days: {typical}")
+    else:
+        lines.append("- Not enough history yet to read a reliable cadence")
+
+    s = r["suggestion"]
+    if s:
+        fit = ("matches their current split" if not s["changes_recommended"]
+               else f"differs from their current {r['current_split']} "
+                    f"({r['current_split_days']}x/week) split")
+        lines.append(
+            f"- Cadence-fit split suggestion: {s['name']} ({s['cadence']}, {s['per_muscle']}) "
+            f"— {fit}. Rationale: {s['rationale']}")
+    lines.append("This is a suggestion only — never change their split without explicit "
+                 "confirmation, and use update_profile for any change they do confirm.")
+    return "\n".join(lines)
+
+
 def _run_tool(user: str, name: str, args: dict) -> tuple[str, bool]:
     """Execute one tool call. Returns (result_text, is_error)."""
     import json as _json
@@ -598,6 +655,12 @@ def _run_tool(user: str, name: str, args: dict) -> tuple[str, bool]:
         if name == "regenerate_routine":
             print(f"[chat] {user}: regenerating routine (force={bool(args.get('force'))})")
             return _regenerate_routine(user, bool(args.get("force")))
+        if name == "get_weekly_review":
+            print(f"[chat] {user}: pulling weekly review")
+            with _CONFIG_LOCK:
+                config.activate(user)
+                _sync_recent(user)
+            return _review_block(user), False
         return f"unknown tool {name!r}", True
     except profile_editor.ProfileEditError as e:
         return f"NO CHANGES APPLIED — {e} (fix and retry, or tell the athlete honestly)", True
@@ -685,6 +748,18 @@ def _stats_response(user: str):
         return jsonify({"error": "stats unavailable"}), 500
 
 
+def _review_response(user: str):
+    import stats
+    with _CONFIG_LOCK:            # _sync_recent needs the active user + serialised writes
+        config.activate(user)
+        _sync_recent(user)
+    try:
+        return jsonify(stats.weekly_review(user))
+    except Exception as e:
+        print(f"[chat] {user}: review build failed: {e}")
+        return jsonify({"error": "review unavailable"}), 500
+
+
 def _chat_response(user: str):
     body    = request.get_json(silent=True) or {}
     message = (body.get("message") or "").strip()
@@ -754,6 +829,23 @@ def chat_stats_data(token: str):
     if user is None:
         abort(404)
     return _stats_response(user)
+
+
+@app.get("/u/<token>/review")
+def chat_review_page(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return render_template("review.html", user=user.title(),
+                           data_url=f"/u/{token}/review/data", chat_url=f"/u/{token}")
+
+
+@app.get("/u/<token>/review/data")
+def chat_review_data(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return _review_response(user)
 
 
 @app.get("/u/<token>/devinfo")
@@ -883,6 +975,23 @@ def app_stats_data():
     if user is None:
         abort(401)
     return _stats_response(user)
+
+
+@app.get("/app/review")
+def app_review_page():
+    user = _session_user()
+    if user is None:
+        return redirect("/login", code=302)
+    return render_template("review.html", user=user.title(),
+                           data_url="/app/review/data", chat_url="/app")
+
+
+@app.get("/app/review/data")
+def app_review_data():
+    user = _session_user()
+    if user is None:
+        abort(401)
+    return _review_response(user)
 
 
 @app.get("/app/devinfo")
