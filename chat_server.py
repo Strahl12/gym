@@ -82,6 +82,14 @@ Rules:
   summary, how often they train, or whether their split suits their schedule. Ground your
   reply in those numbers. The split it names is a suggestion — talk it through, but only
   change anything if they explicitly confirm (then use update_profile).
+- You keep an exercise LOG for them. Whenever you answer a question about a SPECIFIC
+  exercise — form, cues, grip/stance, how to progress it, why it's programmed, common
+  mistakes, mobility — call log_exercise_info to save the key takeaway as a note under
+  that exercise, so they can refer back to it on the Log tab without re-asking. Save the
+  useful nugget in your own words, self-contained; one tight note per topic. Don't log
+  generic chit-chat or non-exercise questions, and don't announce it every time — a brief
+  "saved that to your Log" is plenty. Use get_exercise_log to recall what's already saved
+  and avoid duplicates.
 
 ## Changing training goals
 You CAN change their training profile — main lifts, focus lifts, training mode,
@@ -233,6 +241,48 @@ CHAT_TOOLS = [
                        "whether their split suits their schedule — it's the same data behind the "
                        "Review tab. Read-only; changes nothing.",
         "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "log_exercise_info",
+        "description": "Save a concise reference note about a SPECIFIC exercise to the athlete's "
+                       "Log tab, so they can look it back up later without re-asking. Call this "
+                       "whenever you answer a question about a particular exercise — form cues, "
+                       "grip/stance, how to progress it, why it's programmed, common mistakes, "
+                       "mobility, cadence, etc. Store the key takeaway in your OWN words as a "
+                       "self-contained note that reads well on its own, without the surrounding "
+                       "chat. Keep it tight; one call per exercise per topic. Don't log generic "
+                       "chit-chat or non-exercise questions.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "exercise": {"type": "string",
+                             "description": "The exercise the info is about, e.g. "
+                                            "'Bench Press (Barbell)'. Use the exact Hevy title "
+                                            "where you know it so entries group cleanly."},
+                "title": {"type": "string",
+                          "description": "Short topic label for this note, e.g. 'Grip width', "
+                                         "'Progression', 'Elbow position'."},
+                "info": {"type": "string",
+                         "description": "The reference note itself — concise, self-contained, "
+                                        "plain text."},
+            },
+            "required": ["exercise", "title", "info"],
+        },
+    },
+    {
+        "name": "get_exercise_log",
+        "description": "Read back the athlete's saved exercise Log — the reference notes you "
+                       "previously stored with log_exercise_info. Use it to recall what you've "
+                       "already told them about an exercise, avoid saving duplicates, or answer "
+                       "'what did we save about X'. Optionally filter by exercise. Read-only.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "exercise": {"type": "string",
+                             "description": "Optional — only return notes whose exercise name "
+                                            "contains this text (case-insensitive)."},
+            },
+        },
     },
 ]
 
@@ -456,6 +506,17 @@ def _db(user: str) -> sqlite3.Connection:
             content TEXT NOT NULL
         )
     """)
+    # Per-exercise reference notes the coach saves so the athlete can look them
+    # back up on the Log tab (see log_exercise_info tool).
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS exercise_log (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts       TEXT NOT NULL,
+            exercise TEXT NOT NULL,
+            title    TEXT NOT NULL,
+            content  TEXT NOT NULL
+        )
+    """)
     return con
 
 
@@ -472,6 +533,38 @@ def _store(con: sqlite3.Connection, role: str, content: str) -> None:
         (datetime.now().isoformat(timespec="seconds"), role, content),
     )
     con.commit()
+
+
+def _add_log_entry(con: sqlite3.Connection, exercise: str, title: str, content: str) -> None:
+    con.execute(
+        "INSERT INTO exercise_log (ts, exercise, title, content) VALUES (?, ?, ?, ?)",
+        (datetime.now().isoformat(timespec="seconds"), exercise, title, content),
+    )
+    con.commit()
+
+
+def _log_grouped(con: sqlite3.Connection) -> list[dict]:
+    """Saved exercise notes grouped by exercise, most recently-noted exercise
+    first, newest entry first within each group."""
+    rows = con.execute(
+        "SELECT id, ts, exercise, title, content FROM exercise_log ORDER BY id DESC"
+    ).fetchall()
+    groups: dict[str, dict] = {}
+    for r in rows:
+        g = groups.setdefault(r["exercise"], {"exercise": r["exercise"], "entries": []})
+        g["entries"].append({"id": r["id"], "ts": r["ts"],
+                             "title": r["title"], "content": r["content"]})
+    return list(groups.values())
+
+
+def _log_text(groups: list[dict]) -> str:
+    """Compact text render of the saved log for the coach to read back."""
+    lines = ["SAVED EXERCISE LOG"]
+    for g in groups:
+        lines.append(f"{g['exercise']}:")
+        for e in g["entries"]:
+            lines.append(f"  - [{e['ts'][:10]}] {e['title']}: {e['content']}")
+    return "\n".join(lines)
 
 
 def _rate_ok(user: str) -> bool:
@@ -661,6 +754,33 @@ def _run_tool(user: str, name: str, args: dict) -> tuple[str, bool]:
                 config.activate(user)
                 _sync_recent(user)
             return _review_block(user), False
+        if name == "log_exercise_info":
+            ex    = (args.get("exercise") or "").strip()
+            title = (args.get("title") or "").strip() or "Note"
+            info  = (args.get("info") or "").strip()
+            if not ex or not info:
+                return "NOT SAVED — need both an exercise and the info to store.", True
+            con = _db(user)
+            try:
+                _add_log_entry(con, ex, title, info)
+            finally:
+                con.close()
+            print(f"[chat] {user}: logged exercise info — {ex} / {title}")
+            return (f"Saved to their Log under {ex} ({title}). Let them know it's on the "
+                    "Log tab to refer back to."), False
+        if name == "get_exercise_log":
+            con = _db(user)
+            try:
+                groups = _log_grouped(con)
+            finally:
+                con.close()
+            filt = (args.get("exercise") or "").strip().lower()
+            if filt:
+                groups = [g for g in groups if filt in g["exercise"].lower()]
+            if not groups:
+                where = f" for {args.get('exercise')!r}" if filt else ""
+                return f"No saved log entries{where} yet.", False
+            return _log_text(groups), False
         return f"unknown tool {name!r}", True
     except profile_editor.ProfileEditError as e:
         return f"NO CHANGES APPLIED — {e} (fix and retry, or tell the athlete honestly)", True
@@ -760,6 +880,24 @@ def _review_response(user: str):
         return jsonify({"error": "review unavailable"}), 500
 
 
+def _log_response(user: str):
+    con = _db(user)
+    try:
+        return jsonify({"exercises": _log_grouped(con)})
+    finally:
+        con.close()
+
+
+def _log_delete(user: str, entry_id: int):
+    con = _db(user)
+    try:
+        con.execute("DELETE FROM exercise_log WHERE id = ?", (entry_id,))
+        con.commit()
+        return jsonify({"ok": True})
+    finally:
+        con.close()
+
+
 def _chat_response(user: str):
     body    = request.get_json(silent=True) or {}
     message = (body.get("message") or "").strip()
@@ -846,6 +984,32 @@ def chat_review_data(token: str):
     if user is None:
         abort(404)
     return _review_response(user)
+
+
+@app.get("/u/<token>/log")
+def chat_log_page(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return render_template("log.html", user=user.title(),
+                           data_url=f"/u/{token}/log/data",
+                           del_url=f"/u/{token}/log/delete", chat_url=f"/u/{token}")
+
+
+@app.get("/u/<token>/log/data")
+def chat_log_data(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return _log_response(user)
+
+
+@app.post("/u/<token>/log/delete/<int:entry_id>")
+def chat_log_delete(token: str, entry_id: int):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return _log_delete(user, entry_id)
 
 
 @app.get("/u/<token>/devinfo")
@@ -992,6 +1156,31 @@ def app_review_data():
     if user is None:
         abort(401)
     return _review_response(user)
+
+
+@app.get("/app/log")
+def app_log_page():
+    user = _session_user()
+    if user is None:
+        return redirect("/login", code=302)
+    return render_template("log.html", user=user.title(),
+                           data_url="/app/log/data", del_url="/app/log/delete", chat_url="/app")
+
+
+@app.get("/app/log/data")
+def app_log_data():
+    user = _session_user()
+    if user is None:
+        abort(401)
+    return _log_response(user)
+
+
+@app.post("/app/log/delete/<int:entry_id>")
+def app_log_delete(entry_id: int):
+    user = _session_user()
+    if user is None:
+        abort(401)
+    return _log_delete(user, entry_id)
 
 
 @app.get("/app/devinfo")

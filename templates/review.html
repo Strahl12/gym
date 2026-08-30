@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Weekly Review — {{ user }}</title>
-<link rel="stylesheet" href="/static/tdr.css?v=6">
+<link rel="stylesheet" href="/static/tdr.css?v=8">
 <style>
   body { margin: 0; }
   main { padding: 1rem; max-width: 720px; margin: 0 auto;
@@ -80,10 +80,15 @@
     <span class="hud__jp">レビュー</span>
     <span class="tag">{{ user }}</span>
     <span class="hud__spacer"></span>
-    <nav class="hud__nav">
-      <a href="{{ chat_url }}/stats">▸ Stats</a>
-      <a href="{{ chat_url }}">◂ Chat</a>
-    </nav>
+    <details class="hud__menu">
+      <summary>Menu</summary>
+      <div class="hud__menu-panel">
+        <a href="{{ chat_url }}">▸ Chat</a>
+        <a class="current" href="{{ chat_url }}/review">▸ Review</a>
+        <a href="{{ chat_url }}/stats">▸ Stats</a>
+        <a href="{{ chat_url }}/log">▸ Log</a>
+      </div>
+    </details>
   </div>
   <div class="hud__hazard"></div>
 </header>

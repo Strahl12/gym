@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Exercise Log — {{ user }}</title>
+<link rel="stylesheet" href="/static/tdr.css?v=8">
+<style>
+  body { margin: 0; }
+  main { padding: 1rem; max-width: 720px; margin: 0 auto;
+         padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
+  .intro { font-size: .82rem; color: var(--dim); line-height: 1.5; margin: .3rem 0 1.2rem; }
+  .muted { color: var(--dim); }
+  .empty { background: var(--panel); border: 1px solid var(--line); padding: 1.1rem 1rem;
+           font-size: .88rem; color: var(--dim); line-height: 1.55; }
+  .empty b { color: var(--cyan); }
+
+  /* toolbar with the global expand/collapse control */
+  .toolbar { display: flex; justify-content: flex-end; margin: 0 0 .8rem; }
+  .toggle-all { font-family: var(--mono); font-size: .64rem; letter-spacing: .1em;
+                text-transform: uppercase; color: var(--ink); cursor: pointer;
+                background: transparent; border: 1px solid var(--line); border-radius: 0;
+                padding: .32rem .6rem; }
+  .toggle-all:hover { color: var(--cyan); border-color: var(--cyan);
+                      box-shadow: inset 0 0 0 1px rgba(0,229,255,.35), 0 0 10px rgba(0,229,255,.4);
+                      text-shadow: 0 0 8px rgba(0,229,255,.7); }
+
+  /* One collapsible card per exercise, holding its stacked notes. */
+  .ex { background: var(--panel); border: 1px solid var(--line);
+        border-left: 2px solid var(--cyan); box-shadow: -3px 0 12px rgba(0,229,255,.12);
+        margin-bottom: 1rem; }
+  .ex__head { display: flex; align-items: baseline; gap: .6rem; cursor: pointer;
+              list-style: none; user-select: none;
+              padding: .7rem .9rem; border-bottom: 1px solid var(--line); }
+  .ex:not([open]) > .ex__head { border-bottom: 0; }
+  .ex__head::-webkit-details-marker { display: none; }
+  .ex__caret { flex: 0 0 auto; color: var(--cyan); font-size: .7rem; align-self: center;
+               transition: transform .15s ease; text-shadow: 0 0 6px rgba(0,229,255,.6); }
+  .ex[open] > .ex__head .ex__caret { transform: rotate(90deg); }
+  .ex__name { font-family: var(--mono); font-size: .84rem; font-weight: 700;
+              letter-spacing: .04em; text-transform: uppercase; color: var(--cyan);
+              text-shadow: 0 0 9px rgba(0,229,255,.6); }
+  .ex__count { margin-left: auto; font-family: var(--mono); font-size: .6rem;
+               letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
+               border: 1px solid var(--line); padding: .1rem .4rem; }
+
+  .entry { padding: .7rem .9rem; border-top: 1px solid rgba(255,255,255,.05);
+           position: relative; animation: fadeIn .35s ease both; }
+  .entry:first-of-type { border-top: 0; }
+  .entry__title { font-family: var(--mono); font-size: .7rem; letter-spacing: .1em;
+                  text-transform: uppercase; color: var(--magenta);
+                  text-shadow: 0 0 8px rgba(255,0,102,.5); margin-bottom: .35rem;
+                  padding-right: 1.4rem; }
+  .entry__body { font-size: .92rem; line-height: 1.5; white-space: pre-wrap;
+                 overflow-wrap: break-word; }
+  .entry__foot { display: flex; align-items: center; gap: .6rem; margin-top: .5rem; }
+  .ts { font-family: var(--mono); font-size: .6rem; letter-spacing: .08em; color: var(--cyan);
+        text-shadow: 0 0 6px rgba(0,229,255,.9), 0 0 12px rgba(0,229,255,.5); }
+  .del { margin-left: auto; background: transparent; border: 1px solid var(--line);
+         border-radius: 0; color: var(--dim); cursor: pointer; font: 700 .68rem var(--mono);
+         letter-spacing: .08em; text-transform: uppercase; padding: .12rem .45rem; }
+  .del:hover { border-color: var(--danger); color: var(--danger);
+               box-shadow: 0 0 8px rgba(255,45,85,.4); }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+<header class="hud">
+  <div class="hud__bar">
+    <span class="hud__brand"><b>■</b>LOG</span>
+    <span class="hud__jp">ログ</span>
+    <span class="tag">{{ user }}</span>
+    <span class="hud__spacer"></span>
+    <details class="hud__menu">
+      <summary>Menu</summary>
+      <div class="hud__menu-panel">
+        <a href="{{ chat_url }}">▸ Chat</a>
+        <a href="{{ chat_url }}/review">▸ Review</a>
+        <a href="{{ chat_url }}/stats">▸ Stats</a>
+        <a class="current" href="{{ chat_url }}/log">▸ Log</a>
+      </div>
+    </details>
+  </div>
+  <div class="hud__hazard"></div>
+</header>
+<main id="main"><p class="muted">Loading…</p></main>
+<script>
+const DATA_URL = "{{ data_url }}";
+const DEL_URL  = "{{ del_url }}";
+const CHAT_URL = "{{ chat_url }}";
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function fmtTs(iso) {
+  if (!iso) return "";
+  const d = new Date(iso.replace(" ", "T"));
+  if (isNaN(d)) return iso;
+  const t = d.toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit", hour12: false });
+  if (d.toDateString() === new Date().toDateString()) return "today · " + t;
+  return d.toLocaleDateString("en", { day: "2-digit", month: "short", year: "2-digit" }) + " · " + t;
+}
+
+function entryEl(ex, e) {
+  const box = el("div", "entry");
+  box.appendChild(el("div", "entry__title", e.title));
+  box.appendChild(el("div", "entry__body", e.content));
+  const foot = el("div", "entry__foot");
+  foot.appendChild(el("div", "ts", fmtTs(e.ts)));
+  const del = el("button", "del", "Delete");
+  del.type = "button";
+  del.addEventListener("click", async () => {
+    del.disabled = true;
+    try {
+      const r = await fetch(DEL_URL + "/" + e.id, { method: "POST" });
+      if (!r.ok) throw new Error();
+      const card = box.closest(".ex");
+      box.remove();
+      // Drop the whole exercise card once its last note is gone.
+      if (card && !card.querySelector(".entry")) card.remove();
+      const main = document.getElementById("main");
+      if (!main.querySelector(".ex")) renderEmpty(main);
+      else { updateCounts(); refreshToggleLabel(); }
+    } catch (ex2) {
+      del.disabled = false;
+      del.textContent = "Retry";
+    }
+  });
+  foot.appendChild(del);
+  box.appendChild(foot);
+  return box;
+}
+
+function updateCounts() {
+  for (const card of document.querySelectorAll(".ex")) {
+    const n = card.querySelectorAll(".entry").length;
+    const c = card.querySelector(".ex__count");
+    if (c) c.textContent = n + (n === 1 ? " note" : " notes");
+  }
+}
+
+function allOpen() {
+  const cards = [...document.querySelectorAll(".ex")];
+  return cards.length > 0 && cards.every(d => d.open);
+}
+
+function refreshToggleLabel() {
+  const btn = document.getElementById("toggle-all");
+  if (btn) btn.textContent = allOpen() ? "▾ Collapse all" : "▸ Expand all";
+}
+
+function renderEmpty(main) {
+  main.textContent = "";
+  main.appendChild(el("p", "intro",
+    "Notes your coach saves about specific exercises land here, so you can look them "
+    + "back up any time without re-asking."));
+  const box = el("div", "empty");
+  box.innerHTML = "Nothing logged yet. Ask your coach about an exercise in the "
+    + "<b><a href=\"" + CHAT_URL + "\" style=\"color:var(--cyan)\">chat</a></b> — "
+    + "form, grip, how to progress it, why it's in your programme — and the key "
+    + "takeaway gets saved here for reference.";
+  main.appendChild(box);
+}
+
+function render(d) {
+  const main = document.getElementById("main");
+  main.textContent = "";
+  const groups = d.exercises || [];
+  if (!groups.length) { renderEmpty(main); return; }
+
+  main.appendChild(el("p", "intro",
+    "Reference notes your coach has saved about your exercises. Ask about any movement "
+    + "in the chat and the key points get logged here for you to refer back to."));
+
+  const toolbar = el("div", "toolbar");
+  const toggle = el("button", "toggle-all", "▸ Expand all");
+  toggle.id = "toggle-all";
+  toggle.type = "button";
+  toggle.addEventListener("click", () => {
+    const open = !allOpen();
+    document.querySelectorAll(".ex").forEach(d => { d.open = open; });
+    refreshToggleLabel();
+  });
+  toolbar.appendChild(toggle);
+  main.appendChild(toolbar);
+
+  for (const g of groups) {
+    const card = el("details", "ex");            // collapsed by default (no `open`)
+    const head = el("summary", "ex__head");
+    head.appendChild(el("span", "ex__caret", "▸"));
+    head.appendChild(el("div", "ex__name", g.exercise));
+    const n = g.entries.length;
+    head.appendChild(el("div", "ex__count", n + (n === 1 ? " note" : " notes")));
+    card.appendChild(head);
+    for (const e of g.entries) card.appendChild(entryEl(g.exercise, e));
+    // keep the global button's label in sync when a card is toggled individually
+    card.addEventListener("toggle", refreshToggleLabel);
+    main.appendChild(card);
+  }
+  refreshToggleLabel();
+}
+
+fetch(DATA_URL)
+  .then(r => r.json())
+  .then(d => { if (d.error) throw new Error(d.error); render(d); })
+  .catch(e => {
+    document.getElementById("main").innerHTML =
+      '<p class="muted">Could not load your log (' + e.message + ').</p>';
+  });
+</script>
+</body>
+</html>
