@@ -4,37 +4,38 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Users — Gym Coach (dev)</title>
+<link rel="stylesheet" href="/static/tdr.css?v=2">
 <style>
-  :root { color-scheme: light dark; }
-  * { box-sizing: border-box; }
-  body { margin: 0; font-family: -apple-system, system-ui, sans-serif;
-         background: Canvas; color: CanvasText; }
-  header { display: flex; align-items: center; gap: .75rem;
-           padding: .75rem 1rem; font-weight: 600;
-           border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent); }
-  header a { margin-left: auto; font-weight: 600; text-decoration: none;
-             color: #2563eb; font-size: .95rem; }
+  body { margin: 0; }
   main { padding: 1rem; max-width: 820px; margin: 0 auto;
          padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
-  .count { font-size: .9rem; opacity: .7; margin: 0 0 .9rem; }
+  .count { font-family: var(--mono); font-size: .72rem; letter-spacing: .12em;
+           text-transform: uppercase; color: var(--dim); margin: .2rem 0 .9rem; }
   .scroll { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; font-size: .85rem; }
   th, td { text-align: left; padding: .5rem .6rem; white-space: nowrap;
-           border-bottom: 1px solid color-mix(in srgb, CanvasText 12%, transparent); }
-  th { font-size: .72rem; text-transform: uppercase; letter-spacing: .03em;
-       opacity: .6; }
-  td.user { font-weight: 600; }
-  .pill { font-size: .72rem; padding: .1rem .45rem; border-radius: .5rem;
-          background: color-mix(in srgb, CanvasText 12%, transparent); }
-  .pill.active  { background: color-mix(in srgb, #16a34a 30%, transparent); }
-  .pill.pending { background: color-mix(in srgb, #d97706 35%, transparent); }
-  .muted { opacity: .55; }
+           border-bottom: 1px solid var(--line); }
+  th { font-family: var(--mono); font-size: .64rem; text-transform: uppercase;
+       letter-spacing: .12em; color: var(--dim); }
+  td.user { font-weight: 700; color: var(--cyan); }
+  .pill { font-family: var(--mono); font-size: .64rem; letter-spacing: .06em;
+          text-transform: uppercase; padding: .12rem .45rem; border: 1px solid var(--line);
+          color: var(--dim); }
+  .pill.active  { color: var(--lime); border-color: color-mix(in srgb, var(--lime) 55%, transparent); }
+  .pill.pending { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 55%, transparent); }
+  .muted { color: var(--dim); }
 </style>
 </head>
 <body>
-<header>
-  <span>Users — dev</span>
-  <a href="/app">← Chat</a>
+<header class="hud">
+  <div class="hud__bar">
+    <span class="hud__brand"><b>■</b>USERS</span>
+    <span class="hud__jp">ユーザー</span>
+    <span class="tag">DEV</span>
+    <span class="hud__spacer"></span>
+    <nav class="hud__nav"><a href="/app">◂ Chat</a></nav>
+  </div>
+  <div class="hud__hazard"></div>
 </header>
 <main>
   <p class="count">{{ count }} user{{ '' if count == 1 else 's' }}</p>

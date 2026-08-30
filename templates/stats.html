@@ -4,21 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ user }} — Training Stats</title>
+<link rel="stylesheet" href="/static/tdr.css?v=2">
 <style>
-  :root { color-scheme: light dark; }
-  * { box-sizing: border-box; }
-  body { margin: 0; font-family: -apple-system, system-ui, sans-serif;
-         background: Canvas; color: CanvasText; line-height: 1.4; }
-  header { position: sticky; top: 0; z-index: 5; background: Canvas;
-           display: flex; align-items: center; gap: .75rem;
-           padding: .75rem 1rem; font-weight: 600;
-           border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent); }
-  header a { font-weight: 600; text-decoration: none;
-             color: #2563eb; font-size: .95rem; }
-  header a:first-of-type { margin-left: auto; }
+  body { margin: 0; line-height: 1.4; }
   main { padding: 1rem; max-width: 720px; margin: 0 auto;
          padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
-  h2 { font-size: 1rem; margin: 1.5rem 0 .6rem; }
+  h2 { font-family: var(--mono); font-size: .74rem; letter-spacing: .16em;
+       text-transform: uppercase; color: var(--dim);
+       margin: 1.8rem 0 .7rem; display: flex; align-items: center; gap: .5rem; }
+  h2::before { content: ""; width: 7px; height: 8px; background: var(--magenta);
+       clip-path: polygon(0 0, 100% 50%, 0 100%); flex: 0 0 auto; }
   .muted { color: color-mix(in srgb, CanvasText 55%, transparent); }
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .6rem; }
   .card { border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
@@ -28,14 +23,16 @@
   .bars { display: flex; flex-direction: column; gap: .45rem; }
   .bar-row { display: flex; align-items: center; gap: .6rem; font-size: .85rem; }
   .bar-label { width: 3.2rem; text-transform: capitalize; }
-  .bar-track { flex: 1; background: color-mix(in srgb, CanvasText 10%, transparent);
-               border-radius: .5rem; height: 1.1rem; overflow: hidden; }
-  .bar-fill { height: 100%; border-radius: .5rem; }
+  .bar-track { flex: 1; position: relative; background: rgba(255,255,255,.06);
+               border: 1px solid var(--line); border-radius: 0; height: 1.15rem; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 0; }
+  .bar-track::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(90deg, transparent 0 6px, var(--bg) 6px 8px); }
   .bar-n { width: 2rem; text-align: right; font-variant-numeric: tabular-nums; }
   .chart { border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
            border-radius: .8rem; padding: .7rem .8rem; margin-bottom: .7rem; }
   .chart-head { display: flex; align-items: baseline; gap: .5rem; margin-bottom: .4rem; }
-  .chart-title { font-weight: 600; font-size: .92rem; }
+  .chart-title { font-weight: 600; font-size: .92rem; text-shadow: 0 0 9px currentColor; }
   .chart-sub { font-size: .78rem; }
   .chart svg { width: 100%; height: 120px; display: block; overflow: visible; }
   .pie-wrap { display: flex; align-items: center; gap: 1.1rem; flex-wrap: wrap;
@@ -58,15 +55,24 @@
               align-items: center; justify-content: center; font-size: .7rem;
               background: color-mix(in srgb, CanvasText 7%, transparent); }
   .cal-cell.empty { background: transparent; }
-  .cal-cell.trained { color: #fff; font-weight: 600; }
-  #err { color: #dc2626; padding: 1rem; }
+  .cal-cell.trained { color: #05050a; font-weight: 700; }
+  #err { color: var(--danger); font-family: var(--mono); padding: 1rem; }
+  .card .n { color: var(--cyan); text-shadow: 0 0 10px var(--cyan); }
 </style>
 </head>
 <body>
-<header>
-  <span>Training Stats — {{ user }}</span>
-  <a id="review" href="{{ chat_url }}/review">📅 Review</a>
-  <a id="back" href="{{ chat_url }}">← Chat</a>
+<header class="hud">
+  <div class="hud__bar">
+    <span class="hud__brand"><b>■</b>STATS</span>
+    <span class="hud__jp">データ</span>
+    <span class="tag">{{ user }}</span>
+    <span class="hud__spacer"></span>
+    <nav class="hud__nav">
+      <a href="{{ chat_url }}/review">▸ Review</a>
+      <a href="{{ chat_url }}">◂ Chat</a>
+    </nav>
+  </div>
+  <div class="hud__hazard"></div>
 </header>
 <main id="main"><p class="muted">Loading…</p></main>
 <div id="err"></div>
@@ -103,6 +109,7 @@ function balanceBars(balance, colours, title) {
     const fill = el("div", "bar-fill");
     fill.style.width = (100 * n / max) + "%";
     fill.style.background = colours[st];
+    fill.style.boxShadow = `0 0 6px ${colours[st]}, 0 0 14px ${colours[st]}`;
     track.appendChild(fill);
     row.appendChild(track);
     row.appendChild(el("div", "bar-n", n));
@@ -121,7 +128,7 @@ function pieChart(balance, colours, title) {
   const total = order.reduce((s, st) => s + (balance[st] || 0), 0);
   if (!total) { wrap.appendChild(el("p", "muted", "No sessions logged yet.")); return wrap; }
 
-  const box = el("div", "pie-wrap");
+  const box = el("div", "pie-wrap reg");
   const R = 16, C = 18;                       // radius, centre (viewBox 36x36)
   const svg = document.createElementNS(SVGNS, "svg");
   svg.setAttribute("viewBox", "0 0 36 36");
@@ -146,9 +153,25 @@ function pieChart(balance, colours, title) {
       shape.setAttribute("d", arc(C, C, R, angle, angle + sweep));
     }
     shape.setAttribute("fill", colours[st]);
+    shape.setAttribute("stroke", "#0a0a0c");        // dark separators between segments
+    shape.setAttribute("stroke-width", "0.6");
+    shape.setAttribute("style", `filter: drop-shadow(0 0 1.5px ${colours[st]}) drop-shadow(0 0 3.5px ${colours[st]})`);
     svg.appendChild(shape);
     angle += sweep;
   }
+  // gauge frame ring + donut hub with a centre readout
+  svg.appendChild(svgEl("circle", { cx: C, cy: C, r: R + 0.5, fill: "none",
+    stroke: "#00e5ff", "stroke-width": .4, "stroke-opacity": .35 }));
+  svg.appendChild(svgEl("circle", { cx: C, cy: C, r: 8, fill: "#0d0d11",
+    stroke: "#ffffff", "stroke-width": .3, "stroke-opacity": .15 }));
+  const cn = svgEl("text", { x: C, y: C - 0.2, "text-anchor": "middle", "font-size": 6,
+    "font-family": MONO, "font-weight": "700", fill: "#fff" });
+  cn.textContent = total;
+  svg.appendChild(cn);
+  const cl = svgEl("text", { x: C, y: C + 4, "text-anchor": "middle", "font-size": 2.4,
+    "font-family": MONO, fill: "#00e5ff", "letter-spacing": ".3" });
+  cl.textContent = "SESSIONS";
+  svg.appendChild(cl);
   box.appendChild(svg);
 
   const leg = el("div", "pie-legend");
@@ -172,74 +195,127 @@ function svgEl(tag, attrs) {
   return e;
 }
 
+const MONO = "ui-monospace, Menlo, monospace";
+let _chartId = 0;
+
 function lineChart(series, colour, valKey = "e1rm", refLine = null, overlay = null) {
-  // viewBox coords; CSS scales width. Padding leaves room for y labels.
-  const W = 300, H = 120, padL = 34, padR = 8, padT = 10, padB = 18;
+  // viewBox coords; CSS scales width. Styled like a ship diagnostic readout:
+  // graticule, area-fade under the trace, glow, corner ticks, end marker.
+  const W = 300, H = 120, padL = 34, padR = 12, padT = 12, padB = 18;
+  const gid = "grad" + (_chartId++);
   const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none" });
+  const glow = c => `filter: drop-shadow(0 0 2px ${c}) drop-shadow(0 0 6px ${c})`;
+
   const vals = series.map(p => p[valKey]);
-  // A reference line (e.g. target bodyweight) must fit inside the y-range.
-  if (refLine != null) vals.push(refLine.value);
+  if (refLine != null) vals.push(refLine.value);          // ref line must fit the y-range
   if (overlay) for (const p of overlay.series) vals.push(p[valKey]);
   let lo = Math.min(...vals), hi = Math.max(...vals);
   if (lo === hi) { lo -= 1; hi += 1; }
-  const pad = (hi - lo) * 0.12;
-  lo -= pad; hi += pad;
+  const pad = (hi - lo) * 0.12; lo -= pad; hi += pad;
   const x = i => padL + (W - padL - padR) * (series.length === 1 ? 0.5 : i / (series.length - 1));
   const y = v => padT + (H - padT - padB) * (1 - (v - lo) / (hi - lo));
+  const x0 = padL, x1 = W - padR, yB = H - padB;
 
-  // horizontal gridlines + y labels at lo/hi
-  for (const v of [lo + pad, hi - pad]) {
-    svg.appendChild(svgEl("line", { x1: padL, y1: y(v), x2: W - padR, y2: y(v),
-      stroke: "currentColor", "stroke-opacity": .12 }));
-    const t = svgEl("text", { x: padL - 4, y: y(v) + 3, "text-anchor": "end",
-      "font-size": 9, fill: "currentColor", "fill-opacity": .55 });
-    t.textContent = Math.round(v);
-    svg.appendChild(t);
+  // area-fade gradient
+  const defs = svgEl("defs", {});
+  const grad = svgEl("linearGradient", { id: gid, x1: 0, y1: 0, x2: 0, y2: 1 });
+  grad.appendChild(svgEl("stop", { offset: "0%", "stop-color": colour, "stop-opacity": .38 }));
+  grad.appendChild(svgEl("stop", { offset: "100%", "stop-color": colour, "stop-opacity": 0 }));
+  defs.appendChild(grad); svg.appendChild(defs);
+
+  // graticule — fine HUD grid
+  for (let i = 0; i <= 4; i++) {
+    const gy = padT + (yB - padT) * i / 4;
+    svg.appendChild(svgEl("line", { x1: x0, y1: gy, x2: x1, y2: gy,
+      stroke: "currentColor", "stroke-opacity": .09 }));
   }
-  // main series path — faded/thin when a smoothed overlay sits on top of it
-  const d = series.map((p, i) => (i ? "L" : "M") + x(i) + " " + y(p[valKey])).join(" ");
-  svg.appendChild(svgEl("path", { d, fill: "none", stroke: colour,
+  for (let i = 0; i <= 6; i++) {
+    const gx = x0 + (x1 - x0) * i / 6;
+    svg.appendChild(svgEl("line", { x1: gx, y1: padT, x2: gx, y2: yB,
+      stroke: "currentColor", "stroke-opacity": .05 }));
+  }
+  // y labels at lo/hi (mono)
+  for (const v of [lo + pad, hi - pad]) {
+    const t = svgEl("text", { x: x0 - 4, y: y(v) + 3, "text-anchor": "end",
+      "font-size": 8, "font-family": MONO, fill: "currentColor", "fill-opacity": .5 });
+    t.textContent = Math.round(v); svg.appendChild(t);
+  }
+
+  const pts = series.map((p, i) => [x(i), y(p[valKey])]);
+  // area under the trace
+  const areaD = `M${pts[0][0]},${yB} ` + pts.map(p => `L${p[0]},${p[1]}`).join(" ")
+              + ` L${pts[pts.length - 1][0]},${yB} Z`;
+  svg.appendChild(svgEl("path", { d: areaD, fill: `url(#${gid})`, stroke: "none" }));
+
+  // main trace — faded/thin when a smoothed overlay sits on top of it
+  const d = pts.map((p, i) => (i ? "L" : "M") + p[0] + " " + p[1]).join(" ");
+  const trace = svgEl("path", { d, fill: "none", stroke: colour,
     "stroke-width": overlay ? 1 : 2, "stroke-opacity": overlay ? 0.3 : 1,
-    "stroke-linejoin": "round", "stroke-linecap": "round" }));
-  // dots — skip on dense series (bodyweight) or when an overlay carries the trend
+    "stroke-linejoin": "round", "stroke-linecap": "round" });
+  if (!overlay) trace.setAttribute("style", glow(colour));
+  svg.appendChild(trace);
+
+  // data markers (small glowing squares) — skip on dense/overlay series
   if (series.length <= 40 && !overlay) {
-    for (let i = 0; i < series.length; i++) {
-      svg.appendChild(svgEl("circle", { cx: x(i), cy: y(series[i][valKey]), r: 2.5, fill: colour }));
+    for (const p of pts) {
+      svg.appendChild(svgEl("rect", { x: p[0] - 1.5, y: p[1] - 1.5, width: 3, height: 3,
+        fill: colour, style: glow(colour) }));
     }
   }
-  // smoothed trend overlay (drawn bold, indices aligned with the raw series)
+  // smoothed trend overlay (drawn bold + glowing)
   if (overlay && overlay.series.length) {
     const d2 = overlay.series.map((p, i) => (i ? "L" : "M") + x(i) + " " + y(p[valKey])).join(" ");
-    svg.appendChild(svgEl("path", { d: d2, fill: "none", stroke: overlay.colour || colour,
-      "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+    const oc = overlay.colour || colour;
+    const op = svgEl("path", { d: d2, fill: "none", stroke: oc, "stroke-width": 2,
+      "stroke-linejoin": "round", "stroke-linecap": "round" });
+    op.setAttribute("style", glow(oc));
+    svg.appendChild(op);
   }
   // reference line (dashed) + label, e.g. target bodyweight
   if (refLine != null) {
-    const ry = y(refLine.value);
-    svg.appendChild(svgEl("line", { x1: padL, y1: ry, x2: W - padR, y2: ry,
-      stroke: refLine.colour || colour, "stroke-width": 1.2, "stroke-dasharray": "4 3", "stroke-opacity": .85 }));
-    const t = svgEl("text", { x: W - padR, y: ry - 3, "text-anchor": "end",
-      "font-size": 9, fill: refLine.colour || colour });
-    t.textContent = refLine.label;
-    svg.appendChild(t);
+    const ry = y(refLine.value), rc = refLine.colour || colour;
+    svg.appendChild(svgEl("line", { x1: x0, y1: ry, x2: x1, y2: ry, stroke: rc,
+      "stroke-width": 1.1, "stroke-dasharray": "3 3", "stroke-opacity": .95, style: glow(rc) }));
+    const t = svgEl("text", { x: x1, y: ry - 3, "text-anchor": "end",
+      "font-size": 8, "font-family": MONO, fill: rc, style: glow(rc) });
+    t.textContent = refLine.label; svg.appendChild(t);
   }
+  // end-of-trace marker: glowing ring + core at the latest reading
+  const end = pts[pts.length - 1], ec = overlay ? (overlay.colour || colour) : colour;
+  const ring = svgEl("circle", { cx: end[0], cy: end[1], r: 3.4, fill: "none",
+    stroke: ec, "stroke-width": 1, "stroke-opacity": .8 });
+  ring.setAttribute("style", glow(ec));
+  svg.appendChild(ring);
+  svg.appendChild(svgEl("circle", { cx: end[0], cy: end[1], r: 1.4, fill: "#fff" }));
+
+  // corner ticks around the plot frame (cyan HUD brackets)
+  const tk = 5, tc = "#00e5ff";
+  const corner = (cx, cy, sx, sy) => {
+    svg.appendChild(svgEl("line", { x1: cx, y1: cy, x2: cx + sx * tk, y2: cy,
+      stroke: tc, "stroke-opacity": .45 }));
+    svg.appendChild(svgEl("line", { x1: cx, y1: cy, x2: cx, y2: cy + sy * tk,
+      stroke: tc, "stroke-opacity": .45 }));
+  };
+  corner(x0, padT, 1, 1); corner(x1, padT, -1, 1);
+  corner(x0, yB, 1, -1);  corner(x1, yB, -1, -1);
+
   // x labels: first + last date (YYYY-MM-DD -> MMM 'YY)
-  const fmt = ds => { const d = new Date(ds);
-    return d.toLocaleString("en", { month: "short", year: "2-digit" }); };
-  const first = svgEl("text", { x: padL, y: H - 5, "font-size": 9, fill: "currentColor", "fill-opacity": .55 });
-  first.textContent = fmt(series[0].date);
+  const fmt = ds => new Date(ds).toLocaleString("en", { month: "short", year: "2-digit" });
+  const first = svgEl("text", { x: x0, y: H - 5, "font-size": 8, "font-family": MONO,
+    fill: "currentColor", "fill-opacity": .5 });
+  first.textContent = fmt(series[0].date).toUpperCase();
   svg.appendChild(first);
   if (series.length > 1) {
-    const last = svgEl("text", { x: W - padR, y: H - 5, "text-anchor": "end",
-      "font-size": 9, fill: "currentColor", "fill-opacity": .55 });
-    last.textContent = fmt(series[series.length - 1].date);
+    const last = svgEl("text", { x: x1, y: H - 5, "text-anchor": "end", "font-size": 8,
+      "font-family": MONO, fill: "currentColor", "fill-opacity": .5 });
+    last.textContent = fmt(series[series.length - 1].date).toUpperCase();
     svg.appendChild(last);
   }
   return svg;
 }
 
 function anchorChart(a) {
-  const box = el("div", "chart");
+  const box = el("div", "chart reg");
   const head = el("div", "chart-head");
   const title = el("div", "chart-title", a.session_type.toUpperCase() + " · " + a.lift);
   title.style.color = a.colour;
@@ -276,7 +352,9 @@ function monthGrid(year, month, calendar, colours) {
     const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     const st = calendar[iso];
     const cell = el("div", "cal-cell" + (st ? " trained" : ""), String(day));
-    if (st) { cell.style.background = colours[st]; cell.title = `${iso} — ${st}`; }
+    if (st) { cell.style.background = colours[st];
+              cell.style.boxShadow = `0 0 5px ${colours[st]}, 0 0 10px ${colours[st]}`;
+              cell.title = `${iso} — ${st}`; }
     grid.appendChild(cell);
   }
   wrap.appendChild(grid);
@@ -317,7 +395,7 @@ function render(data) {
   main.appendChild(el("h2", null, "Bodyweight"));
   const bw = data.bodyweight || {};
   if (bw.series && bw.series.length >= 2) {
-    const box = el("div", "chart");
+    const box = el("div", "chart reg");
     const head = el("div", "chart-head");
     let sub = `latest ${bw.latest}kg · ${bw.series.length} readings`;
     if (bw.rate_kg_per_week != null) {

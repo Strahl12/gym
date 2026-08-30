@@ -4,66 +4,79 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Weekly Review — {{ user }}</title>
+<link rel="stylesheet" href="/static/tdr.css?v=2">
 <style>
-  :root { color-scheme: light dark; }
-  * { box-sizing: border-box; }
-  body { margin: 0; font-family: -apple-system, system-ui, sans-serif;
-         background: Canvas; color: CanvasText; }
-  header { position: sticky; top: 0; z-index: 5; background: Canvas;
-           display: flex; align-items: center; gap: .75rem;
-           padding: .75rem 1rem; font-weight: 600;
-           border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent); }
-  header a { font-weight: 600; text-decoration: none; color: #2563eb; font-size: .95rem; }
-  header a:first-of-type { margin-left: auto; }
+  body { margin: 0; }
   main { padding: 1rem; max-width: 720px; margin: 0 auto;
          padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
-  h2 { font-size: 1rem; margin: 1.6rem 0 .7rem; }
-  h2:first-child { margin-top: 0; }
-  .muted { opacity: .6; }
-  .card { border: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
-          border-radius: .8rem; padding: .9rem 1rem; margin-bottom: .8rem; }
+  h2 { font-family: var(--mono); font-size: .74rem; letter-spacing: .16em;
+       text-transform: uppercase; color: var(--dim);
+       margin: 1.8rem 0 .7rem; display: flex; align-items: center; gap: .5rem; }
+  h2::before { content: ""; width: 7px; height: 8px; background: var(--magenta);
+       clip-path: polygon(0 0, 100% 50%, 0 100%); flex: 0 0 auto; }
+  h2:first-child { margin-top: .3rem; }
+  .muted { color: var(--dim); }
+  .card { background: var(--panel); border: 1px solid var(--line);
+          border-radius: 0; padding: .9rem 1rem; margin-bottom: .8rem; }
   .weeks { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
-  .week h3 { margin: 0 0 .5rem; font-size: .8rem; text-transform: uppercase;
-             letter-spacing: .03em; opacity: .6; }
-  .big { font-size: 1.5rem; font-weight: 700; }
-  .sub { font-size: .82rem; opacity: .7; margin-top: .1rem; }
+  .week h3 { margin: 0 0 .5rem; font-family: var(--mono); font-size: .68rem;
+             text-transform: uppercase; letter-spacing: .12em; color: var(--dim); }
+  .big { font-size: 1.5rem; font-weight: 800; color: var(--cyan);
+         text-shadow: 0 0 10px var(--cyan); }
+  .sub { font-size: .82rem; color: var(--dim); margin-top: .1rem; }
   .strip { display: flex; gap: 3px; margin: .6rem 0 .2rem; }
-  .strip .d { flex: 1; height: 26px; border-radius: .3rem; display: grid;
-              place-items: center; font-size: .6rem; font-weight: 700; color: #fff;
-              background: color-mix(in srgb, CanvasText 8%, Canvas); }
-  .strip .d.rest { color: color-mix(in srgb, CanvasText 45%, transparent); font-weight: 500; }
+  .strip .d { flex: 1; height: 26px; border-radius: 0; display: grid;
+              place-items: center; font-size: .6rem; font-weight: 800; color: #05050a;
+              background: var(--panel-2); }
+  .strip .d.rest { color: var(--dim); font-weight: 500; }
   .dows { display: flex; gap: 3px; }
-  .dows .l { flex: 1; text-align: center; font-size: .58rem; opacity: .5; }
-  .delta.up { color: #16a34a; } .delta.down { color: #dc2626; }
+  .dows .l { flex: 1; text-align: center; font-size: .58rem; color: var(--dim); }
+  .delta.up { color: var(--lime); } .delta.down { color: var(--danger); }
   .freq { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
   .bars { display: flex; align-items: flex-end; gap: 4px; height: 60px; margin: .7rem 0 .3rem; }
   .bars .col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end;
                align-items: center; gap: 3px; height: 100%; }
-  .bars .bar { width: 70%; min-height: 2px; border-radius: .25rem 0.25rem 0 0;
-               background: #2563eb; }
-  .bars .bar.typ { background: #2563eb; } .bars .bar.non { background: color-mix(in srgb, CanvasText 20%, transparent); }
-  .bars .lab { font-size: .58rem; opacity: .55; }
-  .chip { display: inline-block; font-size: .72rem; padding: .12rem .5rem;
-          border-radius: .5rem; background: color-mix(in srgb, CanvasText 12%, transparent);
+  .bars .bar { width: 70%; min-height: 2px; border-radius: 0; background: var(--cyan);
+               position: relative; }
+  .bars .bar::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent 0 4px, var(--bg) 4px 5px); }
+  .bars .bar.typ { background: var(--cyan);
+                   box-shadow: 0 0 6px rgba(0,229,255,.75), 0 0 14px rgba(0,229,255,.5); }
+  .bars .bar.non { background: rgba(255,255,255,.16); }
+  .bars .lab { font-size: .58rem; color: var(--dim); }
+  .chip { display: inline-block; font-family: var(--mono); font-size: .66rem;
+          letter-spacing: .06em; padding: .12rem .5rem; border: 1px solid var(--line);
           margin: 0 .3rem .3rem 0; }
-  .sugg { border: 1px solid color-mix(in srgb, #2563eb 40%, transparent);
-          background: color-mix(in srgb, #2563eb 7%, Canvas); }
-  .sugg.match { border-color: color-mix(in srgb, #16a34a 40%, transparent);
-                background: color-mix(in srgb, #16a34a 7%, Canvas); }
-  .sugg .name { font-size: 1.15rem; font-weight: 700; }
-  .sugg .why { font-size: .85rem; opacity: .8; line-height: 1.45; margin-top: .5rem; }
+  .sugg { border: 1px solid color-mix(in srgb, var(--magenta) 65%, transparent);
+          background: color-mix(in srgb, var(--magenta) 10%, var(--panel));
+          box-shadow: inset 0 0 26px rgba(255,0,102,.14), 0 0 14px rgba(255,0,102,.22); }
+  .sugg.match { border-color: color-mix(in srgb, var(--lime) 65%, transparent);
+                background: color-mix(in srgb, var(--lime) 8%, var(--panel));
+                box-shadow: inset 0 0 26px rgba(182,255,0,.13), 0 0 14px rgba(182,255,0,.2); }
+  .sugg .name { font-size: 1.15rem; font-weight: 800; letter-spacing: .04em;
+                text-transform: uppercase; text-shadow: 0 0 12px rgba(255,255,255,.25); }
+  .sugg .why { font-size: .85rem; color: var(--dim); line-height: 1.45; margin-top: .5rem; }
   .sample { display: flex; gap: 4px; flex-wrap: wrap; margin: .6rem 0 .2rem; }
-  .sample .s { font-size: .7rem; font-weight: 600; color: #fff; padding: .15rem .5rem;
-               border-radius: .4rem; background: #64748b; }
-  .foot { font-size: .8rem; opacity: .7; line-height: 1.5; margin-top: .9rem; }
-  .foot a { color: #2563eb; }
+  .sample .s { font-family: var(--mono); font-size: .68rem; font-weight: 700; color: #05050a;
+               padding: .18rem .5rem; border-radius: 0; background: #6b7280;
+               text-transform: uppercase; letter-spacing: .05em; }
+  .foot { font-size: .8rem; color: var(--dim); line-height: 1.5; margin-top: .9rem; }
+  .foot a { color: var(--cyan); }
 </style>
 </head>
 <body>
-<header>
-  <span>Weekly Review — {{ user }}</span>
-  <a id="stats" href="{{ chat_url }}/stats">📊 Stats</a>
-  <a href="{{ chat_url }}">← Chat</a>
+<header class="hud">
+  <div class="hud__bar">
+    <span class="hud__brand"><b>■</b>REVIEW</span>
+    <span class="hud__jp">レビュー</span>
+    <span class="tag">{{ user }}</span>
+    <span class="hud__spacer"></span>
+    <nav class="hud__nav">
+      <a href="{{ chat_url }}/stats">▸ Stats</a>
+      <a href="{{ chat_url }}">◂ Chat</a>
+    </nav>
+  </div>
+  <div class="hud__hazard"></div>
 </header>
 <main id="main"><p class="muted">Loading…</p></main>
 <script>
@@ -90,6 +103,7 @@ function weekCard(w, label, colours) {
     const d = el("div", "d" + (day.session_type ? "" : " rest"));
     if (day.session_type) {
       d.style.background = colours[day.session_type];
+      d.style.boxShadow = `0 0 5px ${colours[day.session_type]}, 0 0 11px ${colours[day.session_type]}`;
       d.textContent = TYPE_LABEL[day.session_type][0];
       d.title = day.weekday + " · " + TYPE_LABEL[day.session_type] + " · " + day.sets + " sets";
     } else {
@@ -173,7 +187,8 @@ function render(d) {
     for (const day of s.sample) {
       const tag = el("div", "s", day);
       const key = day.toLowerCase();
-      if (colours[key]) tag.style.background = colours[key];
+      if (colours[key]) { tag.style.background = colours[key];
+                          tag.style.boxShadow = `0 0 5px ${colours[key]}, 0 0 12px ${colours[key]}`; }
       sample.appendChild(tag);
     }
     sc.appendChild(sample);

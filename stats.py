@@ -21,11 +21,12 @@ SESSION_TYPES = ("push", "pull", "legs", "arms")
 
 # Palette shared with the frontend legend/calendar (kept here so the API is the
 # single source of truth for colours).
+# WipEout/tDR neon palette — vivid and distinct on the dark HUD background.
 SESSION_COLOURS = {
-    "push": "#2563eb",   # blue
-    "pull": "#16a34a",   # green
-    "legs": "#d97706",   # amber
-    "arms": "#9333ea",   # purple
+    "push": "#00e5ff",   # cyan
+    "pull": "#b6ff00",   # lime
+    "legs": "#ff6a00",   # orange
+    "arms": "#ff0066",   # magenta
 }
 
 
@@ -128,7 +129,7 @@ def calendar_days(user: str, days: int = 365) -> dict[str, str]:
     return {d: t for d, (n, t) in best.items()}
 
 
-BODYWEIGHT_COLOUR = "#0891b2"   # cyan — distinct from the PPLA palette
+BODYWEIGHT_COLOUR = "#b388ff"   # neon violet — distinct from the PPLA palette
 BODYWEIGHT_RATE_DAYS = 30       # window for the current kg/week rate
 
 

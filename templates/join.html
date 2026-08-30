@@ -4,31 +4,38 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Join — Gym Coach</title>
+<link rel="stylesheet" href="/static/tdr.css?v=2">
 <style>
-  :root { color-scheme: light dark; }
-  * { box-sizing: border-box; }
-  body { margin: 0; min-height: 100dvh; display: grid; place-items: center;
-         font-family: -apple-system, system-ui, sans-serif;
-         background: Canvas; color: CanvasText; }
-  .card { width: min(90vw, 23rem); padding: 2rem 1.5rem; }
-  h1 { font-size: 1.6rem; margin: 0 0 .4rem; }
-  .lede { opacity: .7; font-size: .9rem; margin: 0 0 1.4rem; line-height: 1.45; }
-  label { display: block; font-size: .85rem; opacity: .75; margin: 0 0 1rem; }
-  input { display: block; width: 100%; margin-top: .35rem; padding: .6rem .8rem;
-          font: inherit; font-size: 1rem; color: inherit; background: transparent;
-          border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
-          border-radius: .6rem; }
-  button { width: 100%; padding: .65rem; margin-top: .25rem; font: inherit;
-           font-weight: 600; font-size: 1rem; background: #2563eb; color: #fff;
-           border: 0; border-radius: .6rem; }
-  .err { color: #dc2626; font-size: .85rem; margin: 0 0 1rem; }
-  .hint { opacity: .6; font-size: .8rem; line-height: 1.45; margin-top: 1.25rem; }
-  a { color: #2563eb; }
+  body { margin: 0; min-height: 100dvh; display: grid; place-items: center; padding: 1rem; }
+  .card { width: min(92vw, 23rem); background: var(--panel); border: 1px solid var(--line);
+          padding: 1.7rem 1.4rem 1.8rem; }
+  .card__top { display: flex; align-items: baseline; gap: .5rem; margin-bottom: .5rem; }
+  h1 { font-size: 1.4rem; margin: 0; letter-spacing: .12em; text-transform: uppercase;
+       font-weight: 800; }
+  h1 b { color: var(--magenta); text-shadow: 0 0 12px rgba(255,0,102,.7); }
+  .jp { font-size: .7rem; color: var(--dim); letter-spacing: .26em; margin-left: auto; }
+  .lede { color: var(--dim); font-size: .88rem; margin: 0 0 1.4rem; line-height: 1.5; }
+  label { display: block; font-family: var(--mono); font-size: .66rem; letter-spacing: .14em;
+          text-transform: uppercase; color: var(--dim); margin: 0 0 1rem; }
+  input { display: block; width: 100%; margin-top: .4rem; padding: .6rem .7rem;
+          font: inherit; font-size: 1rem; color: var(--ink); background: var(--bg);
+          border: 1px solid var(--line); border-radius: 0; }
+  input:focus { outline: 0; border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan); }
+  button { width: 100%; padding: .7rem; margin-top: .4rem; font: inherit; font-size: .95rem;
+           font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+           background: var(--magenta); color: #05050a; border: 0; border-radius: 0; cursor: pointer;
+           box-shadow: 0 0 14px rgba(255,0,102,.45); }
+  button:hover { box-shadow: 0 0 20px rgba(255,0,102,.7); }
+  .err { color: var(--danger); font-family: var(--mono); font-size: .72rem; margin: 0 0 1rem; }
+  .hint { color: var(--dim); font-size: .78rem; line-height: 1.5; margin-top: 1.3rem; }
 </style>
 </head>
 <body>
-<div class="card">
-  <h1>Welcome</h1>
+<div class="card reg">
+  <div class="card__top">
+    <h1><b>■</b>Welcome</h1>
+    <span class="jp">ジム</span>
+  </div>
   <p class="lede">Set up your account, then your coach will walk you through your
   training goals in the chat.</p>
   {% if error %}<p class="err">{{ error }}</p>{% endif %}
