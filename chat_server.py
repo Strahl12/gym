@@ -898,6 +898,42 @@ def _log_delete(user: str, entry_id: int):
         con.close()
 
 
+def _workout_response(user: str):
+    """Return the athlete's current prescribed session — the most recent
+    *_workout.json the engine posted, with its date so the page can flag whether
+    it's today's or an older one still standing."""
+    logs = USERS_ROOT / user / "logs"
+    files = sorted(logs.glob("*_workout.json")) if logs.exists() else []
+    if not files:
+        return jsonify({"workout": None})
+    latest = files[-1]
+    try:
+        w = json.loads(latest.read_text())
+    except Exception as e:
+        print(f"[chat] {user}: workout read failed: {e}")
+        return jsonify({"workout": None})
+    day = latest.name[:10]  # YYYY-MM-DD prefix
+    return jsonify({"workout": w, "date": day,
+                    "is_today": day == date.today().isoformat()})
+
+
+def _exercise_history_response(user: str):
+    """e1RM progression for one exercise (?name=) — powers the per-exercise
+    history graph on the Workout tab."""
+    import stats
+    exercise = (request.args.get("name") or "").strip()
+    if not exercise:
+        return jsonify({"error": "missing exercise name"}), 400
+    with _CONFIG_LOCK:            # _sync_recent needs the active user + serialised writes
+        config.activate(user)
+        _sync_recent(user)
+    try:
+        return jsonify(stats.exercise_history(user, exercise))
+    except Exception as e:
+        print(f"[chat] {user}: exercise history failed: {e}")
+        return jsonify({"error": "history unavailable"}), 500
+
+
 def _chat_response(user: str):
     body    = request.get_json(silent=True) or {}
     message = (body.get("message") or "").strip()
@@ -1010,6 +1046,31 @@ def chat_log_delete(token: str, entry_id: int):
     if user is None:
         abort(404)
     return _log_delete(user, entry_id)
+
+
+@app.get("/u/<token>/workout")
+def chat_workout_page(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return render_template("workout.html", user=user.title(),
+                           data_url=f"/u/{token}/workout/data", chat_url=f"/u/{token}")
+
+
+@app.get("/u/<token>/workout/data")
+def chat_workout_data(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return _workout_response(user)
+
+
+@app.get("/u/<token>/workout/history")
+def chat_workout_history(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return _exercise_history_response(user)
 
 
 @app.get("/u/<token>/devinfo")
@@ -1181,6 +1242,31 @@ def app_log_delete(entry_id: int):
     if user is None:
         abort(401)
     return _log_delete(user, entry_id)
+
+
+@app.get("/app/workout")
+def app_workout_page():
+    user = _session_user()
+    if user is None:
+        return redirect("/login", code=302)
+    return render_template("workout.html", user=user.title(),
+                           data_url="/app/workout/data", chat_url="/app")
+
+
+@app.get("/app/workout/data")
+def app_workout_data():
+    user = _session_user()
+    if user is None:
+        abort(401)
+    return _workout_response(user)
+
+
+@app.get("/app/workout/history")
+def app_workout_history():
+    user = _session_user()
+    if user is None:
+        abort(401)
+    return _exercise_history_response(user)
 
 
 @app.get("/app/devinfo")

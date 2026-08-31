@@ -104,6 +104,45 @@ def anchor_progress(user: str) -> list[dict]:
         con.close()
 
 
+def exercise_history(user: str, exercise: str) -> dict:
+    """e1RM progression for one exercise, oldest→newest, with the top working
+    set behind each session's best e1RM. Same exact-name matching and rep cap
+    as _e1rm_series, so it agrees with the coach's numbers and the Stats charts."""
+    con = _con(user)
+    try:
+        rows = con.execute("""
+            SELECT date, weight_kg, reps, e1rm
+            FROM sets
+            WHERE exercise = ? AND is_warmup = 0 AND reps > 0 AND reps <= ?
+                  AND e1rm IS NOT NULL
+            ORDER BY date ASC, e1rm DESC
+        """, (exercise, _E1RM_MAX_REPS)).fetchall()
+    finally:
+        con.close()
+
+    series, seen = [], set()
+    for r in rows:                       # first row per date = that session's best e1RM
+        if r["date"] in seen:
+            continue
+        seen.add(r["date"])
+        series.append({
+            "date": r["date"],
+            "e1rm": round(r["e1rm"], 1),
+            "weight": round(r["weight_kg"], 1) if r["weight_kg"] is not None else None,
+            "reps": r["reps"],
+        })
+    latest = series[-1]["e1rm"] if series else None
+    best = max((p["e1rm"] for p in series), default=None)
+    return {
+        "exercise": exercise,
+        "series": series,
+        "sessions": len(series),
+        "first_e1rm": series[0]["e1rm"] if series else None,
+        "latest_e1rm": latest,
+        "best_e1rm": best,
+    }
+
+
 def calendar_days(user: str, days: int = 365) -> dict[str, str]:
     """{date: session_type} for every trained day in the window (unknown dropped).
 

@@ -75,6 +75,7 @@
       <summary>Menu</summary>
       <div class="hud__menu-panel">
         <a id="chat-link" class="current" href="#">▸ Chat</a>
+        <a id="workout-link" href="#">▸ Workout</a>
         <a id="review-link" href="#">▸ Review</a>
         <a id="stats-link" href="#">▸ Stats</a>
         <a id="log-link" href="#">▸ Log</a>
@@ -101,6 +102,7 @@
 <script>
 const base = location.pathname.replace(/\/$/, "");
 document.getElementById("chat-link").href = base || "/app";
+document.getElementById("workout-link").href = base + "/workout";
 document.getElementById("stats-link").href = base + "/stats";
 document.getElementById("review-link").href = base + "/review";
 document.getElementById("log-link").href = base + "/log";
