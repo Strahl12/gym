@@ -5912,5 +5912,14 @@
     "equipment": "machine",
     "exercise_type": "weight_reps",
     "session_type": ""
+  },
+  "19ba16cb-d5cc-47ea-a87d-2bd0032e2d91": {
+    "hevy_title": "Back Cable Crossovers",
+    "canonical": "Back Cable Crossovers",
+    "aliases": [],
+    "muscle": "upper_back",
+    "equipment": "machine",
+    "exercise_type": "weight_reps",
+    "session_type": ""
   }
 }

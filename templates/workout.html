@@ -80,8 +80,18 @@
   .notes { font-size: .86rem; line-height: 1.5; color: var(--ink); margin-top: .55rem;
            white-space: pre-wrap; overflow-wrap: break-word; }
   .alts { font-family: var(--mono); font-size: .62rem; letter-spacing: .04em; color: var(--dim);
-          margin-top: .5rem; line-height: 1.45; }
+          margin-top: .55rem; line-height: 1.8; }
   .alts b { color: var(--cyan); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .alt-btn { font-family: var(--mono); font-size: .62rem; letter-spacing: .03em; color: var(--cyan);
+             background: transparent; border: 1px solid var(--line); border-radius: 0;
+             padding: .12rem .5rem; margin: 0 .3rem .1rem 0; cursor: pointer; white-space: nowrap; }
+  .alt-btn:hover { border-color: var(--cyan);
+             box-shadow: inset 0 0 0 1px rgba(0,229,255,.3), 0 0 8px rgba(0,229,255,.35);
+             text-shadow: 0 0 8px rgba(0,229,255,.7); }
+  .alt-btn:disabled { opacity: .4; cursor: default; box-shadow: none; }
+  .alts__status { font-family: var(--mono); font-size: .58rem; letter-spacing: .06em;
+                  color: var(--dim); margin-left: .3rem; }
+  .alts__status.err { color: var(--danger); }
 
   /* Reasoning */
   details.why { background: var(--panel); border: 1px solid var(--line); margin-top: 1.1rem; }
@@ -121,7 +131,9 @@
 const DATA_URL = "{{ data_url }}";
 const CHAT_URL = "{{ chat_url }}";
 const HIST_URL = CHAT_URL + "/workout/history";
+const SWAP_URL = CHAT_URL + "/workout/swap";
 const CYAN = "#00e5ff", LIME = "#b6ff00";
+let swapping = false;   // one swap (Hevy PUT) at a time, across all cards
 const SVGNS = "http://www.w3.org/2000/svg";
 const MONO = "ui-monospace, Menlo, monospace";
 
@@ -166,7 +178,7 @@ function groupSets(sets, ex) {
   return out;
 }
 
-function exerciseCard(ex) {
+function exerciseCard(ex, idx) {
   const card = el("div", "ex" + (ex.is_main_lift ? " main" : ""));
 
   const head = el("div", "ex__head");
@@ -194,8 +206,16 @@ function exerciseCard(ex) {
   if (ex.notes) card.appendChild(el("div", "notes", ex.notes));
   if (ex.alternates && ex.alternates.length) {
     const alts = el("div", "alts");
-    alts.appendChild(el("b", null, "Swap: "));
-    alts.appendChild(document.createTextNode(ex.alternates.join(" · ")));
+    alts.appendChild(el("b", null, "Swap to: "));
+    const status = el("span", "alts__status");
+    for (const name of ex.alternates) {
+      const b = el("button", "alt-btn", name);
+      b.type = "button";
+      b.title = "Replace " + ex.exercise_name + " with " + name + " in your Hevy routine";
+      b.addEventListener("click", () => doSwap(idx, name, status));
+      alts.appendChild(b);
+    }
+    alts.appendChild(status);
     card.appendChild(alts);
   }
 
@@ -231,6 +251,32 @@ function exerciseCard(ex) {
   });
   card.appendChild(panel);
   return card;
+}
+
+// Swap one exercise for a listed alternate. The server re-posts the whole
+// routine to Hevy and returns the updated workout, which we re-render.
+async function doSwap(index, to, statusEl) {
+  if (swapping) return;
+  swapping = true;
+  document.querySelectorAll(".alt-btn").forEach(b => b.disabled = true);
+  statusEl.classList.remove("err");
+  statusEl.textContent = "swapping in " + to + "…";
+  try {
+    const r = await fetch(SWAP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ index, to }),
+    });
+    const d = await r.json();
+    if (!r.ok || d.error) throw new Error(d.error || r.statusText);
+    swapping = false;
+    render(d);   // rebuild with the updated routine (buttons re-enabled fresh)
+  } catch (e) {
+    statusEl.classList.add("err");
+    statusEl.textContent = "swap failed — " + e.message;
+    document.querySelectorAll(".alt-btn").forEach(b => b.disabled = false);
+    swapping = false;
+  }
 }
 
 function renderHistory(panel, d, colour) {
@@ -362,7 +408,7 @@ function render(d) {
     + " · " + working + " working sets"));
   main.appendChild(banner);
 
-  for (const ex of exercises) main.appendChild(exerciseCard(ex));
+  exercises.forEach((ex, i) => main.appendChild(exerciseCard(ex, i)));
 
   if (w.reasoning) {
     const det = el("details", "why");

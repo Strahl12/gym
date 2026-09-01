@@ -934,6 +934,117 @@ def _exercise_history_response(user: str):
         return jsonify({"error": "history unavailable"}), 500
 
 
+def _exercise_meta(name: str) -> dict:
+    """muscle_group / equipment_category / exercise_type for an exercise name,
+    from the exercise library — keeps a swapped-in exercise's tags right and lets
+    Hevy resolve its template. Empty dict if the name isn't in the library."""
+    import exercise_lib
+    tid = exercise_lib.resolve_id(name)
+    if not tid:
+        return {}
+    ex = exercise_lib.all_exercises().get(tid, {})
+    return {"muscle_group":       ex.get("muscle", ""),
+            "equipment_category": ex.get("equipment", ""),
+            "exercise_type":      ex.get("exercise_type", "weight_reps")}
+
+
+def _swap_weight(user: str, name: str, reps: int, is_bodyweight: bool) -> float:
+    """Working weight for `name` at `reps`, seeded from its own most recent e1RM
+    (Epley inverse, rounded down to 2.5kg — same convention the engine uses for
+    rep-target jumps). Bodyweight movements stay at 0; no history → 0 (blank)."""
+    if is_bodyweight or reps <= 0:
+        return 0.0
+    import stats
+    try:
+        e1 = stats.exercise_history(user, name).get("latest_e1rm")
+    except Exception:
+        e1 = None
+    if not e1:
+        return 0.0
+    w = e1 / (1 + reps / 30)          # invert Epley for the new target reps
+    return (w // 2.5) * 2.5           # round DOWN to the barbell increment
+
+
+def _swap_response(user: str):
+    """Swap one exercise slot for one of its listed alternates, re-post the whole
+    routine to the pinned Hevy slot, and persist. Deterministic — no Claude call.
+    The replaced name returns to the slot's alternates so swaps can be reverted."""
+    import hevy
+    body = request.get_json(silent=True) or {}
+    idx  = body.get("index")
+    to   = (body.get("to") or "").strip()
+    if not isinstance(idx, int) or not to:
+        return jsonify({"error": "need an exercise index and a target"}), 400
+
+    logs = USERS_ROOT / user / "logs"
+    files = sorted(logs.glob("*_workout.json")) if logs.exists() else []
+    if not files:
+        return jsonify({"error": "no prescribed workout to change"}), 404
+    latest = files[-1]
+    try:
+        w = json.loads(latest.read_text())
+    except Exception:
+        return jsonify({"error": "workout unreadable"}), 500
+
+    exercises = w.get("exercises", [])
+    if not (0 <= idx < len(exercises)):
+        return jsonify({"error": "exercise not found"}), 400
+    ex = exercises[idx]
+    if ex.get("is_main_lift"):
+        return jsonify({"error": "main lifts can't be swapped"}), 400
+    alts = list(ex.get("alternates") or [])
+    if to not in alts:
+        return jsonify({"error": "not a listed alternate for this exercise"}), 400
+
+    old = ex["exercise_name"]
+    ex["alternates"] = [old] + [a for a in alts if a != to]   # old returns; chosen leaves
+
+    # Stash the engine's original prescription once — reverting to it restores the
+    # exact ramping/plateau-tuned sets rather than a history-derived guess.
+    if "_original" not in ex:
+        ex["_original"] = {
+            "exercise_name":      old,
+            "muscle_group":       ex.get("muscle_group", ""),
+            "equipment_category": ex.get("equipment_category", ""),
+            "exercise_type":      ex.get("exercise_type", "weight_reps"),
+            "notes":              ex.get("notes", ""),
+            "sets":               [dict(s) for s in ex.get("sets", [])],
+        }
+    orig = ex["_original"]
+
+    if to == orig["exercise_name"]:
+        ex["exercise_name"] = to
+        for k in ("muscle_group", "equipment_category", "exercise_type", "notes"):
+            ex[k] = orig[k]
+        ex["sets"] = [dict(s) for s in orig["sets"]]
+    else:
+        ex["exercise_name"] = to
+        for k, v in _exercise_meta(to).items():
+            if v:
+                ex[k] = v
+        is_bw = ("bodyweight" in (ex.get("exercise_type") or "")
+                 or ex.get("equipment_category") == "none")
+        for s in ex.get("sets", []):
+            if not s.get("is_warmup"):
+                s["weight_kg"] = _swap_weight(user, to, int(s.get("reps") or 0), is_bw)
+        ex["notes"] = (f"Swapped in for {old}. Working weight seeded from your recent "
+                       f"{to} history — adjust in Hevy if it feels off.")
+
+    try:
+        with _CONFIG_LOCK:            # serialise config.activate + the Hevy PUT
+            config.activate(user)
+            hevy.post_routine(w)
+    except Exception as e:
+        print(f"[chat] {user}: swap Hevy post failed ({old} -> {to}): {e}")
+        return jsonify({"error": "couldn't update your Hevy routine — try again"}), 502
+
+    latest.write_text(json.dumps(w, indent=2))   # persist only after Hevy took it
+    print(f"[chat] {user}: swapped {old} -> {to}")
+    day = latest.name[:10]
+    return jsonify({"workout": w, "date": day,
+                    "is_today": day == date.today().isoformat()})
+
+
 def _chat_response(user: str):
     body    = request.get_json(silent=True) or {}
     message = (body.get("message") or "").strip()
@@ -1071,6 +1182,14 @@ def chat_workout_history(token: str):
     if user is None:
         abort(404)
     return _exercise_history_response(user)
+
+
+@app.post("/u/<token>/workout/swap")
+def chat_workout_swap(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return _swap_response(user)
 
 
 @app.get("/u/<token>/devinfo")
@@ -1267,6 +1386,14 @@ def app_workout_history():
     if user is None:
         abort(401)
     return _exercise_history_response(user)
+
+
+@app.post("/app/workout/swap")
+def app_workout_swap():
+    user = _session_user()
+    if user is None:
+        abort(401)
+    return _swap_response(user)
 
 
 @app.get("/app/devinfo")
