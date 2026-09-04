@@ -448,11 +448,6 @@ If the user message contains a "Re-entry status" section with a rule, that rule 
 per-lift progression above for THIS session — apply the global re-entry adjustment first, then
 resume normal progression rules from the next session onward. Note the re-entry in reasoning.
 
-## Recovery ramp override (global, applies to ALL lifts this session)
-If the user message contains a "Recovery state: RAMPING" section, the ramp rule OVERRIDES the
-bulk-mode volume increase: keep accessory sets at 3 (not 4–5). RPE cap 8 on all working sets.
-No progression on main lifts. Note the ramping state in reasoning.
-
 ## Conditioning override (global, applies to ALL lifts this session)
 If the user message contains a "Conditioning context" section, the buffer rule OVERRIDES per-lift
 progression for THIS session. Apply the RPE cap and weight adjustment as stated. Note the
@@ -678,16 +673,6 @@ def format_athlete_context(context: dict, all_lifts: bool = False) -> str:
         "mixed":       "Use MIDDLE of each main lift's rep range (5-8). Accessories 6-10 reps.",
     }.get(tm, "Use middle of each main lift's rep range.")
     lines.append(f"\n## Training mode: {tm}\n  {tm_guide}")
-
-    rec = context.get("recovery") or {}
-    if rec.get("state") == "ramping":
-        lines.append(
-            f"\n## Recovery state: RAMPING (post-{rec.get('reason', 'break')})"
-            f"\n  Clean sessions back: {rec.get('clean_streak', 0)}/{rec.get('clean_needed', 2)}"
-            f"\n  Rule: RPE cap 8 on all working sets. Bulk volume increase SUSPENDED (cap accessories at 3 sets)."
-            f"\n  Repeat last weight AND last working_reps on main lifts — do NOT bump reps or weight. For bodyweight lifts, repeat previous working_reps; never jump to the top of the rep range while ramping."
-            f"\n  Exit condition: 2 consecutive sessions where first_set_rpe ≤7.5 AND last_set_rpe ≤8.5."
-        )
 
     ra = context.get("recurring_activity") or {}
     if ra.get("role") in ("pre", "post"):

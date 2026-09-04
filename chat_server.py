@@ -1000,7 +1000,7 @@ def _swap_response(user: str):
     ex["alternates"] = [old] + [a for a in alts if a != to]   # old returns; chosen leaves
 
     # Stash the engine's original prescription once — reverting to it restores the
-    # exact ramping/plateau-tuned sets rather than a history-derived guess.
+    # exact plateau-tuned sets rather than a history-derived guess.
     if "_original" not in ex:
         ex["_original"] = {
             "exercise_name":      old,

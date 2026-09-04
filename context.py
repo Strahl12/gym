@@ -795,116 +795,6 @@ def e1rm_trends(weeks: int = 4) -> dict[str, dict]:
     return result
 
 
-# ── Recovery state machine ────────────────────────────────────────────────
-
-RECOVERY_CLEAN_FIRST_RPE_MAX  = 7.5
-RECOVERY_CLEAN_LAST_RPE_MAX   = 8.5
-RECOVERY_CLEAN_STREAK_NEEDED  = 2
-RECOVERY_TIMEOUT_DAYS_ILLNESS = 7
-RECOVERY_TIMEOUT_DAYS_BREAK   = 14
-
-
-def recovery_state() -> dict:
-    """
-    Are we ramping back to full intensity after a break/illness?
-    Enters 'ramping' when:
-      - days_since_any_session >= 4 (a gym break), OR
-      - illness keywords in notes in last 7 days
-    Exits 'ramping' when:
-      - RECOVERY_CLEAN_STREAK_NEEDED consecutive clean sessions completed
-        (clean = first_set_rpe <= 7.5 AND last_set_rpe <= 8.5 on main lifts), OR
-      - Timeout reached since break end: 7 days for illness, 14 for pure break.
-        Illness fades fast — past a week, ramping is stale and incentivises misreporting RPE.
-    """
-    illness_kws = ("ill", "sick", "flu", "cold", "fever", "unwell", "covid")
-    today = date.today()
-    cutoff = (today - timedelta(days=7)).isoformat()
-
-    con = _con()
-    rows = con.execute(
-        "SELECT date, note FROM session_notes WHERE date >= ? AND source != 'completed_review' "
-        "AND source != 'pre_session_review' ORDER BY date DESC",
-        (cutoff,),
-    ).fetchall()
-    illness_dates = []
-    for r in rows:
-        text = (r["note"] or "").lower()
-        if any(kw in text for kw in illness_kws):
-            illness_dates.append(r["date"])
-    con.close()
-
-    gap_days = days_since_any_session()
-    had_break = gap_days is not None and gap_days >= 4
-    had_illness = bool(illness_dates)
-
-    if not had_break and not had_illness:
-        return {"state": "normal", "reason": None, "clean_streak": 0,
-                "clean_needed": RECOVERY_CLEAN_STREAK_NEEDED,
-                "break_end_date": None, "days_since_break_end": None}
-
-    # Estimate break-end date: most recent session date (if any) — that's day 1 back
-    con = _con()
-    last_sess_row = con.execute(
-        "SELECT MAX(date) AS d FROM sets WHERE session_type != 'unknown'"
-    ).fetchone()
-    con.close()
-    last_sess = last_sess_row["d"] if last_sess_row else None
-    # Break ended on the day of last session (first session back); if no sessions yet, break is still ongoing
-    break_end = last_sess if had_illness or had_break else None
-
-    timeout_days = RECOVERY_TIMEOUT_DAYS_ILLNESS if had_illness else RECOVERY_TIMEOUT_DAYS_BREAK
-    if break_end:
-        days_since_break_end = (today - date.fromisoformat(break_end)).days
-        if days_since_break_end >= timeout_days:
-            return {"state": "normal", "reason": "timeout", "clean_streak": 0,
-                    "clean_needed": RECOVERY_CLEAN_STREAK_NEEDED,
-                    "break_end_date": break_end, "days_since_break_end": days_since_break_end}
-    else:
-        days_since_break_end = None
-
-    # Count consecutive clean sessions starting from most recent (only sessions AFTER break end)
-    workouts = recent_workouts(days=21)
-    clean_streak = 0
-    main_set = set(config.MAIN_LIFTS.keys())
-    for w in workouts:
-        # Skip sessions that predate or equal the break (workouts before the break itself)
-        # We're counting from most recent backwards; stop when we hit a session that's pre-break
-        # Heuristic: only count sessions where date > (break_end - illness_window). Since break_end
-        # is the first session back, every session in `workouts` from break_end onward counts.
-        if break_end and w["date"] < break_end:
-            break
-        # Determine cleanliness on main lifts (fall back to all exercises if no main lifts logged)
-        candidates = [e for e in w["exercises"] if e["exercise"] in main_set]
-        if not candidates:
-            candidates = w["exercises"]
-        rpe_pairs = [
-            (e.get("first_set_rpe"), e.get("last_set_rpe")) for e in candidates
-            if e.get("first_set_rpe") is not None or e.get("last_set_rpe") is not None
-        ]
-        if not rpe_pairs:
-            # No RPE logged — can't judge; conservatively treat as not-clean to stay in ramp
-            break
-        # All measured RPE must be within clean bounds
-        all_clean = all(
-            (f is None or f <= RECOVERY_CLEAN_FIRST_RPE_MAX)
-            and (l is None or l <= RECOVERY_CLEAN_LAST_RPE_MAX)
-            for f, l in rpe_pairs
-        )
-        if all_clean:
-            clean_streak += 1
-        else:
-            break
-
-    if clean_streak >= RECOVERY_CLEAN_STREAK_NEEDED:
-        return {"state": "normal", "reason": "ramp_complete", "clean_streak": clean_streak,
-                "clean_needed": RECOVERY_CLEAN_STREAK_NEEDED,
-                "break_end_date": break_end, "days_since_break_end": days_since_break_end}
-
-    reason = "illness" if had_illness else "break"
-    return {"state": "ramping", "reason": reason, "clean_streak": clean_streak,
-            "clean_needed": RECOVERY_CLEAN_STREAK_NEEDED,
-            "break_end_date": break_end, "days_since_break_end": days_since_break_end}
-
 
 # ── Fatigue / rest-day signal ─────────────────────────────────────────────
 
@@ -1324,7 +1214,6 @@ def build_context() -> dict:
         "fatigue":                         fatigue_score(),
         "days_since_any_session":          days_since_any_session(),
         "recurring_activity":              recurring_activity_role(),
-        "recovery":                        recovery_state(),
     }
 
 
