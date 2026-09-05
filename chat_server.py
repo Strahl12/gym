@@ -797,6 +797,7 @@ def _coach_reply(user: str, history: list[dict]) -> str:
         config.activate(user)
         _sync_recent(user)
         athlete_block = format_athlete_context(build_context(), all_lifts=True)
+        athlete_block += _preferences_block(user)
         today_block = ""
         workout_file = Path(config.LOG_DIR) / f"{date.today().isoformat()}_workout.json"
         if workout_file.exists():
@@ -981,6 +982,56 @@ def _swap_weight(user: str, name: str, reps: int, is_bodyweight: bool) -> float:
     return (w // 2.5) * 2.5           # round DOWN to the barbell increment
 
 
+def _log_swap_event(exercise: str, replacement: str, session_type: str | None) -> None:
+    """Record an in-app swap as a preference signal. Without this the swap is
+    invisible to the feedback loop (it edits the posted prescription, so the
+    prescription-vs-actual diff sees no discrepancy). Best-effort; must be called
+    with config active for the user. Creates the table on first use."""
+    try:
+        con = sqlite3.connect(config.DB_PATH)
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS preference_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL,
+                kind TEXT NOT NULL DEFAULT 'swap', exercise TEXT NOT NULL,
+                replacement TEXT, session_type TEXT,
+                created_at TEXT DEFAULT (datetime('now')))
+        """)
+        con.execute("INSERT INTO preference_events (date, kind, exercise, replacement, session_type) "
+                    "VALUES (?, 'swap', ?, ?, ?)",
+                    (date.today().isoformat(), exercise, replacement, session_type))
+        con.commit()
+        con.close()
+    except Exception as e:
+        print(f"[chat] swap-event log failed: {e}")
+
+
+def _preferences_block(user: str) -> str:
+    """Surface repeated overrides to the coach (chat only) so it can raise them —
+    never an automatic programming change. Empty when nothing crosses threshold."""
+    try:
+        import feedback
+        flagged = feedback.decline_summary(days=60)
+    except Exception as e:
+        print(f"[chat] {user}: decline summary failed: {e}")
+        return ""
+    if not flagged:
+        return ""
+    lines = ["\n## Exercise preference signals (last 60 days — RAISE, don't auto-apply)"]
+    for f in flagged:
+        bits = []
+        if f["swaps"]:
+            bits.append(f"swapped away {f['swaps']}×"
+                        + (f" (usually → {f['replacement']})" if f["replacement"] else ""))
+        if f["skips"]:
+            bits.append(f"skipped {f['skips']}×")
+        lines.append(f"  - {f['exercise']}: " + ", ".join(bits))
+    lines.append("  These are patterns, not instructions. If it comes up, ask WHY: pain or a real "
+                 "limitation → deprioritise it for them; just boredom/preference → some variety is "
+                 "healthy, but push back gently if it's there for a reason (weak point, coverage). "
+                 "Never silently drop an exercise, and don't assume the swap was the right call.")
+    return "\n".join(lines)
+
+
 def _swap_response(user: str):
     """Swap one exercise slot for one of its listed alternates, re-post the whole
     routine to the pinned Hevy slot, and persist. Deterministic — no Claude call.
@@ -1055,6 +1106,7 @@ def _swap_response(user: str):
         return jsonify({"error": "couldn't update your Hevy routine — try again"}), 502
 
     latest.write_text(json.dumps(w, indent=2))   # persist only after Hevy took it
+    _log_swap_event(old, to, w.get("session_type"))
     print(f"[chat] {user}: swapped {old} -> {to}")
     day = latest.name[:10]
     return jsonify({"workout": w, "date": day,

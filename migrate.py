@@ -126,6 +126,16 @@ def migrate(reseed: bool = False) -> None:
             created_at      TEXT DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS preference_events (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            date         TEXT NOT NULL,
+            kind         TEXT NOT NULL DEFAULT 'swap',
+            exercise     TEXT NOT NULL,
+            replacement  TEXT,
+            session_type TEXT,
+            created_at   TEXT DEFAULT (datetime('now'))
+        );
+
         CREATE TABLE IF NOT EXISTS exercise_roster (
             exercise_name    TEXT PRIMARY KEY,
             session_type     TEXT NOT NULL,

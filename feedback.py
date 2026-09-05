@@ -11,6 +11,7 @@ Both are stored in workout_feedback and surfaced to Claude.
 """
 import json
 import sqlite3
+from collections import Counter
 from datetime import date, timedelta
 from typing import Optional
 import config
@@ -584,6 +585,89 @@ def recent_notes(n: int = 5) -> list[dict]:
     """, (n,)).fetchall()
     con.close()
     return [{"date": r["date"], "note": r["note"], "source": r["source"]} for r in rows]
+
+
+def decline_summary(days: int = 60) -> list[dict]:
+    """
+    Aggregate repeated overrides into a per-exercise picture for the coach to
+    raise — NOT to auto-change programming. Combines two signals over the window:
+
+      - swaps:  in-app swap-aways (preference_events)   — deliberate, weighted full
+      - skips:  prescribed-but-not-done (workout_feedback) — ambiguous, weighted less
+
+    Only exercises crossing a repeated-pattern threshold are returned (one-offs are
+    noise). Main lifts are excluded. Asymmetry: explicit swaps count more than skips,
+    since a skip can just mean 'ran out of time'.
+    """
+    import config as _cfg
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    main_lifts = set(getattr(_cfg, "MAIN_LIFTS", {}) or {})
+
+    swaps: dict[str, dict] = {}
+    con = _con()
+    try:
+        try:
+            rows = con.execute("""
+                SELECT date, exercise, replacement FROM preference_events
+                WHERE kind = 'swap' AND date >= ?
+            """, (cutoff,)).fetchall()
+        except sqlite3.OperationalError:
+            rows = []
+        for r in rows:
+            ex = r["exercise"]
+            s = swaps.setdefault(ex, {"dates": set(), "replacements": Counter(), "last": None})
+            s["dates"].add(r["date"])
+            if r["replacement"]:
+                s["replacements"][r["replacement"]] += 1
+            s["last"] = max(s["last"] or r["date"], r["date"])
+
+        skips: dict[str, dict] = {}
+        try:
+            frows = con.execute("""
+                SELECT date, diff_json FROM workout_feedback WHERE date >= ?
+            """, (cutoff,)).fetchall()
+        except sqlite3.OperationalError:
+            frows = []
+    finally:
+        con.close()
+
+    for r in frows:
+        try:
+            diff = json.loads(r["diff_json"])
+        except Exception:
+            continue
+        for name in diff.get("skipped", []):
+            s = skips.setdefault(name, {"dates": set(), "last": None})
+            s["dates"].add(r["date"])
+            s["last"] = max(s["last"] or r["date"], r["date"])
+
+    SWAP_THRESHOLD = 3      # distinct sessions swapped away
+    SKIP_THRESHOLD = 4      # distinct sessions skipped (higher — more ambiguous)
+    SCORE_THRESHOLD = 3.0   # swaps*1.0 + skips*0.6
+
+    out: list[dict] = []
+    for ex in set(swaps) | set(skips):
+        if ex in main_lifts:
+            continue
+        sw = swaps.get(ex, {})
+        sk = skips.get(ex, {})
+        n_swap = len(sw.get("dates", set()))
+        n_skip = len(sk.get("dates", set()))
+        score  = n_swap * 1.0 + n_skip * 0.6
+        if not (n_swap >= SWAP_THRESHOLD or n_skip >= SKIP_THRESHOLD or score >= SCORE_THRESHOLD):
+            continue
+        top_repl = None
+        if sw.get("replacements"):
+            top_repl = sw["replacements"].most_common(1)[0][0]
+        out.append({
+            "exercise":    ex,
+            "swaps":       n_swap,
+            "skips":       n_skip,
+            "replacement": top_repl,
+            "last":        max([d for d in (sw.get("last"), sk.get("last")) if d], default=None),
+        })
+    out.sort(key=lambda d: (d["swaps"] + d["skips"]), reverse=True)
+    return out
 
 
 def recent_feedback(n: int = 3) -> list[dict]:
