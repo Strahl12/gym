@@ -32,6 +32,19 @@
   .banner__meta { font-family: var(--mono); font-size: .6rem; letter-spacing: .1em;
                   text-transform: uppercase; color: var(--dim); margin-top: .3rem; }
 
+  /* Adaptive "coming up" forecast strip */
+  .coming { margin: 0 0 1rem; padding: .7rem .8rem; background: var(--panel);
+            border: 1px solid var(--line); }
+  .coming__label { font-family: var(--mono); font-size: .58rem; letter-spacing: .14em;
+                   text-transform: uppercase; color: var(--dim); margin-bottom: .5rem; }
+  .coming__row { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
+  .coming__chip { font-family: var(--mono); font-size: .68rem; font-weight: 700;
+                  letter-spacing: .06em; text-transform: uppercase; padding: .2rem .5rem;
+                  border: 1px solid var(--line); opacity: .6; }
+  .coming__chip.now { opacity: 1; }
+  .coming__arrow { color: var(--dim); font-size: .8rem; }
+  .coming__note { font-size: .7rem; color: var(--dim); line-height: 1.45; margin-top: .55rem; }
+
   /* One card per exercise */
   .ex { background: var(--panel); border: 1px solid var(--line);
         border-left: 2px solid var(--cyan); box-shadow: -3px 0 12px rgba(0,229,255,.12);
@@ -377,6 +390,30 @@ function lineChart(series, colour) {
   return svg;
 }
 
+const SESSION_COLOURS = { push: "#00e5ff", pull: "#b6ff00", legs: "#ff6a00", arms: "#ff0066" };
+const SESSION_LABEL   = { push: "Push", pull: "Pull", legs: "Legs", arms: "Arms" };
+
+function comingUp(seq) {
+  const box = el("div", "coming");
+  box.appendChild(el("div", "coming__label", "Coming up"));
+  const row = el("div", "coming__row");
+  seq.forEach((st, i) => {
+    if (i > 0) row.appendChild(el("span", "coming__arrow", "›"));
+    const colour = SESSION_COLOURS[st] || CYAN;
+    const chip = el("span", "coming__chip" + (i === 0 ? " now" : ""),
+                    SESSION_LABEL[st] || st);
+    chip.style.color = colour;
+    chip.style.borderColor = colour;
+    if (i === 0) chip.style.boxShadow = "0 0 8px " + colour + "66, inset 0 0 12px " + colour + "22";
+    row.appendChild(chip);
+  });
+  box.appendChild(row);
+  box.appendChild(el("div", "coming__note",
+    "Forecast from your training pattern — not a fixed schedule. Train (or rest) any day; "
+    + "if you do a different session, this re-plans around it."));
+  return box;
+}
+
 function render(d) {
   const main = document.getElementById("main");
   main.textContent = "";
@@ -407,6 +444,8 @@ function render(d) {
     exercises.length + (exercises.length === 1 ? " exercise" : " exercises")
     + " · " + working + " working sets"));
   main.appendChild(banner);
+
+  if (d.upcoming && d.upcoming.length) main.appendChild(comingUp(d.upcoming));
 
   exercises.forEach((ex, i) => main.appendChild(exerciseCard(ex, i)));
 

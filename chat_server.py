@@ -915,8 +915,22 @@ def _workout_response(user: str):
         print(f"[chat] {user}: workout read failed: {e}")
         return jsonify({"workout": None})
     day = latest.name[:10]  # YYYY-MM-DD prefix
+
+    # Adaptive forecast of upcoming sessions (re-derived from synced logs, so it
+    # self-corrects if the athlete trains a different day than projected).
+    upcoming: list[str] = []
+    try:
+        with _CONFIG_LOCK:
+            config.activate(user)
+            _sync_recent(user)
+            import plan
+            upcoming = plan.project_sessions(5)
+    except Exception as e:
+        print(f"[chat] {user}: session projection failed: {e}")
+
     return jsonify({"workout": w, "date": day,
-                    "is_today": day == date.today().isoformat()})
+                    "is_today": day == date.today().isoformat(),
+                    "upcoming": upcoming})
 
 
 def _exercise_history_response(user: str):

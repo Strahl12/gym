@@ -420,44 +420,50 @@ def recurring_activity_role(d: Optional[date] = None) -> dict:
     return {"role": "none", "activity": None, "days_until": None, "days_since": None}
 
 
-def suggest_session_type() -> str:
+def pick_session_type(days_since: dict, last_type: Optional[str],
+                      safe_types: Optional[list] = None) -> str:
     """
-    Picks the most overdue recovered session type, using cycle order as a tiebreaker.
-    'Recovered' means days_since >= MIN_RECOVERY_DAYS (or never trained).
-    Excludes the last session type to avoid back-to-back repeats.
-    On pre/post buffer days of a recurring activity, restricts to safe_session_types.
-    Falls back to the next in cycle if nothing is recovered yet.
-    """
-    cycle     = config.SESSION_CYCLE
-    last_type = last_session_type()
+    Pure session-type chooser: most overdue recovered type, cycle order as
+    tiebreaker, excluding the last type to avoid back-to-back repeats. Works off
+    the supplied state only (no DB) so the live path and the forward projection
+    in plan.py share identical logic.
 
+      days_since: {session_type: days since last trained, or None if never}
+      safe_types: restrict to these (recurring-activity buffer days), if given
+    """
+    cycle = config.SESSION_CYCLE
     candidates = [t for t in cycle if t != last_type]
 
-    role = recurring_activity_role()
-    if role["role"] in ("pre", "post"):
-        safe = role["activity"].get("safe_session_types") or []
-        narrowed = [t for t in candidates if t in safe]
+    if safe_types:
+        narrowed = [t for t in candidates if t in safe_types]
         if narrowed:
             candidates = narrowed
-        # if no safe candidates (e.g. last session was also push/arms), fall through
 
-    recovered = []
-    for t in candidates:
-        days = days_since_session_type(t)
-        if days is None or days >= config.MIN_RECOVERY_DAYS:
-            recovered.append(t)
-
+    recovered = [t for t in candidates
+                 if days_since.get(t) is None or days_since.get(t) >= config.MIN_RECOVERY_DAYS]
     if not recovered:
         recovered = candidates  # nothing fully recovered — pick least-recently-trained
 
-    # Sort: most days since last session first; use cycle position as tiebreaker
     def _sort_key(t):
-        days = days_since_session_type(t)
+        days = days_since.get(t)
         days_val = days if days is not None else 9999
         cycle_pos = cycle.index(t) if t in cycle else 99
-        return (-days_val, cycle_pos)
+        return (-days_val, cycle_pos)   # most overdue first, cycle order breaks ties
 
     return sorted(recovered, key=_sort_key)[0]
+
+
+def suggest_session_type() -> str:
+    """
+    Picks today's session type from live DB state (see pick_session_type).
+    On pre/post buffer days of a recurring activity, restricts to safe_session_types.
+    """
+    days_since = {t: days_since_session_type(t) for t in config.SESSION_CYCLE}
+    role = recurring_activity_role()
+    safe = None
+    if role["role"] in ("pre", "post"):
+        safe = role["activity"].get("safe_session_types") or None
+    return pick_session_type(days_since, last_session_type(), safe)
 
 
 # ── Exercise priority roster ──────────────────────────────────────────────
@@ -1220,6 +1226,12 @@ def build_context() -> dict:
     except Exception:
         creator_recs = []
 
+    try:
+        import plan
+        projected = plan.project_sessions(6)
+    except Exception:
+        projected = []
+
     return {
         "today": today,
         "is_weekend": is_weekend,
@@ -1239,6 +1251,8 @@ def build_context() -> dict:
         "last_session_type": last_session_type(),
         "last_session_exercises": last_session_exercises(),
         "recently_trained_exercises": recently_trained_exercises(days=config.MIN_ACCESSORY_REPEAT_DAYS + 1),
+        "projected_sessions": projected,
+        "next_session_type": projected[1] if len(projected) > 1 else None,
         "recent_workouts":        recent_workouts(days=28),
         "exercise_stats":         exercise_stats_all_time(),
         "main_lifts": lifts_context,

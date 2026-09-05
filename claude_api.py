@@ -911,6 +911,28 @@ def format_athlete_context(context: dict, all_lifts: bool = False) -> str:
                          "(main/FIXED lifts are exempt):")
             lines.append("  " + ", ".join(f"{n} ({recent_ex[n]}d ago)" for n in fresh))
 
+    last_st = context.get("last_session_type")
+    next_st = context.get("next_session_type")
+    today_st = context.get("suggested_session_type")
+    if last_st or next_st:
+        lines.append("\n## Session order (adaptive forecast — shapes today's selection only)")
+        seq = context.get("projected_sessions") or []
+        if seq:
+            lines.append("  Likely upcoming order: " + " → ".join(seq)
+                         + "  (projected from your cadence; re-derived each day, not a fixed schedule)")
+        if last_st:
+            lines.append(f"  Last session: {last_st}.")
+        hints = []
+        if last_st == "arms" and today_st in ("push", "pull"):
+            hints.append("Arms were trained last session — biceps/triceps are pre-fatigued: don't open with "
+                         "elbow-dominant work (dips, close-grip press, heavy curls) and keep direct-arm "
+                         "accessory volume low today.")
+        if next_st == "arms" and today_st in ("push", "pull"):
+            hints.append("Arms are projected next — leave the elbow flexors/extensors fresh: favour chest/shoulder "
+                         "(or back) emphasis over triceps/biceps-heavy variants, and don't chase arm PRs today.")
+        if hints:
+            lines.append("  " + " ".join(hints))
+
     coverage = context.get("movement_coverage", {})
     gaps = coverage.get("gaps", [])
     covered = coverage.get("covered", {})
