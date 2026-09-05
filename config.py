@@ -86,6 +86,11 @@ Target frequency: 5 sessions per week.
 All weights in kg.
 """
 
+# Human-readable split name (per-user, overridable in profile.py). The actual
+# rotation is SESSION_CYCLE below — override that too if the split differs.
+# The Review tab suggests a cadence-fit split from training history (advice only).
+SPLIT_NAME = "PPL+Arms"
+
 # GOAL_MODE: "cut" | "bulk" | "maintain"
 GOAL_MODE = "maintain"
 TARGET_WEIGHT_KG: float | None       = None
@@ -143,6 +148,10 @@ COMPLEMENT_PHASE_DAYS = 21
 # Minimum days between training the same muscle group
 MIN_RECOVERY_DAYS = 3
 
+# Minimum days before the SAME accessory exercise may be prescribed again.
+# Enforced deterministically post-generation (see claude_api._dedupe_recent).
+MIN_ACCESSORY_REPEAT_DAYS = 3
+
 # Maximum consecutive training days before a mandatory rest day
 MAX_CONSECUTIVE_DAYS = 5
 
@@ -175,7 +184,13 @@ SESSION_TEMPLATES: dict[str, list[dict]] = {
         {"slot": "shoulder_compound", "movement_pattern": "vertical_push",      "fixed": "Strict Military Press"},
         {"slot": "tricep_compound",   "movement_pattern": "elbow_extension",    "fixed": "Weighted Dip"},
         {"slot": "lateral_raise",     "movement_pattern": "shoulder_abduction", "muscle": "shoulders"},
-        {"slot": "tricep_isolation",  "movement_pattern": "elbow_extension",    "is_compound": False},
+        # Redundant when a dedicated Arms day exists (biceps/triceps trained there):
+        # on a split with an arms day this slot becomes a chest isolation instead, so
+        # Push emphasises chest/shoulders rather than double-dipping triceps.
+        {"slot": "tricep_isolation",  "movement_pattern": "elbow_extension",    "is_compound": False,
+         "drop_if_day": "arms",
+         "replace_with": {"slot": "chest_isolation", "movement_pattern": "horizontal_push",
+                          "muscle": "chest", "is_compound": False}},
     ],
     "pull": [
         {"slot": "hip_hinge",         "movement_pattern": "hip_hinge",          "is_compound": True},
@@ -219,8 +234,19 @@ CREATOR_SCORE_LOOKBACK_DAYS = 365
 CREATOR_SCORE_MIN = 0.3
 
 
-# ── Derived (recomputed by activate from MAIN_LIFTS) ──────────────────────
+# ── Derived (recomputed by activate from MAIN_LIFTS + SESSION_CYCLE) ───────
 SESSION_LIFTS: dict[str, list[str]] = {}
+# Session templates adjusted for the user's actual split (see _effective_templates).
+SESSION_TEMPLATES_EFFECTIVE: dict[str, list[dict]] = {}
+# Muscle groups that get their own dedicated day in the cycle (e.g. arms → biceps/triceps).
+DEDICATED_MUSCLE_DAYS: dict[str, str] = {}
+
+# Which muscles a dedicated session type "owns" — used to strip redundant
+# isolation volume from other days when that day is part of the split.
+_DAY_OWNS_MUSCLES = {
+    "arms": ["biceps", "triceps"],
+    "legs": ["quadriceps", "hamstrings", "glutes", "calves"],
+}
 
 
 def _derive_session_lifts(main_lifts: dict) -> dict[str, list[str]]:
@@ -228,6 +254,47 @@ def _derive_session_lifts(main_lifts: dict) -> dict[str, list[str]]:
     for name, lift in main_lifts.items():
         out.setdefault(lift["session_type"], []).append(name)
     return out
+
+
+def _effective_templates(base: dict, cycle: list[str]) -> dict[str, list[dict]]:
+    """
+    Adapt the raw session templates to the user's split. A slot tagged
+    `drop_if_day: <type>` is redundant when <type> is a dedicated day in the
+    cycle — it is dropped, or swapped for its `replace_with` slot if given.
+    Only session types present in the cycle are emitted.
+    """
+    out: dict[str, list[dict]] = {}
+    for stype in cycle:
+        slots = base.get(stype)
+        if not slots:
+            continue
+        new_slots: list[dict] = []
+        for s in slots:
+            dep = s.get("drop_if_day")
+            if dep and dep in cycle and dep != stype:
+                repl = s.get("replace_with")
+                if repl:
+                    new_slots.append(dict(repl))
+                continue  # otherwise drop the slot entirely
+            new_slots.append({k: v for k, v in s.items()
+                              if k not in ("drop_if_day", "replace_with")})
+        out[stype] = new_slots
+    return out
+
+
+def _derive_dedicated_days(cycle: list[str]) -> dict[str, str]:
+    """muscle → session type, for every muscle owned by a day present in the cycle."""
+    out: dict[str, str] = {}
+    for day, muscles in _DAY_OWNS_MUSCLES.items():
+        if day in cycle:
+            for m in muscles:
+                out[m] = day
+    return out
+
+
+# Populate defaults so importers that read these before activate() still work.
+SESSION_TEMPLATES_EFFECTIVE = _effective_templates(SESSION_TEMPLATES, SESSION_CYCLE)
+DEDICATED_MUSCLE_DAYS = _derive_dedicated_days(SESSION_CYCLE)
 
 
 # ── activate ──────────────────────────────────────────────────────────────
@@ -245,7 +312,7 @@ def activate(user_name: str) -> None:
     global HEVY_API_KEY, ANTHROPIC_API_KEY
     global WITHINGS_ACCESS_TOKEN, WITHINGS_REFRESH_TOKEN
     global WITHINGS_CLIENT_ID, WITHINGS_CLIENT_SECRET
-    global SESSION_LIFTS
+    global SESSION_LIFTS, SESSION_TEMPLATES_EFFECTIVE, DEDICATED_MUSCLE_DAYS
 
     user_dir = _USERS_ROOT / user_name
     if not user_dir.is_dir():
@@ -292,5 +359,7 @@ def activate(user_name: str) -> None:
             continue
         setattr(module, k, v)
 
-    # Recompute derived state from overlaid MAIN_LIFTS
+    # Recompute derived state from overlaid MAIN_LIFTS + SESSION_CYCLE
     SESSION_LIFTS = _derive_session_lifts(MAIN_LIFTS)
+    SESSION_TEMPLATES_EFFECTIVE = _effective_templates(SESSION_TEMPLATES, SESSION_CYCLE)
+    DEDICATED_MUSCLE_DAYS = _derive_dedicated_days(SESSION_CYCLE)

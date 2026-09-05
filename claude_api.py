@@ -375,8 +375,12 @@ def _build_system_prompt(block_directive: Optional[str] = None) -> str:
         )
 
     # ── Session slot tables ────────────────────────────────────────────────
+    templates = getattr(config, "SESSION_TEMPLATES_EFFECTIVE", None) or config.SESSION_TEMPLATES
     slot_lines = []
-    for stype, slots in config.SESSION_TEMPLATES.items():
+    for stype in config.SESSION_CYCLE:
+        slots = templates.get(stype)
+        if not slots:
+            continue
         slot_lines.append(f"\n### {stype.upper()}")
         for i, s in enumerate(slots, 1):
             action = f"FIXED: {s['fixed']}" if s.get("fixed") else "pick from priority list"
@@ -395,6 +399,18 @@ def _build_system_prompt(block_directive: Optional[str] = None) -> str:
             tag_str = f"  [{', '.join(tags)}]" if tags else ""
             slot_lines.append(f"  {i}. {s['slot']}: {pattern}{tag_str} — {action}")
         slot_lines.append("  +. core: core_flexion or core_anti_extension — pick from core priority list, 2–3 sets, prefer progressively loaded variants (Cable Crunch, Ab Wheel, Hanging Leg Raise)")
+
+    # ── Split awareness ────────────────────────────────────────────────────
+    _cap = {"push": "Push", "pull": "Pull", "legs": "Legs", "arms": "Arms"}
+    cycle_str = " → ".join(_cap.get(t, t.title()) for t in config.SESSION_CYCLE)
+    split_lines = [f"Split: {getattr(config, 'SPLIT_NAME', 'custom')} — cycle {cycle_str}."]
+    if "arms" in config.SESSION_CYCLE:
+        split_lines.append(
+            "This split has a DEDICATED ARMS day, so biceps and triceps get their direct volume there. "
+            "On Push keep at most ONE direct triceps movement (the pressing compound) — no isolated triceps; "
+            "spend the freed slot on chest or shoulders. On Pull let biceps come from rows and pull-ups — "
+            "do not add isolated curls. Reserve arm isolation for the Arms day.")
+    split_section = "\n## Your split\n" + "\n".join("  " + l for l in split_lines) + "\n"
 
     # ── Progression block ──────────────────────────────────────────────────
     pr_lines = [
@@ -439,7 +455,7 @@ def _build_system_prompt(block_directive: Optional[str] = None) -> str:
 Fill slots in order. FIXED = always use the named exercise. PICK = highest-priority matching exercise from the priority list.
 Never assign the same exercise to two slots. Compounds always precede isolations.
 {"".join(slot_lines)}
-
+{split_section}
 ## Progression
 {chr(10).join("  " + l for l in pr_lines)}
 
@@ -884,6 +900,17 @@ def format_athlete_context(context: dict, all_lifts: bool = False) -> str:
             if parts:
                 lines.append(f"  {d} ({st}): " + "; ".join(parts))
 
+    recent_ex = context.get("recently_trained_exercises", {}) or {}
+    if recent_ex:
+        window = getattr(config, "MIN_ACCESSORY_REPEAT_DAYS", 3)
+        fresh = sorted((n for n, d in recent_ex.items() if d <= window),
+                       key=lambda n: recent_ex[n])
+        if fresh:
+            lines.append("\n## Recently trained — do NOT re-prescribe these accessories")
+            lines.append(f"  Trained within the last {window} days; choose different accessories today "
+                         "(main/FIXED lifts are exempt):")
+            lines.append("  " + ", ".join(f"{n} ({recent_ex[n]}d ago)" for n in fresh))
+
     coverage = context.get("movement_coverage", {})
     gaps = coverage.get("gaps", [])
     covered = coverage.get("covered", {})
@@ -903,6 +930,113 @@ def format_athlete_context(context: dict, all_lifts: bool = False) -> str:
 def _build_user_message(context: dict) -> str:
     """Athlete data block + the prescription instruction."""
     return format_athlete_context(context) + "\n\nPrescribe today's full session as JSON."
+
+
+def _canonical_meta() -> dict:
+    """canonical exercise name → exercise_lib record (muscle, equipment, pattern…)."""
+    from exercise_lib import all_exercises
+    meta: dict = {}
+    for ex in all_exercises().values():
+        c = ex.get("canonical")
+        if c:
+            meta[c] = ex
+    return meta
+
+
+def _is_bodyweight(meta: dict) -> bool:
+    return "bodyweight" in (meta.get("exercise_type") or "") or meta.get("equipment") == "none"
+
+
+def _reseed_weight(name: str, reps: int, is_bw: bool):
+    """Working weight for `name` at `reps` from its own e1RM history (Epley inverse,
+    floored to 2.5kg). Returns 0.0 for bodyweight, or None when a weighted movement
+    has no history to seed from (caller should reject the candidate)."""
+    if is_bw:
+        return 0.0
+    if reps <= 0:
+        return None
+    try:
+        import stats
+        e1 = stats.exercise_history(config.USER_NAME, name).get("latest_e1rm")
+    except Exception:
+        e1 = None
+    if not e1:
+        return None
+    return ((e1 / (1 + reps / 30)) // 2.5) * 2.5
+
+
+def _dedupe_recent(exercises: list[dict], context: dict) -> list[dict]:
+    """
+    Deterministic no-repeat guard: replace any non-main accessory that was trained
+    within MIN_ACCESSORY_REPEAT_DAYS with the highest-priority same-pattern exercise
+    that is neither already chosen nor itself recently trained, seeding its weight
+    from history. If nothing suitable exists, drop the repeat rather than duplicate it.
+    """
+    recent = context.get("recently_trained_exercises", {}) or {}
+    if not recent:
+        return exercises
+    window     = getattr(config, "MIN_ACCESSORY_REPEAT_DAYS", 3)
+    priorities = context.get("exercise_priorities", []) or []
+    meta       = _canonical_meta()
+    from hevy import _resolve_template_id
+    chosen = {ex.get("exercise_name", "") for ex in exercises}
+
+    out: list[dict] = []
+    for ex in exercises:
+        name = ex.get("exercise_name", "")
+        d    = recent.get(name)
+        if ex.get("is_main_lift") or d is None or d > window:
+            out.append(ex)
+            continue
+
+        pattern = ex.get("movement_pattern") or meta.get(name, {}).get("movement_pattern")
+        replacement = None
+        for cand in priorities:
+            cn = cand["exercise_name"]
+            if cand.get("is_main_lift") or cn in chosen:
+                continue
+            rd = recent.get(cn)
+            if rd is not None and rd <= window:
+                continue
+            if pattern and cand.get("movement_pattern") and cand["movement_pattern"] != pattern:
+                continue
+            if not _resolve_template_id(cn):
+                continue
+            m     = meta.get(cn, {})
+            is_bw = _is_bodyweight(m)
+            new_sets, ok = [], True
+            for s in ex.get("sets", []):
+                ns = dict(s)
+                if not s.get("is_warmup"):
+                    w = _reseed_weight(cn, int(s.get("reps") or 0), is_bw)
+                    if w is None:      # weighted movement with no history — unusable
+                        ok = False
+                        break
+                    ns["weight_kg"] = w
+                new_sets.append(ns)
+            if not ok:
+                continue
+            replacement = (cn, m, new_sets)
+            break
+
+        if replacement:
+            cn, m, new_sets = replacement
+            new_ex = dict(ex)
+            new_ex.update({"exercise_name": cn, "sets": new_sets,
+                           "alternates": [], "is_main_lift": False})
+            if m.get("muscle"):           new_ex["muscle_group"]      = m["muscle"]
+            if m.get("equipment"):        new_ex["equipment_category"] = m["equipment"]
+            if m.get("movement_pattern"): new_ex["movement_pattern"]   = m["movement_pattern"]
+            new_ex["notes"] = (f"Auto-swapped from {name} (trained {d}d ago) to avoid a back-to-back "
+                               f"repeat; weight seeded from your {cn} history.")
+            print(f"[claude_api] No-repeat guard: {name} ({d}d ago) → {cn}")
+            chosen.discard(name)
+            chosen.add(cn)
+            out.append(new_ex)
+        else:
+            print(f"[claude_api] No-repeat guard: dropped {name} ({d}d ago) — no fresh replacement")
+            chosen.discard(name)
+    return out
 
 
 def get_workout(context: dict, legacy: bool = False,
@@ -999,6 +1133,10 @@ def get_workout(context: dict, legacy: bool = False,
                 continue
             cleaned.append(a)
         ex["alternates"] = cleaned[:3]
+
+    # Deterministic no-repeat guard — enforce MIN_ACCESSORY_REPEAT_DAYS even if
+    # Claude ignored the "recently trained" exclusion in the prompt.
+    workout["exercises"] = _dedupe_recent(workout.get("exercises", []), context)
 
     return workout
 

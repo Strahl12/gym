@@ -198,6 +198,44 @@ def last_session_exercises() -> list[str]:
     return [r["exercise"] for r in rows]
 
 
+def recently_trained_exercises(days: int = 4) -> dict[str, int]:
+    """
+    Exercises logged or prescribed within the last `days` days, mapped to how
+    many days ago they most recently occurred. Feeds the deterministic no-repeat
+    guard so the same accessory can't land on back-to-back sessions.
+    """
+    today  = date.today()
+    cutoff = (today - timedelta(days=days)).isoformat()
+    out: dict[str, int] = {}
+    con = _con()
+    try:
+        rows = con.execute("""
+            SELECT exercise, MAX(date) AS d FROM sets
+            WHERE is_warmup = 0 AND date >= ?
+            GROUP BY exercise
+        """, (cutoff,)).fetchall()
+        for r in rows:
+            if r["exercise"] and r["d"]:
+                out[r["exercise"]] = (today - date.fromisoformat(r["d"])).days
+        try:
+            prows = con.execute("""
+                SELECT json_extract(value, '$.exercise_name') AS name, MAX(date) AS d
+                FROM prescribed_sessions, json_each(exercises_json)
+                WHERE date >= ?
+                GROUP BY name
+            """, (cutoff,)).fetchall()
+            for r in prows:
+                if not r["name"] or not r["d"]:
+                    continue
+                dd = (today - date.fromisoformat(r["d"])).days
+                out[r["name"]] = min(out.get(r["name"], dd), dd)
+        except sqlite3.OperationalError:
+            pass   # prescribed_sessions may not exist on a fresh DB
+    finally:
+        con.close()
+    return out
+
+
 def last_session_type() -> Optional[str]:
     con = _con()
     row = con.execute("""
@@ -1200,6 +1238,7 @@ def build_context() -> dict:
         "session_balance_last_28_days": balance,
         "last_session_type": last_session_type(),
         "last_session_exercises": last_session_exercises(),
+        "recently_trained_exercises": recently_trained_exercises(days=config.MIN_ACCESSORY_REPEAT_DAYS + 1),
         "recent_workouts":        recent_workouts(days=28),
         "exercise_stats":         exercise_stats_all_time(),
         "main_lifts": lifts_context,
