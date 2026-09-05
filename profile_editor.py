@@ -55,6 +55,8 @@ def read_profile(user: str) -> dict:
         "main_lifts":              ns.get("MAIN_LIFTS", {}),
         "default_focus_lifts":     ns.get("DEFAULT_FOCUS_LIFTS", {}),
         "goal_text":               " ".join((ns.get("GOAL") or "").split()),
+        "split_name":              ns.get("SPLIT_NAME"),
+        "session_cycle":           ns.get("SESSION_CYCLE"),
         "target_duration_minutes": ns.get("TARGET_DURATION_MINUTES", {}),
         "excluded_exercises":      ns.get("EXCLUDED_EXERCISES", []),
         "skill_work":              ns.get("SKILL_WORK", []),

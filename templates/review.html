@@ -71,6 +71,9 @@
                text-transform: uppercase; letter-spacing: .05em; }
   .foot { font-size: .8rem; color: var(--dim); line-height: 1.5; margin-top: .9rem; }
   .foot a { color: var(--cyan); }
+  .advice { margin-top: .7rem; padding: .5rem .65rem; font-size: .78rem; line-height: 1.45;
+            color: var(--lime); border: 1px solid color-mix(in srgb, var(--lime) 45%, transparent);
+            background: color-mix(in srgb, var(--lime) 8%, transparent); }
 </style>
 </head>
 <body>
@@ -209,6 +212,10 @@ function render(d) {
     sc.appendChild(sample);
     sc.appendChild(el("div", "sub muted", "a sample week"));
     sc.appendChild(el("div", "why", s.rationale));
+    if (s.programmable === false) {
+      sc.appendChild(el("div", "advice",
+        "⚑ Advice only — the app doesn't auto-build this split. Your coach would set it up manually."));
+    }
     main.appendChild(sc);
 
     const foot = el("div", "foot");

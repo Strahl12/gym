@@ -303,10 +303,28 @@ def summary(user: str) -> dict:
 WEEKDAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 REVIEW_WEEKS = 17         # ~4 months of completed weeks for the cadence read
 
-# The split this app currently programs (its session cycle). Kept as a plain
-# constant so stats stays independent of config's process-global active user.
+# Fallback split identity when a user's profile states nothing. Real values are
+# derived per-user by _current_split() — kept out of config's process-global
+# active-user state so stats stays correct when serving a different user.
 CURRENT_SPLIT = "Push / Pull / Legs / Arms"
 CURRENT_SPLIT_DAYS = 5    # the design frequency baked into the PPL+Arms cycle
+
+
+def _current_split(user: str) -> tuple[str, int]:
+    """The split this user is actually programmed on, and its design frequency
+    (sessions/week). Read from their profile/GOAL — never from the process-global
+    active config — so a multi-user server reports the right split per request.
+    """
+    import re
+    prof = profile_editor.read_profile(user)
+    name  = prof.get("split_name")
+    cycle = prof.get("session_cycle")
+    goal  = prof.get("goal_text") or ""
+    if not name:
+        m = re.search(r"split:\s*([^.\n]+?)(?:\.|\n|$)", goal, re.I)
+        name = m.group(1).strip() if m else CURRENT_SPLIT
+    design_days = _target_frequency(user) or (len(cycle) if cycle else CURRENT_SPLIT_DAYS)
+    return name, design_days
 
 
 def _week_bounds(offset_weeks: int = 0) -> tuple[date, date]:
@@ -321,6 +339,9 @@ def _split_suggestion(spw: float) -> dict:
 
     `sample` is one representative week of sessions; `per_muscle` is the
     resulting weekly frequency each muscle group gets under that split.
+    `programmable` is True only for splits the engine can auto-generate (the
+    push/pull/legs/arms family) — others are coach advice the athlete would set
+    up manually.
     """
     if spw < 2.5:
         return {
@@ -328,6 +349,7 @@ def _split_suggestion(spw: float) -> dict:
             "cadence": "2×/week",
             "sample": ["Full body", "Full body"],
             "per_muscle": "each muscle ~2×/week",
+            "programmable": False,
             "rationale": "At two sessions a week, a split would train each muscle "
                          "only once — full-body days let you still hit everything twice.",
         }
@@ -337,6 +359,7 @@ def _split_suggestion(spw: float) -> dict:
             "cadence": "3×/week",
             "sample": ["Full body", "Full body", "Full body"],
             "per_muscle": "each muscle ~3×/week",
+            "programmable": False,
             "rationale": "Three whole-body sessions keep every muscle at a high "
                          "weekly frequency; a body-part split would leave big gaps.",
         }
@@ -346,6 +369,7 @@ def _split_suggestion(spw: float) -> dict:
             "cadence": "4×/week",
             "sample": ["Upper", "Lower", "Upper", "Lower"],
             "per_muscle": "each muscle ~2×/week",
+            "programmable": False,
             "rationale": "Four days splits cleanly into two upper and two lower "
                          "days, hitting everything twice with room to recover.",
         }
@@ -355,6 +379,7 @@ def _split_suggestion(spw: float) -> dict:
             "cadence": "5×/week",
             "sample": ["Push", "Pull", "Legs", "Arms", "Push"],
             "per_muscle": "each muscle ~1.7×/week",
+            "programmable": True,
             "rationale": "Five days is the classic PPL+Arms window — the split "
                          "this app already runs.",
         }
@@ -364,6 +389,7 @@ def _split_suggestion(spw: float) -> dict:
             "cadence": "6×/week",
             "sample": ["Push", "Pull", "Legs", "Push", "Pull", "Legs"],
             "per_muscle": "each muscle ~2×/week",
+            "programmable": True,
             "rationale": "Six days runs the full push/pull/legs cycle twice, "
                          "putting every muscle on a clean 2×/week frequency.",
         }
@@ -372,6 +398,7 @@ def _split_suggestion(spw: float) -> dict:
         "cadence": "6–7×/week",
         "sample": ["Push", "Pull", "Legs", "Arms", "Push", "Pull", "Legs"],
         "per_muscle": "each muscle 2×/week +",
+        "programmable": True,
         "rationale": "At this frequency PPL runs twice with a dedicated arms day "
                      "for extra volume — watch recovery at seven sessions.",
     }
@@ -485,9 +512,10 @@ def weekly_review(user: str) -> dict:
     typical = [WEEKDAY_NAMES[wd] for wd in range(7) if weekday_hits.get(wd, 0) >= threshold]
     day_counts = {WEEKDAY_NAMES[wd]: weekday_hits.get(wd, 0) for wd in range(7)}
 
+    current_split, current_split_days = _current_split(user)
     suggestion = _split_suggestion(avg_per_week) if weeks_analysed else None
     if suggestion:
-        suggestion["changes_recommended"] = round(avg_per_week) != CURRENT_SPLIT_DAYS
+        suggestion["changes_recommended"] = round(avg_per_week) != current_split_days
 
     return {
         "this_week": this_week,
@@ -499,8 +527,8 @@ def weekly_review(user: str) -> dict:
             "day_counts": day_counts,
             "target_per_week": _target_frequency(user),
         },
-        "current_split": CURRENT_SPLIT,
-        "current_split_days": CURRENT_SPLIT_DAYS,
+        "current_split": current_split,
+        "current_split_days": current_split_days,
         "suggestion": suggestion,
         "colours": SESSION_COLOURS,
     }

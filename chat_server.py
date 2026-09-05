@@ -722,9 +722,11 @@ def _review_block(user: str) -> str:
         fit = ("matches their current split" if not s["changes_recommended"]
                else f"differs from their current {r['current_split']} "
                     f"({r['current_split_days']}x/week) split")
+        prog = ("" if s.get("programmable", True)
+                else " NOTE: the app can't auto-program this split — it's coach advice they'd run manually.")
         lines.append(
             f"- Cadence-fit split suggestion: {s['name']} ({s['cadence']}, {s['per_muscle']}) "
-            f"— {fit}. Rationale: {s['rationale']}")
+            f"— {fit}. Rationale: {s['rationale']}{prog}")
     lines.append("This is a suggestion only — never change their split without explicit "
                  "confirmation, and use update_profile for any change they do confirm.")
     return "\n".join(lines)
