@@ -72,6 +72,52 @@
   .cal-cell.trained { color: #05050a; font-weight: 700; }
   #err { color: var(--danger); font-family: var(--mono); padding: 1rem; }
   .card .n { color: var(--cyan); text-shadow: 0 0 10px var(--cyan); }
+  .cal-cell.trained { cursor: pointer; transition: filter .12s; }
+  .cal-cell.trained:hover { filter: brightness(1.25); }
+
+  /* Click-a-day session panel */
+  .modal-back { position: fixed; inset: 0; z-index: 50; display: flex;
+    align-items: flex-start; justify-content: center; overflow-y: auto;
+    padding: max(1rem, env(safe-area-inset-top)) 1rem calc(1.5rem + env(safe-area-inset-bottom));
+    background: rgba(2,2,8,.72); backdrop-filter: blur(3px);
+    animation: modalIn .18s ease both; }
+  @keyframes modalIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal { position: relative; width: 100%; max-width: 560px; margin-top: 2.5rem;
+    background: var(--panel); border: 1px solid var(--line);
+    border-left: 2px solid var(--magenta); box-shadow: -4px 0 22px rgba(255,0,102,.18);
+    padding: 1rem 1.05rem 1.15rem; }
+  .modal-close { position: absolute; top: .55rem; right: .6rem; width: 1.7rem; height: 1.7rem;
+    font-family: var(--mono); font-size: 1rem; line-height: 1; color: var(--dim);
+    background: transparent; border: 1px solid var(--line); border-radius: 0; cursor: pointer; }
+  .modal-close:hover { color: var(--magenta); border-color: var(--magenta); }
+  .modal-load { color: var(--dim); font-family: var(--mono); font-size: .8rem; padding: .5rem 0; }
+  .day-head { margin-bottom: .9rem; padding-right: 2rem; }
+  .day-title { font-family: var(--mono); font-size: .95rem; font-weight: 700;
+    letter-spacing: .02em; color: var(--ink); }
+  .day-chips { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .45rem; }
+  .day-chip { font-family: var(--mono); font-size: .58rem; letter-spacing: .12em;
+    text-transform: uppercase; color: #05050a; padding: .14rem .5rem; font-weight: 700; }
+  .day-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+    gap: .5rem; margin-bottom: .85rem; }
+  .day-stat { border: 1px solid var(--line); padding: .5rem .55rem; }
+  .day-stat .n { font-size: 1.15rem; font-weight: 700; color: var(--cyan);
+    text-shadow: 0 0 9px var(--cyan); font-variant-numeric: tabular-nums; }
+  .day-stat .l { font-size: .62rem; letter-spacing: .04em; color: var(--dim);
+    text-transform: uppercase; margin-top: .15rem; }
+  .day-topset { font-family: var(--mono); font-size: .68rem; color: var(--lime);
+    text-shadow: 0 0 8px rgba(182,255,0,.4); margin-bottom: 1rem; }
+  .dex { border-top: 1px solid rgba(255,255,255,.08); padding: .65rem 0 .1rem; }
+  .dex-head { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+  .dex-name { font-family: var(--mono); font-size: .82rem; font-weight: 700;
+    letter-spacing: .03em; text-transform: uppercase; color: var(--cyan); }
+  .dex.main .dex-name { color: var(--lime); }
+  .dex-meta { font-family: var(--mono); font-size: .58rem; letter-spacing: .06em;
+    color: var(--dim); margin-left: auto; text-transform: uppercase; }
+  .dset-row { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .45rem; }
+  .dset { font-family: var(--mono); font-size: .72rem; font-weight: 700; color: var(--ink);
+    background: var(--panel-2); border: 1px solid var(--line); padding: .2rem .5rem; }
+  .dset.warm { color: var(--dim); font-weight: 500; border-style: dashed; }
+  .dset b { color: var(--cyan); }
 </style>
 </head>
 <body>
@@ -99,6 +145,7 @@
 
 <script>
 const DATA_URL = {{ data_url | tojson }};
+const DAY_URL  = DATA_URL.replace(/\/data$/, "/day");   // .../stats/data -> .../stats/day
 const main = document.getElementById("main");
 const errEl = document.getElementById("err");
 
@@ -361,6 +408,124 @@ const MONTHS = ["January","February","March","April","May","June","July",
                 "August","September","October","November","December"];
 const DOW = ["M","T","W","T","F","S","S"];
 
+// ── Click-a-day session detail ──────────────────────────────────────────────
+function fmtKg(kg) {
+  if (kg == null) return "—";
+  const s = Math.round(kg).toLocaleString("en") + " kg";
+  return kg >= 1000 ? s + " (" + (kg / 1000).toFixed(1) + " t)" : s;
+}
+function fmtDayDate(iso) {
+  const d = new Date(iso + "T00:00:00");
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString("en", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+// Collapse consecutive identical sets into "N ×" chips.
+function groupSets(sets, isBw) {
+  const out = [];
+  for (const s of sets || []) {
+    const w = s.weight_kg || 0;
+    const label = isBw ? (w > 0 ? "BW +" + w + " kg" : "BW") : (w > 0 ? w + " kg" : "—");
+    const last = out[out.length - 1];
+    if (last && last.reps === s.reps && last.label === label && last.warm === !!s.is_warmup) {
+      last.count += 1;
+    } else {
+      out.push({ count: 1, reps: s.reps, label, warm: !!s.is_warmup });
+    }
+  }
+  return out;
+}
+
+function dayStat(n, label) {
+  const c = el("div", "day-stat");
+  c.appendChild(el("div", "n", n));
+  c.appendChild(el("div", "l", label));
+  return c;
+}
+
+function dayExercise(ex, colours) {
+  const box = el("div", "dex" + (ex.is_main_lift ? " main" : ""));
+  const head = el("div", "dex-head");
+  head.appendChild(el("span", "dex-name", ex.exercise_name));
+  const meta = ex.volume_kg ? fmtKg(ex.volume_kg) : "";
+  if (meta) head.appendChild(el("span", "dex-meta", meta + (ex.top_e1rm ? " · " + ex.top_e1rm + "kg e1RM" : "")));
+  box.appendChild(head);
+  const row = el("div", "dset-row");
+  for (const g of groupSets(ex.sets, ex.is_bodyweight)) {
+    const chip = el("div", "dset" + (g.warm ? " warm" : ""));
+    const n = g.count > 1 ? g.count + " × " : "";
+    chip.innerHTML = (g.warm ? "warm-up · " : "") + n + "<b>" + g.reps + "</b> × " + g.label;
+    row.appendChild(chip);
+  }
+  box.appendChild(row);
+  return box;
+}
+
+function closeModal(back) { back.remove(); document.removeEventListener("keydown", back._esc); }
+
+function dayHeader(back, iso, detail, colours) {
+  const head = el("div", "day-head");
+  head.appendChild(el("div", "day-title", fmtDayDate(iso)));
+  if (detail && detail.session_types && detail.session_types.length) {
+    const chips = el("div", "day-chips");
+    for (const st of detail.session_types) {
+      const chip = el("span", "day-chip", st);
+      chip.style.background = colours[st] || "var(--cyan)";
+      chip.style.boxShadow = `0 0 10px ${colours[st] || "#00e5ff"}66`;
+      chips.appendChild(chip);
+    }
+    head.appendChild(chips);
+  }
+  const x = el("button", "modal-close", "✕"); x.type = "button";
+  x.addEventListener("click", () => closeModal(back));
+  head.appendChild(x);
+  return head;
+}
+
+function renderDay(back, panel, iso, detail, colours) {
+  panel.textContent = "";
+  panel.appendChild(dayHeader(back, iso, detail, colours));
+  if (!detail) {
+    panel.appendChild(el("p", "muted", "No workout logged on this day."));
+    return;
+  }
+  const stats = el("div", "day-stats");
+  stats.appendChild(dayStat(fmtKg(detail.total_volume_kg), "total kg moved"));
+  stats.appendChild(dayStat(detail.working_sets, "working sets"));
+  stats.appendChild(dayStat(detail.total_reps, "total reps"));
+  stats.appendChild(dayStat(detail.exercise_count, "exercises"));
+  if (detail.top_e1rm) stats.appendChild(dayStat(detail.top_e1rm + " kg", "top e1RM"));
+  panel.appendChild(stats);
+
+  if (detail.top_set) {
+    panel.appendChild(el("div", "day-topset",
+      "Heaviest set — " + detail.top_set.weight_kg + " kg × " + detail.top_set.reps
+      + " · " + detail.top_set.exercise));
+  }
+  for (const ex of detail.exercises) panel.appendChild(dayExercise(ex, colours));
+}
+
+async function openDay(iso, colours) {
+  const back = el("div", "modal-back");
+  const panel = el("div", "modal");
+  back.appendChild(panel);
+  panel.appendChild(el("div", "modal-load", "Loading " + iso + "…"));
+  back.addEventListener("click", e => { if (e.target === back) closeModal(back); });
+  back._esc = e => { if (e.key === "Escape") closeModal(back); };
+  document.addEventListener("keydown", back._esc);
+  document.body.appendChild(back);
+  try {
+    const r = await fetch(DAY_URL + "?date=" + encodeURIComponent(iso));
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    renderDay(back, panel, iso, d.detail, colours);
+  } catch (e) {
+    panel.textContent = "";
+    panel.appendChild(dayHeader(back, iso, null, colours));
+    panel.appendChild(el("p", "muted", "Couldn't load this day (" + e.message + ")."));
+  }
+}
+
 function monthGrid(year, month, calendar, colours) {
   const wrap = el("div", "cal-month");
   wrap.appendChild(el("div", "cal-title", MONTHS[month] + " " + year));
@@ -376,7 +541,8 @@ function monthGrid(year, month, calendar, colours) {
     const cell = el("div", "cal-cell" + (st ? " trained" : ""), String(day));
     if (st) { cell.style.background = colours[st];
               cell.style.boxShadow = `0 0 5px ${colours[st]}, 0 0 10px ${colours[st]}`;
-              cell.title = `${iso} — ${st}`; }
+              cell.title = `${iso} — ${st} · tap for detail`;
+              cell.addEventListener("click", () => openDay(iso, colours)); }
     grid.appendChild(cell);
   }
   wrap.appendChild(grid);

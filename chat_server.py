@@ -873,6 +873,21 @@ def _stats_response(user: str):
         return jsonify({"error": "stats unavailable"}), 500
 
 
+def _session_detail_response(user: str):
+    """The workout done on ?date= — per-exercise sets plus headline aggregates.
+    Reads what's already synced (no Hevy pull) so clicking a calendar day is
+    cheap. {detail: null} when nothing was trained that day."""
+    import stats
+    day = (request.args.get("date") or "").strip()
+    if not day:
+        return jsonify({"error": "missing date"}), 400
+    try:
+        return jsonify({"detail": stats.session_detail(user, day)})
+    except Exception as e:
+        print(f"[chat] {user}: session detail failed: {e}")
+        return jsonify({"error": "day detail unavailable"}), 500
+
+
 def _review_response(user: str):
     import stats
     with _CONFIG_LOCK:            # _sync_recent needs the active user + serialised writes
@@ -1220,6 +1235,14 @@ def chat_stats_data(token: str):
     return _stats_response(user)
 
 
+@app.get("/u/<token>/stats/day")
+def chat_stats_day(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return _session_detail_response(user)
+
+
 @app.get("/u/<token>/review")
 def chat_review_page(token: str):
     user = _user_for(token)
@@ -1439,6 +1462,14 @@ def app_stats_data():
     if user is None:
         abort(401)
     return _stats_response(user)
+
+
+@app.get("/app/stats/day")
+def app_stats_day():
+    user = _session_user()
+    if user is None:
+        abort(401)
+    return _session_detail_response(user)
 
 
 @app.get("/app/review")

@@ -168,6 +168,89 @@ def calendar_days(user: str, days: int = 365) -> dict[str, str]:
     return {d: t for d, (n, t) in best.items()}
 
 
+def session_detail(user: str, day: str) -> dict | None:
+    """The workout trained on `day`: per-exercise sets in the order performed,
+    plus headline aggregates (total volume load = Σ weight·reps over working
+    sets, working-set count, total reps, top e1RM, heaviest set). None if
+    nothing was trained that day. Powers the click-a-day panel on the calendar."""
+    con = _con(user)
+    try:
+        rows = con.execute("""
+            SELECT session_id, session_type, workout_name, exercise,
+                   is_main_lift, is_bodyweight, is_warmup, set_number,
+                   weight_kg, reps, e1rm, rpe
+            FROM sets
+            WHERE date = ?
+            ORDER BY session_id, set_number
+        """, (day,)).fetchall()
+    finally:
+        con.close()
+    if not rows:
+        return None
+
+    exercises: list[dict] = []
+    by_name: dict[str, dict] = {}
+    session_types: list[str] = []
+    volume = 0.0
+    working_sets = 0
+    total_reps = 0
+    top_e1rm: float | None = None
+    top_set: dict | None = None
+
+    for r in rows:
+        st = r["session_type"]
+        if st and st != "unknown" and st not in session_types:
+            session_types.append(st)
+
+        ex = by_name.get(r["exercise"])
+        if ex is None:
+            ex = {
+                "exercise_name": r["exercise"],
+                "is_main_lift": bool(r["is_main_lift"]),
+                "is_bodyweight": bool(r["is_bodyweight"]),
+                "sets": [], "volume_kg": 0.0, "top_e1rm": None,
+            }
+            by_name[r["exercise"]] = ex
+            exercises.append(ex)
+
+        w = float(r["weight_kg"] or 0)
+        reps = int(r["reps"] or 0)
+        warm = bool(r["is_warmup"])
+        e1 = round(r["e1rm"], 1) if r["e1rm"] is not None else None
+        ex["sets"].append({"weight_kg": w, "reps": reps, "rpe": r["rpe"],
+                           "is_warmup": warm, "e1rm": e1})
+
+        if not warm:
+            vol = w * reps
+            ex["volume_kg"] += vol
+            volume += vol
+            working_sets += 1
+            total_reps += reps
+            if e1 is not None:
+                if top_e1rm is None or e1 > top_e1rm:
+                    top_e1rm = e1
+                if ex["top_e1rm"] is None or e1 > ex["top_e1rm"]:
+                    ex["top_e1rm"] = e1
+            if w > 0 and (top_set is None or w > top_set["weight_kg"]):
+                top_set = {"weight_kg": w, "reps": reps, "exercise": r["exercise"]}
+
+    for ex in exercises:
+        ex["volume_kg"] = round(ex["volume_kg"])
+
+    return {
+        "date": day,
+        "session_types": session_types,
+        "workout_name": rows[0]["workout_name"],
+        "total_volume_kg": round(volume),
+        "working_sets": working_sets,
+        "total_reps": total_reps,
+        "exercise_count": len(exercises),
+        "top_e1rm": top_e1rm,
+        "top_set": top_set,
+        "exercises": exercises,
+    }
+
+
 BODYWEIGHT_COLOUR = "#b388ff"   # neon violet — distinct from the PPLA palette
 BODYWEIGHT_RATE_DAYS = 30       # window for the current kg/week rate
 
