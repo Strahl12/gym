@@ -1113,6 +1113,40 @@ def _swap_response(user: str):
                     "is_today": day == date.today().isoformat()})
 
 
+def _applog_response(user: str):
+    """Persist a session the athlete logged in-app into the sets table
+    (source='app'). The engine reads the sets table, not Hevy, so this is the
+    Hevy-free path to feed the coach. Idempotent per (date, session_type)."""
+    body = request.get_json(silent=True) or {}
+    exercises = body.get("exercises")
+    if not isinstance(exercises, list) or not exercises:
+        return jsonify({"error": "no exercises to log"}), 400
+    import applog
+    db_path = str(USERS_ROOT / user / "gym.db")
+    try:
+        result = applog.log_session(db_path, body)
+    except Exception as e:
+        print(f"[chat] {user}: applog failed: {e}")
+        return jsonify({"error": "couldn't save your workout — try again"}), 500
+    print(f"[chat] {user}: logged {result['sets_written']} sets "
+          f"({result['session_type']}) to {result['session_id']}")
+    return jsonify({"ok": True, **result})
+
+
+def _logged_response(user: str):
+    """Return today's (or ?date=) app-logged session so the editor can re-open
+    it. {logged: null} when nothing's been logged in-app that day."""
+    import applog
+    db_path = str(USERS_ROOT / user / "gym.db")
+    d = request.args.get("date")
+    try:
+        logged = applog.logged_session(db_path, d)
+    except Exception as e:
+        print(f"[chat] {user}: logged read failed: {e}")
+        return jsonify({"logged": None})
+    return jsonify({"logged": logged})
+
+
 def _chat_response(user: str):
     body    = request.get_json(silent=True) or {}
     message = (body.get("message") or "").strip()
@@ -1258,6 +1292,22 @@ def chat_workout_swap(token: str):
     if user is None:
         abort(404)
     return _swap_response(user)
+
+
+@app.post("/u/<token>/workout/log")
+def chat_workout_log(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return _applog_response(user)
+
+
+@app.get("/u/<token>/workout/logged")
+def chat_workout_logged(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return _logged_response(user)
 
 
 @app.get("/u/<token>/devinfo")
@@ -1462,6 +1512,22 @@ def app_workout_swap():
     if user is None:
         abort(401)
     return _swap_response(user)
+
+
+@app.post("/app/workout/log")
+def app_workout_log():
+    user = _session_user()
+    if user is None:
+        abort(401)
+    return _applog_response(user)
+
+
+@app.get("/app/workout/logged")
+def app_workout_logged():
+    user = _session_user()
+    if user is None:
+        abort(401)
+    return _logged_response(user)
 
 
 @app.get("/app/devinfo")

@@ -106,6 +106,50 @@
                   color: var(--dim); margin-left: .3rem; }
   .alts__status.err { color: var(--danger); }
 
+  /* ── Logging mode ─────────────────────────────────────────── */
+  .logbtn { font-family: var(--mono); font-size: .62rem; letter-spacing: .1em;
+            text-transform: uppercase; color: var(--magenta); background: transparent;
+            border: 1px solid var(--magenta); border-radius: 0; padding: .28rem .7rem;
+            margin-top: .7rem; cursor: pointer; }
+  .logbtn:hover { box-shadow: 0 0 10px rgba(255,0,102,.4); text-shadow: 0 0 8px rgba(255,0,102,.6); }
+  .logbtn.on { color: #05050a; background: var(--magenta); }
+  .ex.logging { border-left-color: var(--magenta); box-shadow: -3px 0 12px rgba(255,0,102,.14); }
+  .setrow { display: flex; align-items: center; gap: .4rem; margin: .35rem 0;
+            font-family: var(--mono); font-size: .74rem; }
+  .setrow input[type=number] { width: 3.4rem; font-family: var(--mono); font-size: .8rem;
+            text-align: center; color: var(--ink); background: var(--panel-2);
+            border: 1px solid var(--line); border-radius: 0; padding: .22rem .2rem; }
+  .setrow input.rpe { width: 2.8rem; }
+  .setrow input[type=number]:focus { outline: none; border-color: var(--cyan);
+            box-shadow: inset 0 0 0 1px rgba(0,229,255,.3); }
+  .setrow .x { color: var(--dim); }
+  .setrow .warmtag { font-size: .55rem; letter-spacing: .08em; text-transform: uppercase;
+            color: var(--dim); border: 1px solid var(--line); padding: .05rem .3rem; cursor: pointer; }
+  .setrow .warmtag.on { color: #05050a; background: var(--dim); border-color: var(--dim); }
+  .setrow .done { width: 1.15rem; height: 1.15rem; accent-color: var(--lime); cursor: pointer; }
+  .setrow.is-done { opacity: .55; }
+  .setrow .rm { margin-left: auto; color: var(--danger); background: transparent; border: none;
+            font-size: 1rem; line-height: 1; cursor: pointer; padding: 0 .2rem; }
+  .addset { font-family: var(--mono); font-size: .58rem; letter-spacing: .08em;
+            text-transform: uppercase; color: var(--cyan); background: transparent;
+            border: 1px dashed var(--line); border-radius: 0; padding: .2rem .55rem;
+            margin-top: .35rem; cursor: pointer; }
+  .addset:hover { border-color: var(--cyan); }
+  .logbar { position: sticky; bottom: 0; display: flex; gap: .6rem; margin-top: 1rem;
+            padding: .8rem 0 calc(.4rem + env(safe-area-inset-bottom));
+            background: linear-gradient(to top, var(--bg) 70%, transparent); }
+  .logbar button { flex: 1; font-family: var(--mono); font-size: .7rem; letter-spacing: .1em;
+            text-transform: uppercase; border-radius: 0; padding: .6rem; cursor: pointer; }
+  .logbar .save { color: #05050a; background: var(--lime); border: 1px solid var(--lime);
+            font-weight: 700; box-shadow: 0 0 14px rgba(182,255,0,.4); }
+  .logbar .save:disabled { opacity: .5; box-shadow: none; cursor: default; }
+  .logbar .cancel { color: var(--dim); background: transparent; border: 1px solid var(--line); }
+  .logstatus { font-family: var(--mono); font-size: .64rem; letter-spacing: .06em;
+               text-align: center; margin-top: .6rem; color: var(--dim); }
+  .logstatus.err { color: var(--danger); } .logstatus.ok { color: var(--lime); }
+  .draftflag { font-family: var(--mono); font-size: .58rem; letter-spacing: .08em;
+               text-transform: uppercase; color: var(--amber, #ffb300); margin-top: .3rem; }
+
   /* Reasoning */
   details.why { background: var(--panel); border: 1px solid var(--line); margin-top: 1.1rem; }
   details.why > summary { list-style: none; cursor: pointer; user-select: none;
@@ -143,10 +187,15 @@
 <script>
 const DATA_URL = "{{ data_url }}";
 const CHAT_URL = "{{ chat_url }}";
+const USER     = "{{ user }}";
 const HIST_URL = CHAT_URL + "/workout/history";
 const SWAP_URL = CHAT_URL + "/workout/swap";
+const LOG_URL    = CHAT_URL + "/workout/log";
+const LOGGED_URL = CHAT_URL + "/workout/logged";
 const CYAN = "#00e5ff", LIME = "#b6ff00";
 let swapping = false;   // one swap (Hevy PUT) at a time, across all cards
+let LOGGING = false;    // editable logging mode on the Workout tab
+let CURRENT = null;     // last /workout/data payload, for re-rendering on toggle
 const SVGNS = "http://www.w3.org/2000/svg";
 const MONO = "ui-monospace, Menlo, monospace";
 
@@ -414,7 +463,196 @@ function comingUp(seq) {
   return box;
 }
 
+// ── Logging mode ────────────────────────────────────────────────────────────
+// A session is logged as an in-memory MODEL (list of exercises, each with set
+// rows: {weight, reps, rpe, warmup, done}). Seeded from the prescription, then
+// overlaid with any previously-saved session or an unsaved localStorage draft.
+let MODEL = null;
+
+function draftKey() {
+  const d = (CURRENT && CURRENT.date) || new Date().toISOString().slice(0, 10);
+  return "log:" + USER + ":" + d;
+}
+function saveDraft() {
+  try { localStorage.setItem(draftKey(), JSON.stringify(MODEL)); } catch (e) {}
+}
+function clearDraft() {
+  try { localStorage.removeItem(draftKey()); } catch (e) {}
+}
+function loadDraft() {
+  try { const r = localStorage.getItem(draftKey()); return r ? JSON.parse(r) : null; }
+  catch (e) { return null; }
+}
+
+// Build the editable model from the prescribed workout.
+function modelFromPrescription(w) {
+  return (w.exercises || []).map(ex => ({
+    exercise_name: ex.exercise_name,
+    is_bodyweight: isBodyweight(ex),
+    sets: (ex.sets || []).map(s => ({
+      weight: s.weight_kg || 0, reps: s.reps || 0, rpe: "",
+      warmup: !!s.is_warmup, done: false,
+    })),
+  }));
+}
+// Overlay a saved/logged session (matched by exercise name) onto the model.
+function overlaySaved(model, logged) {
+  const byName = {};
+  (logged.exercises || []).forEach(e => { byName[e.exercise_name] = e.sets; });
+  model.forEach(m => {
+    const saved = byName[m.exercise_name];
+    if (saved) m.sets = saved.map(s => ({
+      weight: s.weight_kg || 0, reps: s.reps || 0,
+      rpe: s.rpe == null ? "" : s.rpe, warmup: !!s.is_warmup, done: true,
+    }));
+  });
+  return model;
+}
+
+function setRow(mset, mex, rerender) {
+  const row = el("div", "setrow" + (mset.done ? " is-done" : ""));
+
+  const done = el("input", "done"); done.type = "checkbox"; done.checked = mset.done;
+  done.title = "Mark set completed";
+  done.addEventListener("change", () => { mset.done = done.checked; saveDraft();
+    row.classList.toggle("is-done", mset.done); });
+  row.appendChild(done);
+
+  const w = el("input"); w.type = "number"; w.step = "2.5"; w.min = "0";
+  w.value = mset.weight || ""; w.placeholder = mex.is_bodyweight ? "BW+" : "kg";
+  w.inputMode = "decimal";
+  w.addEventListener("input", () => { mset.weight = parseFloat(w.value) || 0; saveDraft(); });
+  row.appendChild(w);
+
+  row.appendChild(el("span", "x", "×"));
+
+  const reps = el("input"); reps.type = "number"; reps.step = "1"; reps.min = "0";
+  reps.value = mset.reps || ""; reps.placeholder = "reps"; reps.inputMode = "numeric";
+  reps.addEventListener("input", () => { mset.reps = parseInt(reps.value) || 0; saveDraft(); });
+  row.appendChild(reps);
+
+  const rpe = el("input", "rpe"); rpe.type = "number"; rpe.step = "0.5";
+  rpe.min = "0"; rpe.max = "10"; rpe.value = mset.rpe; rpe.placeholder = "RPE";
+  rpe.inputMode = "decimal";
+  rpe.addEventListener("input", () => { mset.rpe = rpe.value; saveDraft(); });
+  row.appendChild(rpe);
+
+  const warm = el("span", "warmtag" + (mset.warmup ? " on" : ""), "warm");
+  warm.title = "Toggle warm-up set (excluded from working-set counts)";
+  warm.addEventListener("click", () => { mset.warmup = !mset.warmup; saveDraft();
+    warm.classList.toggle("on", mset.warmup); });
+  row.appendChild(warm);
+
+  const rm = el("button", "rm", "×"); rm.type = "button"; rm.title = "Remove set";
+  rm.addEventListener("click", () => {
+    mex.sets.splice(mex.sets.indexOf(mset), 1); saveDraft(); rerender();
+  });
+  row.appendChild(rm);
+
+  return row;
+}
+
+function loggerCard(mex, rerender) {
+  const card = el("div", "ex logging");
+  const head = el("div", "ex__head");
+  head.appendChild(el("span", "ex__name", mex.exercise_name));
+  card.appendChild(head);
+
+  mex.sets.forEach(mset => card.appendChild(setRow(mset, mex, rerender)));
+
+  const add = el("button", "addset", "＋ set"); add.type = "button";
+  add.addEventListener("click", () => {
+    const last = mex.sets[mex.sets.length - 1];
+    mex.sets.push(last
+      ? { weight: last.weight, reps: last.reps, rpe: "", warmup: false, done: false }
+      : { weight: 0, reps: 0, rpe: "", warmup: false, done: false });
+    saveDraft(); rerender();
+  });
+  card.appendChild(add);
+  return card;
+}
+
+async function enterLogging(w) {
+  LOGGING = true;
+  MODEL = modelFromPrescription(w);
+  const draft = loadDraft();
+  if (draft && draft.length) {
+    MODEL = draft;                       // unsaved edits win
+  } else {
+    try {                                // else seed from an already-saved session
+      const r = await fetch(LOGGED_URL);
+      const d = await r.json();
+      if (d.logged) overlaySaved(MODEL, d.logged);
+    } catch (e) {}
+  }
+  renderLogger(w);
+}
+
+function renderLogger(w) {
+  const main = document.getElementById("main");
+  main.textContent = "";
+
+  const banner = el("div", "banner");
+  if (w.session_type) banner.appendChild(el("span", "banner__type", w.session_type));
+  banner.appendChild(el("div", "banner__title", "Logging — " + (w.title || "session")));
+  banner.appendChild(el("div", "banner__meta",
+    "Enter what you actually did. Tick each set as you go — saved to this device."));
+  main.appendChild(banner);
+  if (loadDraft()) main.appendChild(el("div", "draftflag", "● unsaved draft restored"));
+
+  const rerender = () => renderLogger(w);
+  MODEL.forEach(mex => main.appendChild(loggerCard(mex, rerender)));
+
+  const status = el("div", "logstatus");
+  const bar = el("div", "logbar");
+  const save = el("button", "save", "✓ Finish & save"); save.type = "button";
+  const cancel = el("button", "cancel", "Cancel"); cancel.type = "button";
+  cancel.addEventListener("click", () => { LOGGING = false; render(CURRENT); });
+  save.addEventListener("click", () => saveSession(w, save, status));
+  bar.appendChild(cancel); bar.appendChild(save);
+  main.appendChild(bar);
+  main.appendChild(status);
+}
+
+async function saveSession(w, saveBtn, status) {
+  const exercises = MODEL.map(mex => ({
+    exercise_name: mex.exercise_name,
+    sets: mex.sets
+      .filter(s => (s.reps || 0) > 0)
+      .map(s => ({ weight_kg: s.weight || 0, reps: s.reps || 0,
+                   rpe: s.rpe === "" ? null : parseFloat(s.rpe),
+                   is_warmup: !!s.warmup })),
+  })).filter(e => e.sets.length);
+
+  if (!exercises.length) {
+    status.className = "logstatus err";
+    status.textContent = "Add at least one set with reps before saving.";
+    return;
+  }
+  saveBtn.disabled = true;
+  status.className = "logstatus"; status.textContent = "Saving…";
+  try {
+    const r = await fetch(LOG_URL, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: CURRENT.date, session_type: w.session_type,
+                             workout_name: w.title, exercises }),
+    });
+    const d = await r.json();
+    if (!r.ok || d.error) throw new Error(d.error || r.statusText);
+    clearDraft();
+    status.className = "logstatus ok";
+    status.textContent = "✓ Saved " + d.sets_written + " sets — your coach can see it now.";
+    setTimeout(() => { LOGGING = false; render(CURRENT); }, 1400);
+  } catch (e) {
+    saveBtn.disabled = false;
+    status.className = "logstatus err";
+    status.textContent = "Save failed — " + e.message;
+  }
+}
+
 function render(d) {
+  CURRENT = d;
+  if (LOGGING && d && d.workout) { renderLogger(d.workout); return; }
   const main = document.getElementById("main");
   main.textContent = "";
 
@@ -443,6 +681,11 @@ function render(d) {
   banner.appendChild(el("div", "banner__meta",
     exercises.length + (exercises.length === 1 ? " exercise" : " exercises")
     + " · " + working + " working sets"));
+  const logBtn = el("button", "logbtn" + (loadDraft() ? " on" : ""),
+    loadDraft() ? "▸ Resume logging" : "▸ Log this session");
+  logBtn.type = "button";
+  logBtn.addEventListener("click", () => enterLogging(w));
+  banner.appendChild(logBtn);
   main.appendChild(banner);
 
   if (d.upcoming && d.upcoming.length) main.appendChild(comingUp(d.upcoming));
