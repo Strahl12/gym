@@ -580,7 +580,8 @@ async function enterLogging(w) {
     MODEL = draft;                       // unsaved edits win
   } else {
     try {                                // else seed from an already-saved session
-      const r = await fetch(LOGGED_URL);
+      const qs = CURRENT && CURRENT.date ? "?date=" + encodeURIComponent(CURRENT.date) : "";
+      const r = await fetch(LOGGED_URL + qs);
       const d = await r.json();
       if (d.logged) overlaySaved(MODEL, d.logged);
     } catch (e) {}

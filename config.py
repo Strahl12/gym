@@ -20,7 +20,9 @@ import os
 from pathlib import Path
 
 _ROOT = Path(__file__).parent
-_USERS_ROOT = _ROOT / "users"
+# GYM_USERS_ROOT lets a throwaway instance point at an isolated copy of the
+# users dir (must match chat_server's override). Default unchanged.
+_USERS_ROOT = Path(os.environ.get("GYM_USERS_ROOT", str(_ROOT / "users")))
 
 
 # ── .env loader ────────────────────────────────────────────────────────────

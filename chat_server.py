@@ -37,7 +37,9 @@ from context import build_context
 from claude_api import ANTHROPIC_URL, CLAUDE_MODEL, _headers, format_athlete_context
 
 ROOT       = Path(__file__).parent
-USERS_ROOT = ROOT / "users"
+# GYM_USERS_ROOT lets a throwaway instance serve an isolated copy of the users
+# dir (see docs/in_app_logger.md) without touching the live DBs. Default unchanged.
+USERS_ROOT = Path(os.environ.get("GYM_USERS_ROOT", str(ROOT / "users")))
 
 HOST = os.environ.get("GYM_CHAT_HOST", "127.0.0.1")
 PORT = int(os.environ.get("GYM_CHAT_PORT", "8090"))
