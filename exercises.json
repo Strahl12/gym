@@ -2846,7 +2846,9 @@
   "75A4F6C4": {
     "hevy_title": "Leg Extension (Machine)",
     "canonical": "Leg Extension",
-    "aliases": [],
+    "aliases": [
+      "Iso-lateral Leg Extension"
+    ],
     "muscle": "quadriceps",
     "equipment": "machine",
     "session_type": "legs",
