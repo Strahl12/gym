@@ -25,11 +25,17 @@ def _typical_gap_days() -> int:
     return max(1, round(7 / spw))
 
 
-def project_sessions(n: int = 6) -> list[str]:
+def project_sessions(n: int = 6, today_type: str | None = None) -> list[str]:
     """
     Forecast the next `n` sessions as an ordered list of session types, starting
     with today's suggested session. Rolls the reactive chooser forward, advancing
     a simulated recovery clock at the user's typical cadence between picks.
+
+    `today_type`, if given, pins the day-0 slot to an already-committed session
+    for today (e.g. a fresh prescription the coach just changed to arms). The DB
+    only knows what's been *trained*, so without this the strip would keep showing
+    the most-overdue type until the session is actually logged. Later slots still
+    roll forward reactively, so tomorrow re-plans around today's committed session.
     """
     cycle = config.SESSION_CYCLE
     if not cycle:
@@ -38,11 +44,15 @@ def project_sessions(n: int = 6) -> list[str]:
     last = context.last_session_type()
     gap  = _typical_gap_days()
 
+    if today_type not in cycle:
+        today_type = None
+
     seq: list[str] = []
     for i in range(max(0, n)):
-        # Day 0 uses the authoritative live suggestion (honours recurring-activity
-        # buffers); later steps use the pure chooser on the simulated clock.
-        pick = context.suggest_session_type() if i == 0 else \
+        # Day 0: a committed prescription for today wins; else the authoritative
+        # live suggestion (honours recurring-activity buffers). Later steps use the
+        # pure chooser on the simulated clock.
+        pick = (today_type or context.suggest_session_type()) if i == 0 else \
             context.pick_session_type(days_since, last)
         seq.append(pick)
         for t in cycle:

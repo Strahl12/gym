@@ -945,21 +945,26 @@ def _workout_response(user: str):
         print(f"[chat] {user}: workout read failed: {e}")
         return jsonify({"workout": None})
     day = latest.name[:10]  # YYYY-MM-DD prefix
+    is_today = day == date.today().isoformat()
 
     # Adaptive forecast of upcoming sessions (re-derived from synced logs, so it
-    # self-corrects if the athlete trains a different day than projected).
+    # self-corrects if the athlete trains a different day than projected). When
+    # today's prescription is a committed session (e.g. the coach swapped it to
+    # arms), pin the day-0 slot to it so the strip agrees with the prescription
+    # before it's been trained; the DB alone only knows what's been logged.
     upcoming: list[str] = []
     try:
         with _CONFIG_LOCK:
             config.activate(user)
             _sync_recent(user)
             import plan
-            upcoming = plan.project_sessions(5)
+            today_type = w.get("session_type") if is_today else None
+            upcoming = plan.project_sessions(5, today_type=today_type)
     except Exception as e:
         print(f"[chat] {user}: session projection failed: {e}")
 
     return jsonify({"workout": w, "date": day,
-                    "is_today": day == date.today().isoformat(),
+                    "is_today": is_today,
                     "upcoming": upcoming,
                     "uses_hevy": _user_uses_hevy(user)})
 
