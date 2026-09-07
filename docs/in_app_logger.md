@@ -25,7 +25,32 @@ In:
 Out (later phases, noted so they aren't forgotten):
 - Adding an arbitrary exercise not in the prescription (swap already covers substitution).
 - Full offline PWA / service worker, rest timers, supersets, plate math.
-- Making Hevy delivery skippable per user (Phase 2).
+
+## Phase 2 — Hevy optional per user (done)
+
+Per-user profile flag **`LOG_SOURCE`** (`"hevy"` default, or `"app"`), on
+`config.LOG_SOURCE` via the profile overlay. Reset at the top of
+`config.activate()` so an `"app"` user can't leak the flag onto the next user;
+`config.uses_hevy()` gates every Hevy call-site:
+
+- `run.py`: skip the Hevy sync (1b), the pinned-template diff (3d) and the
+  post to Hevy (4) for app users — but still write the prescription JSON and
+  `mark_posted_to_hevy` (marks delivered so it isn't regenerated). The feedback
+  diff (1c) is **kept**: it reads the `sets` table, which the in-app logger
+  fills, so prescribe → log → feedback → next prescription closes with no Hevy.
+- `chat_server`: `_sync_recent` returns early; `_swap_response` edits/persists
+  the prescription JSON without the Hevy re-post. `_user_uses_hevy(user)` reads
+  the profile directly (no `activate`) and is surfaced to the Workout tab as
+  `uses_hevy` so its copy adapts.
+- `profile_editor` exposes `log_source` and now honours `GYM_USERS_ROOT`.
+
+**Switch an existing user to app-only:** add `LOG_SOURCE = "app"` to their
+`users/<name>/profile.py` (the Hevy key can be left blank). No migration.
+
+Deferred to **Phase 2.5**: onboarding a brand-new user with *no* Hevy account
+at all — `add_user.py` still requires a Hevy key and seeds the roster from the
+Hevy library; an app-only signup needs the roster seeded from the global
+`exercises.json` instead.
 
 ## Server
 

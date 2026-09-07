@@ -34,6 +34,8 @@ import logging
 from datetime import date
 from pathlib import Path
 
+import config
+
 log = logging.getLogger(__name__)
 
 
@@ -92,11 +94,14 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
             log.warning(f"Withings sync failed (continuing without bodyweight): {e}")
 
     # ── 1b. Sync Hevy workouts → sets table ────────────────────────────────
-    try:
-        from hevy_sync import sync_to_db as hevy_sync
-        hevy_sync(days=14)
-    except Exception as e:
-        log.warning(f"Hevy sync failed (continuing with existing data): {e}")
+    if config.uses_hevy():
+        try:
+            from hevy_sync import sync_to_db as hevy_sync
+            hevy_sync(days=14)
+        except Exception as e:
+            log.warning(f"Hevy sync failed (continuing with existing data): {e}")
+    else:
+        log.info("LOG_SOURCE=app — skipping Hevy sync (athlete logs in-app).")
 
     # ── 1c. Diff most-recently completed workout vs its prescription ───────────
     import config as _cfg
@@ -326,37 +331,48 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
                 print(f"    → {notes}")
         print(f"\nReasoning: {workout.get('reasoning')}")
         print("──────────────────────────────────────────────────────────────")
-        answer = input("Post to Hevy? [y/n]: ").strip().lower()
+        prompt = "Post to Hevy? [y/n]: " if config.uses_hevy() else "Deliver to the app? [y/n]: "
+        answer = input(prompt).strip().lower()
         if answer != "y":
             log.info("Aborted by user.")
             return
 
     # ── 3d. Template diff: capture edits made in Hevy app before session ───
-    try:
-        from hevy import _load_pinned_routine_id
-        from feedback import diff_hevy_template_vs_prescription
-        pinned_id = _load_pinned_routine_id()
-        if pinned_id:
-            diff_hevy_template_vs_prescription(pinned_id, date.today().isoformat())
-    except Exception as e:
-        log.warning(f"Template diff failed (non-critical): {e}")
+    #   Hevy-only: it diffs the pinned Hevy template. App users' edits come in
+    #   through the in-app logger (feedback diffs off the sets table, step 1c).
+    if config.uses_hevy():
+        try:
+            from hevy import _load_pinned_routine_id
+            from feedback import diff_hevy_template_vs_prescription
+            pinned_id = _load_pinned_routine_id()
+            if pinned_id:
+                diff_hevy_template_vs_prescription(pinned_id, date.today().isoformat())
+        except Exception as e:
+            log.warning(f"Template diff failed (non-critical): {e}")
 
-    # ── 4. Post to Hevy ────────────────────────────────────────────────────
-    print("\n===== HEVY =====")
-    if as_workout:
-        log.info("Posting to Hevy as completed workout...")
-        from hevy import post_workout
-        result  = post_workout(workout)
-        hevy_id = result.get("workout", {}).get("id")
+    # ── 4. Deliver the session ─────────────────────────────────────────────
+    #   The prescription JSON is already written to logs/ above; the web app
+    #   serves it either way. Hevy users additionally get it posted to their app.
+    if config.uses_hevy():
+        print("\n===== HEVY =====")
+        if as_workout:
+            log.info("Posting to Hevy as completed workout...")
+            from hevy import post_workout
+            result  = post_workout(workout)
+            hevy_id = result.get("workout", {}).get("id")
+        else:
+            log.info("Creating Hevy routine (open Hevy at the gym to start it)...")
+            from hevy import post_routine
+            result  = post_routine(workout)
+            hevy_id = result.get("routine", {}).get("id")
+        log.info(f"Hevy workout created: {hevy_id}")
+        mark_posted_to_hevy(prescription_id)
+        log.info("Done. Open Hevy to see today's session.")
     else:
-        log.info("Creating Hevy routine (open Hevy at the gym to start it)...")
-        from hevy import post_routine
-        result  = post_routine(workout)
-        hevy_id = result.get("routine", {}).get("id")
-    log.info(f"Hevy workout created: {hevy_id}")
-    mark_posted_to_hevy(prescription_id)
-
-    log.info("Done. Open Hevy to see today's session.")
+        print("\n===== DELIVER (in-app) =====")
+        mark_posted_to_hevy(prescription_id)   # mark delivered so it isn't regenerated
+        log.info("LOG_SOURCE=app — session is live in the app's Workout tab; "
+                 "no Hevy post. Athlete logs it in-app.")
 
 
 def _arg_value(flag: str) -> str | None:

@@ -110,6 +110,12 @@ MAIN_LIFTS: dict[str, dict] = {}
 # Hevy routine folder — per-user (folder ID is account-specific)
 HEVY_ROUTINE_FOLDER_ID: int | None = None
 
+# Where the athlete logs and receives sessions. "hevy" (default) delivers the
+# routine to their Hevy app and syncs completed workouts back; "app" skips Hevy
+# entirely and uses the in-app logger (they log inside the web app instead).
+# Reset per activate() so an "app" user can't leak the flag onto the next user.
+LOG_SOURCE = "hevy"
+
 # Per-session-type default focus lift
 DEFAULT_FOCUS_LIFTS: dict[str, str] = {}
 
@@ -315,6 +321,7 @@ def activate(user_name: str) -> None:
     global WITHINGS_ACCESS_TOKEN, WITHINGS_REFRESH_TOKEN
     global WITHINGS_CLIENT_ID, WITHINGS_CLIENT_SECRET
     global SESSION_LIFTS, SESSION_TEMPLATES_EFFECTIVE, DEDICATED_MUSCLE_DAYS
+    global LOG_SOURCE
 
     user_dir = _USERS_ROOT / user_name
     if not user_dir.is_dir():
@@ -333,6 +340,11 @@ def activate(user_name: str) -> None:
     LOG_DIR             = str(user_dir / "logs")
 
     Path(LOG_DIR).mkdir(parents=True, exist_ok=True)
+
+    # Reset overlay-able optional flags to their default BEFORE loading the
+    # profile, so a value from a previous activate() doesn't leak to a user
+    # whose profile.py omits it. (The profile overlay below re-sets it if present.)
+    LOG_SOURCE = "hevy"
 
     # Per-user secrets: file > shell env (explicit isolation when run_all switches users)
     user_secrets = _read_dotenv(user_dir / "secrets.env")
@@ -365,3 +377,9 @@ def activate(user_name: str) -> None:
     SESSION_LIFTS = _derive_session_lifts(MAIN_LIFTS)
     SESSION_TEMPLATES_EFFECTIVE = _effective_templates(SESSION_TEMPLATES, SESSION_CYCLE)
     DEDICATED_MUSCLE_DAYS = _derive_dedicated_days(SESSION_CYCLE)
+
+
+def uses_hevy() -> bool:
+    """True when the active user delivers/syncs via Hevy; False for in-app-only
+    users (LOG_SOURCE='app'). Gates every Hevy call-site."""
+    return (LOG_SOURCE or "hevy").strip().lower() != "app"

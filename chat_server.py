@@ -415,6 +415,16 @@ def _credit_ping() -> dict:
     return _devinfo_payload()
 
 
+def _user_uses_hevy(user: str) -> bool:
+    """Whether `user` delivers/syncs via Hevy (vs the in-app logger). Reads
+    profile.py directly so it works without activating config / holding the lock."""
+    try:
+        import profile_editor
+        return (profile_editor.read_profile(user).get("log_source") or "hevy").strip().lower() != "app"
+    except Exception:
+        return True   # default to Hevy on any read error — never strands a Hevy user
+
+
 def _sync_recent(user: str) -> None:
     """Pull the user's latest Hevy workouts into their DB so the coach sees
     self-directed sessions right after they finish, not just after the 7:30am
@@ -422,6 +432,8 @@ def _sync_recent(user: str) -> None:
 
     Must be called with _CONFIG_LOCK held and config already activated for user.
     """
+    if not config.uses_hevy():
+        return                       # in-app-only user: no Hevy to pull
     now = time.time()
     if now - _LAST_SYNC.get(user, 0.0) < CHAT_SYNC_THROTTLE_S:
         return
@@ -948,7 +960,8 @@ def _workout_response(user: str):
 
     return jsonify({"workout": w, "date": day,
                     "is_today": day == date.today().isoformat(),
-                    "upcoming": upcoming})
+                    "upcoming": upcoming,
+                    "uses_hevy": _user_uses_hevy(user)})
 
 
 def _exercise_history_response(user: str):
@@ -1111,18 +1124,22 @@ def _swap_response(user: str):
         for s in ex.get("sets", []):
             if not s.get("is_warmup"):
                 s["weight_kg"] = _swap_weight(user, to, int(s.get("reps") or 0), is_bw)
+        adjust_where = "in Hevy" if _user_uses_hevy(user) else "when you log it"
         ex["notes"] = (f"Swapped in for {old}. Working weight seeded from your recent "
-                       f"{to} history — adjust in Hevy if it feels off.")
+                       f"{to} history — adjust {adjust_where} if it feels off.")
 
+    # Hevy users: re-post the whole routine so their app reflects the swap.
+    # In-app users: nothing to push — the persisted JSON is the source of truth.
     try:
         with _CONFIG_LOCK:            # serialise config.activate + the Hevy PUT
             config.activate(user)
-            hevy.post_routine(w)
+            if config.uses_hevy():
+                hevy.post_routine(w)
     except Exception as e:
         print(f"[chat] {user}: swap Hevy post failed ({old} -> {to}): {e}")
         return jsonify({"error": "couldn't update your Hevy routine — try again"}), 502
 
-    latest.write_text(json.dumps(w, indent=2))   # persist only after Hevy took it
+    latest.write_text(json.dumps(w, indent=2))   # persist only after Hevy took it (if any)
     _log_swap_event(old, to, w.get("session_type"))
     print(f"[chat] {user}: swapped {old} -> {to}")
     day = latest.name[:10]

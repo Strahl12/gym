@@ -273,7 +273,8 @@ function exerciseCard(ex, idx) {
     for (const name of ex.alternates) {
       const b = el("button", "alt-btn", name);
       b.type = "button";
-      b.title = "Replace " + ex.exercise_name + " with " + name + " in your Hevy routine";
+      b.title = "Replace " + ex.exercise_name + " with " + name
+        + (CURRENT && CURRENT.uses_hevy === false ? " in this session" : " in your Hevy routine");
       b.addEventListener("click", () => doSwap(idx, name, status));
       alts.appendChild(b);
     }
@@ -660,8 +661,10 @@ function render(d) {
   const w = d.workout;
   if (!w) {
     const box = el("div", "empty");
-    box.innerHTML = "No prescribed session yet. Your coach programmes a workout into your "
-      + "Hevy app on training days — once one's posted it shows up here. Ask in the "
+    const where = d.uses_hevy === false
+      ? "Your coach programmes a session on training days — once one's ready it shows up here."
+      : "Your coach programmes a workout into your Hevy app on training days — once one's posted it shows up here.";
+    box.innerHTML = "No prescribed session yet. " + where + " Ask in the "
       + "<b><a href=\"" + CHAT_URL + "\">chat</a></b> to generate today's session.";
     main.appendChild(box);
     return;

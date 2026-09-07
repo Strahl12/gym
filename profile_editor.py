@@ -12,12 +12,15 @@ Standalone on purpose: takes the user name and derives paths itself, so it
 never depends on (or mutates) config's process-global active user.
 """
 import difflib
+import os
 import re
 import sqlite3
 from datetime import date
 from pathlib import Path
 
-_USERS_ROOT = Path(__file__).parent / "users"
+# Honour GYM_USERS_ROOT (like config / chat_server) so a sandbox instance reads
+# isolated profiles/DBs. Default unchanged.
+_USERS_ROOT = Path(os.environ.get("GYM_USERS_ROOT", str(Path(__file__).parent / "users")))
 
 SESSION_TYPES  = ("push", "pull", "legs", "arms")
 TRAINING_MODES = ("strength", "hypertrophy", "mixed")
@@ -61,6 +64,7 @@ def read_profile(user: str) -> dict:
         "excluded_exercises":      ns.get("EXCLUDED_EXERCISES", []),
         "skill_work":              ns.get("SKILL_WORK", []),
         "hevy_routine_folder_id":  ns.get("HEVY_ROUTINE_FOLDER_ID"),
+        "log_source":              ns.get("LOG_SOURCE", "hevy"),
     }
 
 
