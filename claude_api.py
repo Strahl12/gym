@@ -170,7 +170,8 @@ def check_mode_change(context: dict) -> Optional[str]:
 
 CLAUDE_MODEL   = "claude-sonnet-4-6"
 ANTHROPIC_URL  = "https://api.anthropic.com/v1/messages"
-MAX_TOKENS     = 4096   # Sonnet's reasoning preamble can eat 1.5k tokens before the JSON
+MAX_TOKENS     = 8192   # legs days: reasoning preamble + full JSON exceeded 4096 (truncated
+                        # 2026-09-05 and 2026-09-07 → empty/aborted workouts)
 
 LEGACY_SYSTEM_PROMPT = """
 You are a strength programming assistant. Your job is to prescribe today's gym session
@@ -1099,7 +1100,8 @@ def get_workout(context: dict, legacy: bool = False,
         resp.raise_for_status()
 
     body = resp.json()
-    if body.get("stop_reason") == "max_tokens":
+    truncated = body.get("stop_reason") == "max_tokens"
+    if truncated:
         print(f"[claude_api] WARNING: response truncated at max_tokens ({MAX_TOKENS}). "
               "Workout JSON may be incomplete — consider raising MAX_TOKENS.")
     raw = body["content"][0]["text"].strip()
@@ -1116,6 +1118,19 @@ def get_workout(context: dict, legacy: bool = False,
     parsed = _extract_json(raw)
     if parsed is None:
         print(f"[claude_api] JSON parse error: no decodable object found.\nRaw response:\n{raw}")
+        return None
+
+    # A truncated response can leave a complete *exercise* object as the best
+    # candidate (its parent envelope never closed). Never accept that as a
+    # workout — it would surface as an empty session. Require the envelope.
+    is_envelope = (
+        "session_type" in parsed
+        or parsed.get("rest_recommended")
+        or (isinstance(parsed.get("exercises"), list) and parsed["exercises"])
+    )
+    if not is_envelope:
+        print("[claude_api] Parsed object is not a workout envelope "
+              f"(truncated={truncated}); refusing to save a partial workout.")
         return None
     workout = parsed
 

@@ -16,6 +16,7 @@ Usage:
 Shared secrets (ANTHROPIC_API_KEY) live in the root secrets.env or shell env.
 Per-user secrets (HEVY_API_KEY, WITHINGS_*) live in users/<name>/secrets.env.
 """
+import copy
 import os
 from pathlib import Path
 
@@ -223,6 +224,10 @@ SESSION_TEMPLATES: dict[str, list[dict]] = {
     ],
 }
 
+# Pristine copy so activate() can reset before each profile overlay — a user
+# whose profile.py overrides SESSION_TEMPLATES must not leak it onto the next.
+_SESSION_TEMPLATES_DEFAULT = copy.deepcopy(SESSION_TEMPLATES)
+
 SESSION_TIME_ESTIMATES = {
     "warmup_general":     10,
     "main_barbell":       20,
@@ -321,6 +326,7 @@ def activate(user_name: str) -> None:
     global WITHINGS_ACCESS_TOKEN, WITHINGS_REFRESH_TOKEN
     global WITHINGS_CLIENT_ID, WITHINGS_CLIENT_SECRET
     global SESSION_LIFTS, SESSION_TEMPLATES_EFFECTIVE, DEDICATED_MUSCLE_DAYS
+    global SESSION_TEMPLATES
     global LOG_SOURCE
 
     user_dir = _USERS_ROOT / user_name
@@ -345,6 +351,7 @@ def activate(user_name: str) -> None:
     # profile, so a value from a previous activate() doesn't leak to a user
     # whose profile.py omits it. (The profile overlay below re-sets it if present.)
     LOG_SOURCE = "hevy"
+    SESSION_TEMPLATES = copy.deepcopy(_SESSION_TEMPLATES_DEFAULT)
 
     # Per-user secrets: file > shell env (explicit isolation when run_all switches users)
     user_secrets = _read_dotenv(user_dir / "secrets.env")
