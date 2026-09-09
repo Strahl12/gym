@@ -70,6 +70,9 @@ Rules:
   day, activity day, Claude recommends rest), relay the reason and stop — only retry with
   force=true if they explicitly insist on training anyway. Tiny tweaks (one weight, one
   set) are quicker edited directly in the Hevy app.
+- You CAN set rest timers: set_rest_timer sets the rest-between-sets duration on today's
+  session — one exercise or all of them — which drives the in-app rest timer (and Hevy).
+  Use it when they want longer/shorter rests; confirm the value first.
 - You cannot log workouts or completed sets from this chat. If they want future
   programming to behave differently on a specific exercise, they can add an exercise
   note in Hevy starting with "NOTE:" — the morning engine reads those as directives.
@@ -269,6 +272,29 @@ CHAT_TOOLS = [
                                         "plain text."},
             },
             "required": ["exercise", "title", "info"],
+        },
+    },
+    {
+        "name": "set_rest_timer",
+        "description": "Set the rest-between-sets duration for today's prescribed session. This "
+                       "drives the in-app rest timer (it auto-counts down from this when they tick "
+                       "a set done) and, for Hevy users, the rest set in their Hevy routine. Use it "
+                       "when the athlete wants longer/shorter rests — for a specific lift or the "
+                       "whole session. Omit 'exercise' (or pass 'all') to set every exercise at "
+                       "once. Deterministic and instant — no engine re-run. Confirm the value with "
+                       "them first; then tell them it's live on the Workout tab.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "seconds": {"type": "integer",
+                            "description": "Rest between sets, in seconds (10–600). E.g. 180 for "
+                                           "heavy compounds, 60–90 for accessories."},
+                "exercise": {"type": "string",
+                             "description": "Which exercise in today's session to set, matched by "
+                                            "name (case-insensitive, partial ok). Omit or 'all' to "
+                                            "apply to every exercise."},
+            },
+            "required": ["seconds"],
         },
     },
     {
@@ -764,6 +790,8 @@ def _run_tool(user: str, name: str, args: dict) -> tuple[str, bool]:
         if name == "regenerate_routine":
             print(f"[chat] {user}: regenerating routine (force={bool(args.get('force'))})")
             return _regenerate_routine(user, bool(args.get("force")))
+        if name == "set_rest_timer":
+            return _set_rest_timer(user, args.get("exercise", ""), args.get("seconds"))
         if name == "get_weekly_review":
             print(f"[chat] {user}: pulling weekly review")
             with _CONFIG_LOCK:
@@ -1152,6 +1180,63 @@ def _swap_response(user: str):
                     "is_today": day == date.today().isoformat()})
 
 
+def _set_rest_timer(user: str, exercise: str, seconds: int) -> tuple[str, bool]:
+    """Coach tool: set rest_seconds on today's prescription — one exercise (matched
+    by name) or the whole session. Edits the persisted *_workout.json (the app
+    timer's source of truth) and re-posts to Hevy for Hevy users. Deterministic.
+    Returns (message, is_error)."""
+    try:
+        seconds = int(seconds)
+    except (TypeError, ValueError):
+        return "NO CHANGE — rest must be a whole number of seconds.", True
+    if not (10 <= seconds <= 600):
+        return "NO CHANGE — keep rest between 10 and 600 seconds.", True
+
+    logs = USERS_ROOT / user / "logs"
+    files = sorted(logs.glob("*_workout.json")) if logs.exists() else []
+    if not files:
+        return "NO CHANGE — there's no prescribed session to set a timer on.", True
+    latest = files[-1]
+    try:
+        w = json.loads(latest.read_text())
+    except Exception:
+        return "NO CHANGE — today's workout is unreadable.", True
+
+    exercises = w.get("exercises") or []
+    if not exercises:
+        return "NO CHANGE — today's session has no exercises.", True
+
+    target = (exercise or "").strip()
+    if not target or target.lower() == "all":
+        for ex in exercises:
+            ex["rest_seconds"] = seconds
+        scope = f"all {len(exercises)} exercises"
+    else:
+        tl = target.lower()
+        match = (next((e for e in exercises if (e.get("exercise_name") or "").lower() == tl), None)
+                 or next((e for e in exercises if tl in (e.get("exercise_name") or "").lower()), None))
+        if not match:
+            names = ", ".join(e.get("exercise_name", "?") for e in exercises)
+            return f"NO CHANGE — no exercise matching {target!r} today. Session has: {names}.", True
+        match["rest_seconds"] = seconds
+        scope = match["exercise_name"]
+
+    try:
+        with _CONFIG_LOCK:
+            config.activate(user)
+            if config.uses_hevy():
+                import hevy
+                hevy.post_routine(w)
+    except Exception as e:
+        print(f"[chat] {user}: rest-timer Hevy post failed: {e}")
+        return "NO CHANGE — couldn't update your Hevy routine; try again.", True
+
+    latest.write_text(json.dumps(w, indent=2))
+    print(f"[chat] {user}: set rest {seconds}s on {scope}")
+    return (f"Set rest to {seconds}s for {scope}. It's live on the Workout tab — the timer "
+            "counts down from it when they tick a set done."), False
+
+
 def _applog_response(user: str):
     """Persist a session the athlete logged in-app into the sets table
     (source='app'). The engine reads the sets table, not Hevy, so this is the
@@ -1170,6 +1255,23 @@ def _applog_response(user: str):
     print(f"[chat] {user}: logged {result['sets_written']} sets "
           f"({result['session_type']}) to {result['session_id']}")
     return jsonify({"ok": True, **result})
+
+
+def _exercises_response(user: str):
+    """Catalogue of known exercise names (+ a bodyweight flag) for the in-app
+    logger's add / swap pickers. Static library data, so no per-user state — the
+    client fetches it once and drives a <datalist> autocomplete off it."""
+    import exercise_lib
+    out = []
+    for ex in exercise_lib.all_exercises().values():
+        name = ex.get("canonical") or ex.get("hevy_title")
+        if not name:
+            continue
+        et = ex.get("exercise_type", "") or ""
+        bw = ("bodyweight" in et) or ex.get("equipment") == "none"
+        out.append({"name": name, "bodyweight": bw})
+    out.sort(key=lambda e: e["name"].lower())
+    return jsonify({"exercises": out})
 
 
 def _logged_response(user: str):
@@ -1355,6 +1457,14 @@ def chat_workout_logged(token: str):
     if user is None:
         abort(404)
     return _logged_response(user)
+
+
+@app.get("/u/<token>/workout/exercises")
+def chat_workout_exercises(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return _exercises_response(user)
 
 
 @app.get("/u/<token>/devinfo")
@@ -1583,6 +1693,14 @@ def app_workout_logged():
     if user is None:
         abort(401)
     return _logged_response(user)
+
+
+@app.get("/app/workout/exercises")
+def app_workout_exercises():
+    user = _session_user()
+    if user is None:
+        abort(401)
+    return _exercises_response(user)
 
 
 @app.get("/app/devinfo")

@@ -135,6 +135,49 @@
             border: 1px dashed var(--line); border-radius: 0; padding: .2rem .55rem;
             margin-top: .35rem; cursor: pointer; }
   .addset:hover { border-color: var(--cyan); }
+
+  /* Add / swap exercise controls in the logger */
+  .ex__ctl { font-family: var(--mono); font-size: .68rem; line-height: 1; color: var(--ink);
+             background: transparent; border: 1px solid var(--line); border-radius: 0;
+             padding: .2rem .45rem; cursor: pointer; }
+  .ex__ctl.first { margin-left: auto; }
+  .ex__ctl:hover { border-color: var(--cyan); color: var(--cyan); }
+  .ex__ctl.del:hover { border-color: var(--danger); color: var(--danger); }
+  .ex__pick { flex: 1 1 100%; font-family: var(--mono); font-size: .82rem; color: var(--ink);
+              background: var(--panel-2); border: 1px solid var(--cyan); border-radius: 0;
+              padding: .3rem .5rem; }
+  .ex__pick:focus { outline: none; box-shadow: inset 0 0 0 1px rgba(0,229,255,.35); }
+  .addex { display: block; width: 100%; font-family: var(--mono); font-size: .62rem;
+           letter-spacing: .1em; text-transform: uppercase; color: var(--cyan);
+           background: transparent; border: 1px dashed var(--line); border-radius: 0;
+           padding: .55rem; margin: .2rem 0 .3rem; cursor: pointer; }
+  .addex:hover { border-color: var(--cyan); }
+  .rest--btn { background: transparent; border: 1px solid var(--line); border-radius: 0;
+               cursor: pointer; padding: .22rem .5rem; }
+  .rest--btn:hover { color: var(--cyan); border-color: var(--cyan); }
+
+  /* Floating rest timer (shared by view + logging) */
+  .rtimer { position: fixed; left: 50%; transform: translateX(-50%);
+            bottom: calc(.8rem + env(safe-area-inset-bottom)); z-index: 40;
+            display: flex; align-items: center; gap: .55rem; background: var(--panel);
+            border: 1px solid var(--cyan); box-shadow: 0 0 16px rgba(0,229,255,.35);
+            padding: .45rem .6rem; }
+  .rtimer[hidden] { display: none; }
+  body.logging-active .rtimer { bottom: calc(4.2rem + env(safe-area-inset-bottom)); }
+  .rtimer__label { font-family: var(--mono); font-size: .55rem; letter-spacing: .1em;
+                   text-transform: uppercase; color: var(--dim); max-width: 8rem;
+                   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rtimer__time { font-family: var(--mono); font-size: 1.1rem; font-weight: 700; color: var(--cyan);
+                  text-shadow: 0 0 9px rgba(0,229,255,.55); min-width: 3.1rem; text-align: center; }
+  .rtimer.done { border-color: var(--lime); box-shadow: 0 0 20px rgba(182,255,0,.5);
+                 animation: rtflash .6s steps(1) infinite; }
+  .rtimer.done .rtimer__time { color: var(--lime); text-shadow: 0 0 12px rgba(182,255,0,.7); }
+  @keyframes rtflash { 50% { opacity: .5; } }
+  .rtimer__ctl { display: flex; gap: .3rem; }
+  .rtimer__btn { font-family: var(--mono); font-size: .62rem; color: var(--ink);
+                 background: transparent; border: 1px solid var(--line); border-radius: 0;
+                 padding: .22rem .4rem; cursor: pointer; }
+  .rtimer__btn:hover { border-color: var(--cyan); color: var(--cyan); }
   .logbar { position: sticky; bottom: 0; display: flex; gap: .6rem; margin-top: 1rem;
             padding: .8rem 0 calc(.4rem + env(safe-area-inset-bottom));
             background: linear-gradient(to top, var(--bg) 70%, transparent); }
@@ -192,6 +235,7 @@ const HIST_URL = CHAT_URL + "/workout/history";
 const SWAP_URL = CHAT_URL + "/workout/swap";
 const LOG_URL    = CHAT_URL + "/workout/log";
 const LOGGED_URL = CHAT_URL + "/workout/logged";
+const EXLIST_URL = CHAT_URL + "/workout/exercises";
 const CYAN = "#00e5ff", LIME = "#b6ff00";
 let swapping = false;   // one swap (Hevy PUT) at a time, across all cards
 let LOGGING = false;    // editable logging mode on the Workout tab
@@ -240,6 +284,105 @@ function groupSets(sets, ex) {
   return out;
 }
 
+// ── Rest timer ──────────────────────────────────────────────────────────────
+// One floating countdown, shared across view + logging. Auto-armed when a set is
+// ticked done in the logger; also startable by tapping any exercise's rest line.
+// Beeps + vibrates at zero. Pure client-side — no server state.
+let _ac = null;
+function beep() {
+  try {
+    _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
+    if (_ac.state === "suspended") _ac.resume();
+    const o = _ac.createOscillator(), g = _ac.createGain();
+    o.connect(g); g.connect(_ac.destination);
+    o.type = "sine"; o.frequency.value = 880;
+    g.gain.setValueAtTime(0.0001, _ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.3, _ac.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, _ac.currentTime + 0.5);
+    o.start(); o.stop(_ac.currentTime + 0.5);
+  } catch (e) {}
+}
+
+const RT = {
+  el: null, disp: null, label: null, pauseBtn: null,
+  remain: 0, total: 0, timer: null, last: 0, running: false,
+  ensure() {
+    if (this.el) return;
+    const bar = el("div", "rtimer"); bar.hidden = true;
+    this.label = el("div", "rtimer__label", "Rest");
+    this.disp  = el("div", "rtimer__time", "0:00");
+    const ctl  = el("div", "rtimer__ctl");
+    const mk = (t, fn) => { const b = el("button", "rtimer__btn", t); b.type = "button";
+                            b.addEventListener("click", fn); return b; };
+    ctl.appendChild(mk("−15", () => this.bump(-15)));
+    ctl.appendChild(mk("＋15", () => this.bump(15)));
+    this.pauseBtn = mk("❚❚", () => this.toggle());
+    ctl.appendChild(this.pauseBtn);
+    ctl.appendChild(mk("✕", () => this.stop()));
+    bar.appendChild(this.label); bar.appendChild(this.disp); bar.appendChild(ctl);
+    document.body.appendChild(bar);
+    this.el = bar;
+  },
+  fmt(s) { s = Math.max(0, Math.round(s));
+           return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); },
+  paint() {
+    this.disp.textContent = this.fmt(this.remain);
+    this.el.classList.toggle("done", this.remain <= 0);
+    this.pauseBtn.textContent = this.running ? "❚❚" : "▶";
+  },
+  start(seconds, name) {
+    this.ensure();
+    this.total = this.remain = Math.max(1, seconds || 90);
+    this.label.textContent = name ? "Rest · " + name : "Rest";
+    this.el.hidden = false;
+    this.tick();
+  },
+  tick() {
+    this.running = true;
+    clearInterval(this.timer);
+    this.last = Date.now();
+    this.timer = setInterval(() => {
+      const now = Date.now();
+      this.remain -= (now - this.last) / 1000; this.last = now;
+      if (this.remain <= 0) { this.remain = 0; this.fire(); }
+      this.paint();
+    }, 250);
+    this.paint();
+  },
+  fire() { clearInterval(this.timer); this.running = false;
+           try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {}
+           beep(); },
+  toggle() {
+    if (this.remain <= 0) { this.remain = this.total; this.tick(); return; }
+    if (this.running) { clearInterval(this.timer); this.running = false; this.paint(); }
+    else this.tick();
+  },
+  bump(d) { this.remain = Math.max(0, this.remain + d);
+            if (d > 0) this.el.classList.remove("done"); this.paint(); },
+  stop() { clearInterval(this.timer); this.running = false;
+           if (this.el) this.el.hidden = true; },
+};
+
+// ── Exercise catalogue (for add / swap pickers in the logger) ────────────────
+let CATALOG = null;   // { names: [...], bw: Set<name> }
+async function loadCatalog() {
+  if (CATALOG) return CATALOG;
+  try {
+    const r = await fetch(EXLIST_URL);
+    const d = await r.json();
+    const list = d.exercises || [];
+    CATALOG = { names: list.map(e => e.name),
+                bw: new Set(list.filter(e => e.bodyweight).map(e => e.name)) };
+  } catch (e) {
+    CATALOG = { names: [], bw: new Set() };
+  }
+  let dl = document.getElementById("exlist");
+  if (!dl) { dl = el("datalist"); dl.id = "exlist"; document.body.appendChild(dl); }
+  dl.textContent = "";
+  CATALOG.names.forEach(n => { const o = el("option"); o.value = n; dl.appendChild(o); });
+  return CATALOG;
+}
+
 function exerciseCard(ex, idx) {
   const card = el("div", "ex" + (ex.is_main_lift ? " main" : ""));
 
@@ -264,7 +407,12 @@ function exerciseCard(ex, idx) {
   }
   card.appendChild(sets);
 
-  if (ex.rest_seconds) card.appendChild(el("div", "rest", "Rest " + ex.rest_seconds + "s between sets"));
+  if (ex.rest_seconds) {
+    const rest = el("button", "rest rest--btn", "▸ Rest " + ex.rest_seconds + "s between sets");
+    rest.type = "button"; rest.title = "Start rest timer";
+    rest.addEventListener("click", () => RT.start(ex.rest_seconds, ex.exercise_name));
+    card.appendChild(rest);
+  }
   if (ex.notes) card.appendChild(el("div", "notes", ex.notes));
   if (ex.alternates && ex.alternates.length) {
     const alts = el("div", "alts");
@@ -490,6 +638,7 @@ function modelFromPrescription(w) {
   return (w.exercises || []).map(ex => ({
     exercise_name: ex.exercise_name,
     is_bodyweight: isBodyweight(ex),
+    rest_seconds: ex.rest_seconds || 90,
     sets: (ex.sets || []).map(s => ({
       weight: s.weight_kg || 0, reps: s.reps || 0, rpe: "",
       warmup: !!s.is_warmup, done: false,
@@ -516,7 +665,8 @@ function setRow(mset, mex, rerender) {
   const done = el("input", "done"); done.type = "checkbox"; done.checked = mset.done;
   done.title = "Mark set completed";
   done.addEventListener("change", () => { mset.done = done.checked; saveDraft();
-    row.classList.toggle("is-done", mset.done); });
+    row.classList.toggle("is-done", mset.done);
+    if (mset.done && !mset.warmup) RT.start(mex.rest_seconds || 90, mex.exercise_name); });
   row.appendChild(done);
 
   const w = el("input"); w.type = "number"; w.step = "2.5"; w.min = "0";
@@ -556,8 +706,39 @@ function setRow(mset, mex, rerender) {
 function loggerCard(mex, rerender) {
   const card = el("div", "ex logging");
   const head = el("div", "ex__head");
-  head.appendChild(el("span", "ex__name", mex.exercise_name));
-  card.appendChild(head);
+
+  if (mex._editing) {
+    // Inline exercise picker (add or swap). Commit on ✓ or Enter; blank keeps old.
+    const inp = el("input", "ex__pick");
+    inp.type = "text"; inp.setAttribute("list", "exlist");
+    inp.placeholder = "Search exercise…"; inp.value = mex.exercise_name || "";
+    const commit = () => {
+      const v = inp.value.trim();
+      if (v) { mex.exercise_name = v;
+               mex.is_bodyweight = !!(CATALOG && CATALOG.bw.has(v)); }
+      if (mex.exercise_name) { delete mex._editing; saveDraft(); rerender(); }
+    };
+    inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); commit(); } });
+    const ok = el("button", "ex__ctl first", "✓"); ok.type = "button"; ok.title = "Confirm";
+    ok.addEventListener("click", commit);
+    head.appendChild(inp); head.appendChild(ok);
+    card.appendChild(head);
+    setTimeout(() => inp.focus(), 0);
+  } else {
+    head.appendChild(el("span", "ex__name", mex.exercise_name));
+    const swap = el("button", "ex__ctl first", "⇄"); swap.type = "button";
+    swap.title = "Swap this exercise";
+    swap.addEventListener("click", () => { mex._editing = true; rerender(); });
+    const del = el("button", "ex__ctl del", "✕"); del.type = "button";
+    del.title = "Remove exercise";
+    del.addEventListener("click", () => {
+      if (mex.sets.some(s => s.done) &&
+          !confirm("Remove " + mex.exercise_name + " and its logged sets?")) return;
+      MODEL.splice(MODEL.indexOf(mex), 1); saveDraft(); rerender();
+    });
+    head.appendChild(swap); head.appendChild(del);
+    card.appendChild(head);
+  }
 
   mex.sets.forEach(mset => card.appendChild(setRow(mset, mex, rerender)));
 
@@ -575,6 +756,7 @@ function loggerCard(mex, rerender) {
 
 async function enterLogging(w) {
   LOGGING = true;
+  loadCatalog();                         // fire-and-forget; datalist ready shortly
   MODEL = modelFromPrescription(w);
   const draft = loadDraft();
   if (draft && draft.length) {
@@ -591,6 +773,7 @@ async function enterLogging(w) {
 }
 
 function renderLogger(w) {
+  document.body.classList.add("logging-active");
   const main = document.getElementById("main");
   main.textContent = "";
 
@@ -604,6 +787,14 @@ function renderLogger(w) {
 
   const rerender = () => renderLogger(w);
   MODEL.forEach(mex => main.appendChild(loggerCard(mex, rerender)));
+
+  const addEx = el("button", "addex", "＋ Add exercise"); addEx.type = "button";
+  addEx.addEventListener("click", () => {
+    MODEL.push({ exercise_name: "", is_bodyweight: false, rest_seconds: 90, _editing: true,
+                 sets: [{ weight: 0, reps: 0, rpe: "", warmup: false, done: false }] });
+    saveDraft(); rerender();
+  });
+  main.appendChild(addEx);
 
   const status = el("div", "logstatus");
   const bar = el("div", "logbar");
@@ -655,6 +846,7 @@ async function saveSession(w, saveBtn, status) {
 function render(d) {
   CURRENT = d;
   if (LOGGING && d && d.workout) { renderLogger(d.workout); return; }
+  document.body.classList.remove("logging-active");
   const main = document.getElementById("main");
   main.textContent = "";
 
