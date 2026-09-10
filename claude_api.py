@@ -184,8 +184,10 @@ based on the athlete's training history, goals, and current context.
 {goal}
 
 ## Progression rules — follow these strictly
-1. If a lift shows NO plateau: prescribe the same weight as last session, or +2.5kg if
-   the athlete hit the top of their rep range (all sets clean).
+1. If a lift shows NO plateau: repeat last session's working weight, and add one increment
+   (+2.5kg) when the last working set left capacity (RPE ≤7) OR all sets hit the top of the
+   rep range cleanly — whichever comes first. Do NOT force repping to the top of the range
+   before adding load if RPE shows there's room.
 2. If a lift shows a PLATEAU (e1RM flat for 4+ sessions): prescribe a RESET — drop
    working weight by 10%, rebuild with higher reps (6-8), note the reset in reasoning.
 3. For bodyweight exercises (Pull Up, Weighted Dip):
@@ -325,8 +327,9 @@ Weekend (90 min target — full rest, no compromise on recovery between sets):
   ]
 }
 
-All weights in kg. Include warm-up sets only for main barbell lifts (2 warm-up sets
-at 50% and 75% of working weight). Label them with "is_warmup": true.
+All weights in kg. Include warm-up sets only for main barbell lifts (2 warm-up sets):
+the FIRST is the empty bar (20 kg) to groove the movement — never scaled to the working
+weight — then one ramp set at ~75% of working weight. Label them with "is_warmup": true.
 
 ## Exercise metadata — use ONLY these exact values
 
@@ -354,7 +357,7 @@ def _build_system_prompt(block_directive: Optional[str] = None) -> str:
 
     MODE_DETAILS = {
         "strength":     "Rep range 4–6, load 80–90% 1RM. Prioritise adding weight over reps.",
-        "hypertrophy":  "Rep range 8–12, load 65–80% 1RM, rest 60–90s. Volume and time under tension.",
+        "hypertrophy":  "Rep range 8–12, load 65–80% 1RM, rest 60–90s. Volume and time under tension. Add load once the top working set leaves capacity (RPE ≤7) rather than always maxing reps first.",
         "powerlifting": "Rep range 1–5 on main lifts, load 85–95% 1RM, rest 4–6 min. Accessories 6–8 reps.",
     }
     mode_detail = MODE_DETAILS.get(config.TRAINING_MODE, "")
@@ -430,7 +433,7 @@ def _build_system_prompt(block_directive: Optional[str] = None) -> str:
         "bodyweight lifts: apply rules to added weight only; prescribe pure BW only if no added-weight history",
         f"HARD CAP: prescribed weight must NOT exceed previous session's working_weight + {pr['max_increase_kg']}kg. Reject any output that would jump further, even if the top set was higher.",
         f"absent >{pr['deload_threshold_days']} days: deload to {int(pr['deload_weight_pct']*100)}% of last weight, higher reps",
-        f"warm-up sets: {len(pr['warmup_pcts'])} sets at {' / '.join(str(int(p*100))+'%' for p in pr['warmup_pcts'])} of working weight (main barbell lifts only), label is_warmup: true",
+        f"warm-up sets (main barbell lifts only, label is_warmup: true): FIRST set is the empty bar ({config.BARBELL_WEIGHT_KG:g}kg) — a movement primer, do NOT scale it to the working weight; then {'a ramp set' if len(pr['warmup_pcts'])==1 else 'ramp sets'} at {' / '.join(str(int(p*100))+'%' for p in pr['warmup_pcts'])} of working weight",
     ]
 
     # ── Timing block ──────────────────────────────────────────────────────
@@ -483,7 +486,7 @@ Rest seconds per exercise type are provided in the user message — set rest_sec
 
 ## Training mode (rep range bias)
   strength:    main lifts at BOTTOM of rep range; accessories 4–8. Prioritise load over volume.
-  hypertrophy: main lifts work TOWARD the top of their rep range; accessories 8–12. Prioritise volume/TUT.
+  hypertrophy: add load when the last working set leaves capacity (RPE ≤7), else build reps toward the top; accessories 8–12. Prioritise volume/TUT.
   mixed:       main lifts at MIDDLE of rep range; accessories 6–10.
 The user message will state the active training mode — apply it to ALL rep prescriptions this session.
 Mode bias never overrides the Progression rules: reps climb across sessions (ONE AXIS rule),
@@ -537,7 +540,7 @@ Otherwise return the workout schema below.
       "exercise_type": "<valid value>",
       "rest_seconds": 180,
       "sets": [
-        {{"reps": 5, "weight_kg": 45.0, "is_warmup": true}},
+        {{"reps": 5, "weight_kg": 20.0, "is_warmup": true}},
         {{"reps": 5, "weight_kg": 67.5, "is_warmup": true}},
         {{"reps": 5, "weight_kg": 90.0}},
         {{"reps": 5, "weight_kg": 90.0}}
@@ -685,8 +688,9 @@ def format_athlete_context(context: dict, all_lifts: bool = False) -> str:
     tm = getattr(config, "TRAINING_MODE", "mixed")
     tm_guide = {
         "strength":    "Use BOTTOM of each main lift's rep range. Accessories 4-8 reps. Load priority.",
-        "hypertrophy": "Work toward the TOP of each main lift's rep range — climbing across sessions, "
-                       "never jumping there in one prescription. Accessories 8-12 reps. Volume priority.",
+        "hypertrophy": "Add load when the last working set leaves capacity (RPE ≤7), even before "
+                       "topping the rep range; otherwise build reps toward the top across sessions "
+                       "(never jump there in one prescription). Accessories 8-12 reps. Volume priority.",
         "mixed":       "Use MIDDLE of each main lift's rep range (5-8). Accessories 6-10 reps.",
     }.get(tm, "Use middle of each main lift's rep range.")
     lines.append(f"\n## Training mode: {tm}\n  {tm_guide}")
@@ -903,13 +907,15 @@ def format_athlete_context(context: dict, all_lifts: bool = False) -> str:
 
     recent_ex = context.get("recently_trained_exercises", {}) or {}
     if recent_ex:
-        window = getattr(config, "MIN_ACCESSORY_REPEAT_DAYS", 3)
-        fresh = sorted((n for n, d in recent_ex.items() if d <= window),
-                       key=lambda n: recent_ex[n])
+        _meta = _canonical_meta()
+        fresh = sorted(
+            (n for n, d in recent_ex.items()
+             if d <= config.repeat_window_for(n, _meta.get(n, {}).get("muscle", ""))),
+            key=lambda n: recent_ex[n])
         if fresh:
             lines.append("\n## Recently trained — do NOT re-prescribe these accessories")
-            lines.append(f"  Trained within the last {window} days; choose different accessories today "
-                         "(main/FIXED lifts are exempt):")
+            lines.append("  Logged recently (within each muscle's repeat window — calves/abs repeat "
+                         "sooner); choose different accessories today (main/FIXED lifts are exempt):")
             lines.append("  " + ", ".join(f"{n} ({recent_ex[n]}d ago)" for n in fresh))
 
     last_st = context.get("last_session_type")
@@ -998,17 +1004,19 @@ def _dedupe_recent(exercises: list[dict], context: dict) -> list[dict]:
     recent = context.get("recently_trained_exercises", {}) or {}
     if not recent:
         return exercises
-    window     = getattr(config, "MIN_ACCESSORY_REPEAT_DAYS", 3)
     priorities = context.get("exercise_priorities", []) or []
     meta       = _canonical_meta()
     from hevy import _resolve_template_id
     chosen = {ex.get("exercise_name", "") for ex in exercises}
 
+    def _win(nm: str) -> int:                # per-muscle / frequent-exercise window
+        return config.repeat_window_for(nm, meta.get(nm, {}).get("muscle", ""))
+
     out: list[dict] = []
     for ex in exercises:
         name = ex.get("exercise_name", "")
         d    = recent.get(name)
-        if ex.get("is_main_lift") or d is None or d > window:
+        if ex.get("is_main_lift") or d is None or d > _win(name):
             out.append(ex)
             continue
 
@@ -1019,7 +1027,7 @@ def _dedupe_recent(exercises: list[dict], context: dict) -> list[dict]:
             if cand.get("is_main_lift") or cn in chosen:
                 continue
             rd = recent.get(cn)
-            if rd is not None and rd <= window:
+            if rd is not None and rd <= _win(cn):
                 continue
             if pattern and cand.get("movement_pattern") and cand["movement_pattern"] != pattern:
                 continue

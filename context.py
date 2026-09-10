@@ -200,9 +200,13 @@ def last_session_exercises() -> list[str]:
 
 def recently_trained_exercises(days: int = 4) -> dict[str, int]:
     """
-    Exercises logged or prescribed within the last `days` days, mapped to how
-    many days ago they most recently occurred. Feeds the deterministic no-repeat
-    guard so the same accessory can't land on back-to-back sessions.
+    Exercises actually LOGGED within the last `days` days, mapped to how many
+    days ago they most recently occurred. Feeds the deterministic no-repeat guard
+    so the same accessory can't land on back-to-back sessions.
+
+    Recency is keyed on logged sets only — a *prescribed* exercise the athlete
+    skipped (or replaced) must not count as trained, or it gets wrongly gated out
+    of future sessions.
     """
     today  = date.today()
     cutoff = (today - timedelta(days=days)).isoformat()
@@ -217,20 +221,6 @@ def recently_trained_exercises(days: int = 4) -> dict[str, int]:
         for r in rows:
             if r["exercise"] and r["d"]:
                 out[r["exercise"]] = (today - date.fromisoformat(r["d"])).days
-        try:
-            prows = con.execute("""
-                SELECT json_extract(value, '$.exercise_name') AS name, MAX(date) AS d
-                FROM prescribed_sessions, json_each(exercises_json)
-                WHERE date >= ?
-                GROUP BY name
-            """, (cutoff,)).fetchall()
-            for r in prows:
-                if not r["name"] or not r["d"]:
-                    continue
-                dd = (today - date.fromisoformat(r["d"])).days
-                out[r["name"]] = min(out.get(r["name"], dd), dd)
-        except sqlite3.OperationalError:
-            pass   # prescribed_sessions may not exist on a fresh DB
     finally:
         con.close()
     return out
@@ -527,23 +517,15 @@ def exercise_priorities(session_type: str) -> list[dict]:
             pass
 
     def _days_since(name: str) -> Optional[int]:
+        # Recency for priority is keyed on logged sets only — a prescribed-but-
+        # skipped exercise must not read as "recently trained" and sink down the
+        # roster, or movements the athlete never actually did get gated out.
         last_sets = con.execute("""
             SELECT MAX(date) FROM sets WHERE exercise = ? AND is_warmup != 1
         """, (name,)).fetchone()[0]
-        try:
-            last_prescribed = con.execute("""
-                SELECT MAX(date) FROM prescribed_sessions
-                WHERE EXISTS (
-                    SELECT 1 FROM json_each(exercises_json)
-                    WHERE json_extract(value, '$.exercise_name') = ?
-                )
-            """, (name,)).fetchone()[0]
-        except sqlite3.OperationalError:
-            last_prescribed = None
-        candidates = [d for d in [last_sets, last_prescribed] if d]
-        if not candidates:
+        if not last_sets:
             return None
-        return (today - date.fromisoformat(max(candidates))).days
+        return (today - date.fromisoformat(last_sets)).days
 
     # Build movement_pattern lookup from exercises.json
     from exercise_lib import all_exercises as _all_exercises

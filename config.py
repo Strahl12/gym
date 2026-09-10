@@ -123,6 +123,10 @@ DEFAULT_FOCUS_LIFTS: dict[str, str] = {}
 # Exercises that should never be prescribed for this user
 EXCLUDED_EXERCISES: list[str] = []
 
+# Exercises the athlete wants to train often — exempt from the multi-day accessory
+# no-repeat gate (treated as a 1-day window). Set per-user in profile.py.
+FREQUENT_EXERCISES: list[str] = []
+
 # Skill / practice work — optional list of duration-type drills
 SKILL_WORK: list[str] = []
 
@@ -161,6 +165,19 @@ MIN_RECOVERY_DAYS = 3
 # Enforced deterministically post-generation (see claude_api._dedupe_recent).
 MIN_ACCESSORY_REPEAT_DAYS = 3
 
+# Per-muscle overrides for the no-repeat window above. Fast-recovering muscles
+# that tolerate high training frequency may repeat sooner than the default.
+MUSCLE_REPEAT_DAYS = {"calves": 1, "abs": 1, "forearms": 1}
+
+
+def repeat_window_for(name: str, muscle: str = "") -> int:
+    """No-repeat window (days) for one accessory. Athlete-flagged frequent
+    exercises and fast-recovering muscles (calves/abs) repeat sooner than the
+    MIN_ACCESSORY_REPEAT_DAYS default."""
+    if name in FREQUENT_EXERCISES:
+        return 1
+    return MUSCLE_REPEAT_DAYS.get((muscle or "").lower(), MIN_ACCESSORY_REPEAT_DAYS)
+
 # Maximum consecutive training days before a mandatory rest day
 MAX_CONSECUTIVE_DAYS = 5
 
@@ -183,8 +200,14 @@ PROGRESSION = {
     "plateau_reps":          (6, 8),
     "deload_threshold_days": 14,
     "deload_weight_pct":     0.80,
-    "warmup_pcts":           [0.50, 0.75],
+    # Ramp warm-up set(s) AFTER the empty-bar primer, as a fraction of working
+    # weight. The first barbell warm-up is always the bare bar (BARBELL_WEIGHT_KG)
+    # to groove the movement — it must never scale with the working weight.
+    "warmup_pcts":           [0.75],
 }
+
+# Empty Olympic barbell weight (kg) — the first warm-up set on a barbell main lift.
+BARBELL_WEIGHT_KG = 20.0
 
 # Session slot templates
 SESSION_TEMPLATES: dict[str, list[dict]] = {
@@ -328,6 +351,7 @@ def activate(user_name: str) -> None:
     global SESSION_LIFTS, SESSION_TEMPLATES_EFFECTIVE, DEDICATED_MUSCLE_DAYS
     global SESSION_TEMPLATES
     global LOG_SOURCE
+    global FREQUENT_EXERCISES
 
     user_dir = _USERS_ROOT / user_name
     if not user_dir.is_dir():
@@ -352,6 +376,7 @@ def activate(user_name: str) -> None:
     # whose profile.py omits it. (The profile overlay below re-sets it if present.)
     LOG_SOURCE = "hevy"
     SESSION_TEMPLATES = copy.deepcopy(_SESSION_TEMPLATES_DEFAULT)
+    FREQUENT_EXERCISES = []
 
     # Per-user secrets: file > shell env (explicit isolation when run_all switches users)
     user_secrets = _read_dotenv(user_dir / "secrets.env")

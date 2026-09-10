@@ -143,6 +143,62 @@ def exercise_history(user: str, exercise: str) -> dict:
     }
 
 
+def exercise_readiness(user: str, exercise: str, top_reps: int | None = None,
+                       is_bodyweight: bool = False,
+                       plateau_sessions: int = 4) -> dict:
+    """Whether the athlete looks ready to add load on `exercise`, from their most
+    recent logged working sets (reps + RPE) and e1RM trend. Mirrors the engine's
+    RPE-driven progression so the badge agrees with what the coach would prescribe.
+
+    Returns {state, label, detail}; state ∈ {ready, build, hold, ease, new}.
+    """
+    con = _con(user)
+    try:
+        last_date = con.execute(
+            "SELECT MAX(date) FROM sets WHERE exercise = ? AND is_warmup = 0 AND reps > 0",
+            (exercise,)).fetchone()[0]
+        if not last_date:
+            return {"state": "new", "label": "No history",
+                    "detail": "Log a session and this fills in."}
+        rows = con.execute(
+            "SELECT reps, rpe, weight_kg FROM sets "
+            "WHERE exercise = ? AND is_warmup = 0 AND reps > 0 AND date = ? "
+            "ORDER BY set_number", (exercise, last_date)).fetchall()
+    finally:
+        con.close()
+
+    reps = [r["reps"] for r in rows if r["reps"]]
+    if not reps:
+        return {"state": "new", "label": "No history",
+                "detail": "Log a session and this fills in."}
+    rpes = [r["rpe"] for r in rows if r["rpe"] is not None]
+    last_rpe = rpes[-1] if rpes else None
+    min_reps = min(reps)
+
+    # Plateau: e1RM no better than `plateau_sessions` sessions ago.
+    series = exercise_history(user, exercise).get("series", [])
+    plateaued = (len(series) >= plateau_sessions
+                 and series[-1]["e1rm"] <= series[-plateau_sessions]["e1rm"])
+
+    hit_top = top_reps is not None and min_reps >= top_reps
+    inc = "a rep" if is_bodyweight else "2.5 kg"
+
+    if plateaued:
+        return {"state": "hold", "label": "Plateau — hold / deload",
+                "detail": f"e1RM flat over the last {plateau_sessions} sessions."}
+    if last_rpe is not None and last_rpe >= 9.5:
+        return {"state": "ease", "label": "Ease off",
+                "detail": f"Last set RPE {last_rpe:g} — near failure. Hold the load."}
+    if (last_rpe is not None and last_rpe <= 7) or (hit_top and (last_rpe is None or last_rpe <= 8)):
+        why = (f"last set RPE {last_rpe:g}" if last_rpe is not None and last_rpe <= 7
+               else f"all sets hit {top_reps} reps")
+        return {"state": "ready", "label": f"Ready — add {inc}",
+                "detail": f"Capacity left ({why})."}
+    return {"state": "build", "label": "Build reps",
+            "detail": (f"Get all sets to {top_reps} reps before adding load."
+                       if top_reps else "Add reps before adding load.")}
+
+
 def calendar_days(user: str, days: int = 365) -> dict[str, str]:
     """{date: session_type} for every trained day in the window (unknown dropped).
 

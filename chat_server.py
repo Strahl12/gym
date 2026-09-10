@@ -988,6 +988,10 @@ def _workout_response(user: str):
             import plan
             today_type = w.get("session_type") if is_today else None
             upcoming = plan.project_sessions(5, today_type=today_type)
+            try:
+                _attach_readiness(user, w)
+            except Exception as e:
+                print(f"[chat] {user}: readiness attach failed: {e}")
     except Exception as e:
         print(f"[chat] {user}: session projection failed: {e}")
 
@@ -995,6 +999,24 @@ def _workout_response(user: str):
                     "is_today": is_today,
                     "upcoming": upcoming,
                     "uses_hevy": _user_uses_hevy(user)})
+
+
+def _attach_readiness(user: str, w: dict) -> None:
+    """Tag each prescribed exercise with a 'readiness' verdict (add load / build
+    reps / hold), computed from logged history so the Workout tab can show whether
+    the athlete looks ready to move up. Mutates the in-memory workout only."""
+    import stats
+    plateau = getattr(config, "PLATEAU_SESSIONS", 4)
+    for ex in w.get("exercises") or []:
+        name = (ex.get("exercise_name") or "").strip()
+        if not name:
+            continue
+        working  = [s for s in ex.get("sets", []) if not s.get("is_warmup")]
+        top_reps = max((int(s.get("reps") or 0) for s in working), default=None)
+        et = ex.get("exercise_type", "") or ""
+        is_bw = ("bodyweight" in et) or ex.get("equipment_category") == "none"
+        ex["readiness"] = stats.exercise_readiness(
+            user, name, top_reps=top_reps, is_bodyweight=is_bw, plateau_sessions=plateau)
 
 
 def _exercise_history_response(user: str):
@@ -1254,6 +1276,25 @@ def _applog_response(user: str):
         return jsonify({"error": "couldn't save your workout — try again"}), 500
     print(f"[chat] {user}: logged {result['sets_written']} sets "
           f"({result['session_type']}) to {result['session_id']}")
+
+    # Persist any per-exercise workout notes to the athlete's Log (visible to them
+    # and the coach). Idempotent per (exercise, day): re-saving edits, not piles up.
+    notes = [((e.get("exercise_name") or "").strip(), (e.get("note") or "").strip())
+             for e in exercises if isinstance(e, dict)]
+    notes = [(n, t) for n, t in notes if n and t]
+    if notes:
+        day = result["date"]
+        con = _db(user)
+        try:
+            for n, t in notes:
+                con.execute("DELETE FROM exercise_log WHERE exercise = ? AND title = ? "
+                            "AND substr(ts, 1, 10) = ?", (n, "Workout note", day))
+                _add_log_entry(con, n, "Workout note", t)
+        except Exception as e:
+            print(f"[chat] {user}: workout-note save failed: {e}")
+        finally:
+            con.close()
+
     return jsonify({"ok": True, **result})
 
 

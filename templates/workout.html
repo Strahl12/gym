@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Today's Workout — {{ user }}</title>
 <link rel="stylesheet" href="/static/tdr.css?v=8">
 <style>
@@ -61,6 +61,15 @@
   .ex__flag { font-family: var(--mono); font-size: .56rem;
               letter-spacing: .12em; text-transform: uppercase; color: var(--lime);
               text-shadow: 0 0 8px rgba(182,255,0,.5); }
+  .ready { font-family: var(--mono); font-size: .55rem; letter-spacing: .08em;
+           text-transform: uppercase; padding: .1rem .42rem; border: 1px solid;
+           white-space: nowrap; }
+  .ready--ready { color: var(--lime); border-color: var(--lime); text-shadow: 0 0 7px rgba(182,255,0,.5); }
+  .ready--build { color: var(--cyan); border-color: var(--cyan); }
+  .ready--hold  { color: #ffb300; border-color: #ffb300; }
+  .ready--ease  { color: var(--danger); border-color: var(--danger); }
+  .readnote { font-family: var(--mono); font-size: .6rem; letter-spacing: .03em;
+              color: var(--dim); margin-top: .45rem; line-height: 1.4; }
   .hist-btn { margin-left: auto; font-family: var(--mono); font-size: .56rem;
               letter-spacing: .1em; text-transform: uppercase; color: var(--ink);
               background: transparent; border: 1px solid var(--line); border-radius: 0;
@@ -116,10 +125,11 @@
   .ex.logging { border-left-color: var(--magenta); box-shadow: -3px 0 12px rgba(255,0,102,.14); }
   .setrow { display: flex; align-items: center; gap: .4rem; margin: .35rem 0;
             font-family: var(--mono); font-size: .74rem; }
-  .setrow input[type=number] { width: 3.4rem; font-family: var(--mono); font-size: .8rem;
+  /* 16px min font on inputs stops iOS Safari auto-zooming on focus. */
+  .setrow input[type=number] { width: 3.4rem; font-family: var(--mono); font-size: 16px;
             text-align: center; color: var(--ink); background: var(--panel-2);
             border: 1px solid var(--line); border-radius: 0; padding: .22rem .2rem; }
-  .setrow input.rpe { width: 2.8rem; }
+  .setrow input.rpe { width: 3rem; }
   .setrow input[type=number]:focus { outline: none; border-color: var(--cyan);
             box-shadow: inset 0 0 0 1px rgba(0,229,255,.3); }
   .setrow .x { color: var(--dim); }
@@ -143,7 +153,7 @@
   .ex__ctl.first { margin-left: auto; }
   .ex__ctl:hover { border-color: var(--cyan); color: var(--cyan); }
   .ex__ctl.del:hover { border-color: var(--danger); color: var(--danger); }
-  .ex__pick { flex: 1 1 100%; font-family: var(--mono); font-size: .82rem; color: var(--ink);
+  .ex__pick { flex: 1 1 100%; font-family: var(--mono); font-size: 16px; color: var(--ink);
               background: var(--panel-2); border: 1px solid var(--cyan); border-radius: 0;
               padding: .3rem .5rem; }
   .ex__pick:focus { outline: none; box-shadow: inset 0 0 0 1px rgba(0,229,255,.35); }
@@ -156,28 +166,70 @@
                cursor: pointer; padding: .22rem .5rem; }
   .rest--btn:hover { color: var(--cyan); border-color: var(--cyan); }
 
-  /* Floating rest timer (shared by view + logging) */
-  .rtimer { position: fixed; left: 50%; transform: translateX(-50%);
-            bottom: calc(.8rem + env(safe-area-inset-bottom)); z-index: 40;
-            display: flex; align-items: center; gap: .55rem; background: var(--panel);
-            border: 1px solid var(--cyan); box-shadow: 0 0 16px rgba(0,229,255,.35);
-            padding: .45rem .6rem; }
+  /* Rest timer — fixed neon bar pinned to the right edge, so the number keyboard
+     (which covers the bottom) never hides it. */
+  .rtimer { position: fixed; right: .4rem; top: 50%; transform: translateY(-50%);
+            z-index: 60; display: flex; flex-direction: column; align-items: center; gap: .3rem;
+            background: var(--panel); border: 1px solid var(--cyan);
+            box-shadow: 0 0 16px rgba(0,229,255,.35); padding: .5rem .35rem; }
   .rtimer[hidden] { display: none; }
-  body.logging-active .rtimer { bottom: calc(4.2rem + env(safe-area-inset-bottom)); }
-  .rtimer__label { font-family: var(--mono); font-size: .55rem; letter-spacing: .1em;
-                   text-transform: uppercase; color: var(--dim); max-width: 8rem;
-                   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .rtimer__time { font-family: var(--mono); font-size: 1.1rem; font-weight: 700; color: var(--cyan);
-                  text-shadow: 0 0 9px rgba(0,229,255,.55); min-width: 3.1rem; text-align: center; }
+  .rtimer__label { font-family: var(--mono); font-size: .5rem; letter-spacing: .06em;
+                   text-transform: uppercase; color: var(--dim); max-width: 3.4rem;
+                   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
+  .rtimer__time { font-family: var(--mono); font-size: 1.15rem; font-weight: 700; color: var(--cyan);
+                  text-shadow: 0 0 9px rgba(0,229,255,.55); min-width: 2.8rem; text-align: center; }
   .rtimer.done { border-color: var(--lime); box-shadow: 0 0 20px rgba(182,255,0,.5);
                  animation: rtflash .6s steps(1) infinite; }
   .rtimer.done .rtimer__time { color: var(--lime); text-shadow: 0 0 12px rgba(182,255,0,.7); }
   @keyframes rtflash { 50% { opacity: .5; } }
-  .rtimer__ctl { display: flex; gap: .3rem; }
+  .rtimer__ctl { display: flex; flex-direction: column; gap: .28rem; }
   .rtimer__btn { font-family: var(--mono); font-size: .62rem; color: var(--ink);
                  background: transparent; border: 1px solid var(--line); border-radius: 0;
-                 padding: .22rem .4rem; cursor: pointer; }
+                 padding: .2rem .35rem; cursor: pointer; min-width: 2.2rem; }
   .rtimer__btn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+  /* Live total-session time in the logging banner */
+  .banner__clock { font-family: var(--mono); font-size: .74rem; font-weight: 700; letter-spacing: .06em;
+                   color: var(--lime); text-shadow: 0 0 8px rgba(182,255,0,.5); margin-top: .4rem; }
+  .banner__clock b { color: var(--dim); font-weight: 400; font-size: .58rem;
+                     letter-spacing: .1em; text-transform: uppercase; }
+
+  /* Per-exercise workout note in the logger */
+  .exnote { display: block; width: 100%; box-sizing: border-box; font-family: var(--mono);
+            font-size: 16px; color: var(--ink); background: var(--panel-2);
+            border: 1px solid var(--line); border-radius: 0; padding: .28rem .45rem;
+            margin-top: .45rem; }
+  .exnote:focus { outline: none; border-color: var(--cyan); box-shadow: inset 0 0 0 1px rgba(0,229,255,.3); }
+  .exnote::placeholder { color: var(--dim); }
+
+  /* ── Neon boost while logging ─────────────────────────────────────────── */
+  body.logging-active { background:
+      radial-gradient(circle at 50% -12%, rgba(255,0,102,.10), transparent 55%), var(--bg); }
+  body.logging-active .banner { border-color: var(--magenta);
+      box-shadow: 0 0 18px rgba(255,0,102,.35), inset 0 0 22px rgba(255,0,102,.06); }
+  body.logging-active .banner__title { color: var(--magenta); text-shadow: 0 0 10px rgba(255,0,102,.6); }
+  body.logging-active .ex.logging { border: 1px solid var(--magenta);
+      box-shadow: 0 0 14px rgba(255,0,102,.28), inset 0 0 14px rgba(255,0,102,.05); }
+  body.logging-active .ex.logging .ex__name { color: var(--magenta); text-shadow: 0 0 9px rgba(255,0,102,.6); }
+  body.logging-active .setrow input[type=number] { color: var(--cyan);
+      border-color: rgba(0,229,255,.4); box-shadow: inset 0 0 8px rgba(0,229,255,.09);
+      text-shadow: 0 0 6px rgba(0,229,255,.4); }
+  body.logging-active .setrow input[type=number]:focus { border-color: var(--cyan);
+      box-shadow: inset 0 0 0 1px var(--cyan), 0 0 12px rgba(0,229,255,.5); }
+  /* Completed sets glow lime (positive) instead of fading out. */
+  body.logging-active .setrow.is-done { opacity: 1; }
+  body.logging-active .setrow.is-done input[type=number] { color: var(--lime);
+      border-color: rgba(182,255,0,.5); text-shadow: 0 0 7px rgba(182,255,0,.5);
+      box-shadow: inset 0 0 8px rgba(182,255,0,.12); }
+  body.logging-active .addex, body.logging-active .addset { color: var(--cyan);
+      border-color: rgba(0,229,255,.5); box-shadow: 0 0 8px rgba(0,229,255,.15); }
+  body.logging-active .exnote { border-color: rgba(255,0,102,.4);
+      box-shadow: inset 0 0 8px rgba(255,0,102,.06); }
+  body.logging-active .exnote:focus { border-color: var(--magenta);
+      box-shadow: inset 0 0 0 1px var(--magenta), 0 0 10px rgba(255,0,102,.4); }
+  body.logging-active .logbar .save { box-shadow: 0 0 20px rgba(182,255,0,.6);
+      animation: neonPulse 1.8s ease-in-out infinite; }
+  @keyframes neonPulse { 50% { box-shadow: 0 0 30px rgba(182,255,0,.9); } }
   .logbar { position: sticky; bottom: 0; display: flex; gap: .6rem; margin-top: 1rem;
             padding: .8rem 0 calc(.4rem + env(safe-area-inset-bottom));
             background: linear-gradient(to top, var(--bg) 70%, transparent); }
@@ -289,18 +341,67 @@ function groupSets(sets, ex) {
 // ticked done in the logger; also startable by tapping any exercise's rest line.
 // Beeps + vibrates at zero. Pure client-side — no server state.
 let _ac = null;
-function beep() {
+function _audio() {                    // lazily create + unlock (needs a user gesture)
   try {
     _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
     if (_ac.state === "suspended") _ac.resume();
-    const o = _ac.createOscillator(), g = _ac.createGain();
-    o.connect(g); g.connect(_ac.destination);
-    o.type = "sine"; o.frequency.value = 880;
-    g.gain.setValueAtTime(0.0001, _ac.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.3, _ac.currentTime + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, _ac.currentTime + 0.5);
-    o.start(); o.stop(_ac.currentTime + 0.5);
-  } catch (e) {}
+    return _ac;
+  } catch (e) { return null; }
+}
+const SOUNDS = ["beep", "screamo", "off"];        // cycle order
+const SOUND_ICON = { beep: "🔊", screamo: "🔥", off: "🔇" };
+function soundMode() { try { return localStorage.getItem("rt:sound") || "beep"; } catch (e) { return "beep"; } }
+function setSoundMode(m) { try { localStorage.setItem("rt:sound", m); } catch (e) {} }
+
+// Timer alarm. "beep" = rising sine blips; "screamo" = harsh detuned + noise burst.
+// iOS suspends the AudioContext between reps / when the screen dims, so resume it
+// first and emit only once it's actually running (resume is async).
+function playAlarm(mode) {
+  mode = mode || soundMode();
+  if (mode === "off") return;
+  const ac = _audio();
+  if (!ac) return;
+  if (ac.state === "suspended") { ac.resume().then(() => _emit(mode, ac)).catch(() => {}); }
+  else _emit(mode, ac);
+}
+function _emit(mode, ac) {
+  const t0 = ac.currentTime;
+  if (mode === "screamo") {
+    const dur = 1.1;
+    const master = ac.createGain();
+    master.gain.setValueAtTime(0.0001, t0);
+    master.gain.exponentialRampToValueAtTime(0.5, t0 + 0.03);
+    master.gain.setValueAtTime(0.5, t0 + dur - 0.15);
+    master.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    master.connect(ac.destination);
+    const dist = ac.createWaveShaper();
+    const curve = new Float32Array(256);
+    for (let i = 0; i < 256; i++) { const x = i / 128 - 1; curve[i] = Math.tanh(x * 4); }
+    dist.curve = curve; dist.connect(master);
+    [110, 138, 220, 277].forEach(f => {
+      const o = ac.createOscillator(); o.type = "sawtooth";
+      o.frequency.setValueAtTime(f, t0);
+      o.frequency.exponentialRampToValueAtTime(f * 1.5, t0 + dur);
+      const g = ac.createGain(); g.gain.value = 0.25;
+      o.connect(g); g.connect(dist); o.start(t0); o.stop(t0 + dur);
+    });
+    const nb = ac.createBuffer(1, Math.floor(ac.sampleRate * dur), ac.sampleRate);
+    const nd = nb.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = (Math.random() * 2 - 1) * 0.4;
+    const ns = ac.createBufferSource(); ns.buffer = nb;
+    const ng = ac.createGain(); ng.gain.value = 0.15;
+    ns.connect(ng); ng.connect(dist); ns.start(t0); ns.stop(t0 + dur);
+  } else {
+    [660, 880, 1180].forEach((f, i) => {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = "sine"; o.frequency.value = f;
+      const s = t0 + i * 0.16;
+      g.gain.setValueAtTime(0.0001, s);
+      g.gain.exponentialRampToValueAtTime(0.3, s + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, s + 0.15);
+      o.connect(g); g.connect(ac.destination); o.start(s); o.stop(s + 0.16);
+    });
+  }
 }
 
 const RT = {
@@ -314,6 +415,9 @@ const RT = {
     const ctl  = el("div", "rtimer__ctl");
     const mk = (t, fn) => { const b = el("button", "rtimer__btn", t); b.type = "button";
                             b.addEventListener("click", fn); return b; };
+    this.soundBtn = mk(SOUND_ICON[soundMode()] || "🔊", () => this.cycleSound());
+    this.soundBtn.title = "Alarm sound: " + soundMode() + " (tap to change)";
+    ctl.appendChild(this.soundBtn);
     ctl.appendChild(mk("−15", () => this.bump(-15)));
     ctl.appendChild(mk("＋15", () => this.bump(15)));
     this.pauseBtn = mk("❚❚", () => this.toggle());
@@ -330,8 +434,16 @@ const RT = {
     this.el.classList.toggle("done", this.remain <= 0);
     this.pauseBtn.textContent = this.running ? "❚❚" : "▶";
   },
+  cycleSound() {
+    const next = SOUNDS[(SOUNDS.indexOf(soundMode()) + 1) % SOUNDS.length];
+    setSoundMode(next);
+    this.soundBtn.textContent = SOUND_ICON[next];
+    this.soundBtn.title = "Alarm sound: " + next + " (tap to change)";
+    playAlarm(next);                 // preview + unlocks audio on this gesture
+  },
   start(seconds, name) {
     this.ensure();
+    _audio();                        // prime/unlock while we're in the tap that started it
     this.total = this.remain = Math.max(1, seconds || 90);
     this.label.textContent = name ? "Rest · " + name : "Rest";
     this.el.hidden = false;
@@ -351,7 +463,7 @@ const RT = {
   },
   fire() { clearInterval(this.timer); this.running = false;
            try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {}
-           beep(); },
+           playAlarm(); },
   toggle() {
     if (this.remain <= 0) { this.remain = this.total; this.tick(); return; }
     if (this.running) { clearInterval(this.timer); this.running = false; this.paint(); }
@@ -391,6 +503,11 @@ function exerciseCard(ex, idx) {
   if (ex.muscle_group) head.appendChild(el("span", "ex__tag", ex.muscle_group.replace(/_/g, " ")));
   if (ex.equipment_category) head.appendChild(el("span", "ex__tag", ex.equipment_category));
   if (ex.is_main_lift) head.appendChild(el("span", "ex__flag", "★ Main lift"));
+  if (ex.readiness && ex.readiness.state && ex.readiness.state !== "new") {
+    const chip = el("span", "ready ready--" + ex.readiness.state, ex.readiness.label);
+    chip.title = ex.readiness.detail || "";
+    head.appendChild(chip);
+  }
 
   const histBtn = el("button", "hist-btn", "◷ History");
   histBtn.type = "button";
@@ -406,6 +523,10 @@ function exerciseCard(ex, idx) {
     sets.appendChild(chip);
   }
   card.appendChild(sets);
+
+  if (ex.readiness && ex.readiness.state && ex.readiness.state !== "new" && ex.readiness.detail) {
+    card.appendChild(el("div", "readnote", ex.readiness.detail));
+  }
 
   if (ex.rest_seconds) {
     const rest = el("button", "rest rest--btn", "▸ Rest " + ex.rest_seconds + "s between sets");
@@ -633,6 +754,44 @@ function loadDraft() {
   catch (e) { return null; }
 }
 
+// ── Total session clock (counts up from first entry into logging) ────────────
+let _clockTimer = null;
+function startKey() {
+  const d = (CURRENT && CURRENT.date) || new Date().toISOString().slice(0, 10);
+  return "logstart:" + USER + ":" + d;
+}
+function sessionStart() {
+  let t = 0;
+  try { t = parseInt(localStorage.getItem(startKey()) || "0", 10); } catch (e) {}
+  if (!t) { t = Date.now(); try { localStorage.setItem(startKey(), String(t)); } catch (e) {} }
+  return t;
+}
+function clearSessionStart() { try { localStorage.removeItem(startKey()); } catch (e) {} }
+function fmtClock(ms) {
+  let s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600); s -= h * 3600;
+  const m = Math.floor(s / 60); s -= m * 60;
+  const mm = String(m).padStart(2, "0"), ss = String(s).padStart(2, "0");
+  return h > 0 ? h + ":" + mm + ":" + ss : mm + ":" + ss;
+}
+
+// Prefill a freshly-added/swapped exercise's blank sets from its last logged
+// session (weight + reps), so you're not starting from zero.
+async function seedFromHistory(mex) {
+  try {
+    const r = await fetch(HIST_URL + "?name=" + encodeURIComponent(mex.exercise_name));
+    const d = await r.json();
+    const s = d.series || [];
+    if (!s.length) return;
+    const last = s[s.length - 1];
+    const w = last.weight || 0, reps = last.reps || 0;
+    mex.sets.forEach(set => {                    // fill blanks only — never clobber typed values
+      if (!set.done && !set.weight) set.weight = w;
+      if (!set.done && !set.reps)   set.reps = reps;
+    });
+  } catch (e) {}
+}
+
 // Build the editable model from the prescribed workout.
 function modelFromPrescription(w) {
   return (w.exercises || []).map(ex => ({
@@ -712,10 +871,13 @@ function loggerCard(mex, rerender) {
     const inp = el("input", "ex__pick");
     inp.type = "text"; inp.setAttribute("list", "exlist");
     inp.placeholder = "Search exercise…"; inp.value = mex.exercise_name || "";
-    const commit = () => {
+    const commit = async () => {
       const v = inp.value.trim();
-      if (v) { mex.exercise_name = v;
-               mex.is_bodyweight = !!(CATALOG && CATALOG.bw.has(v)); }
+      if (v && v !== mex.exercise_name) {
+        mex.exercise_name = v;
+        mex.is_bodyweight = !!(CATALOG && CATALOG.bw.has(v));
+        await seedFromHistory(mex);            // suggest weight + reps from history
+      }
       if (mex.exercise_name) { delete mex._editing; saveDraft(); rerender(); }
     };
     inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); commit(); } });
@@ -751,6 +913,12 @@ function loggerCard(mex, rerender) {
     saveDraft(); rerender();
   });
   card.appendChild(add);
+
+  const note = el("input", "exnote"); note.type = "text";
+  note.placeholder = "Tag a note (form cue, pain, felt easy…)";
+  note.value = mex.note || "";
+  note.addEventListener("input", () => { mex.note = note.value; saveDraft(); });
+  card.appendChild(note);
   return card;
 }
 
@@ -774,6 +942,8 @@ async function enterLogging(w) {
 
 function renderLogger(w) {
   document.body.classList.add("logging-active");
+  const editing = !!(MODEL && MODEL.some(m => m._editing));
+  const keepY = window.scrollY;
   const main = document.getElementById("main");
   main.textContent = "";
 
@@ -782,6 +952,12 @@ function renderLogger(w) {
   banner.appendChild(el("div", "banner__title", "Logging — " + (w.title || "session")));
   banner.appendChild(el("div", "banner__meta",
     "Enter what you actually did. Tick each set as you go — saved to this device."));
+  const clock = el("div", "banner__clock");
+  banner.appendChild(clock);
+  const start = sessionStart();
+  const paintClock = () => { clock.innerHTML = "<b>Session</b> " + fmtClock(Date.now() - start); };
+  paintClock();
+  clearInterval(_clockTimer); _clockTimer = setInterval(paintClock, 1000);
   main.appendChild(banner);
   if (loadDraft()) main.appendChild(el("div", "draftflag", "● unsaved draft restored"));
 
@@ -805,11 +981,16 @@ function renderLogger(w) {
   bar.appendChild(cancel); bar.appendChild(save);
   main.appendChild(bar);
   main.appendChild(status);
+
+  // Keep the scroll position across rebuilds so the page doesn't jump (unless a
+  // picker just opened, where we want the focused input scrolled into view).
+  if (!editing) requestAnimationFrame(() => window.scrollTo(0, keepY));
 }
 
 async function saveSession(w, saveBtn, status) {
   const exercises = MODEL.map(mex => ({
     exercise_name: mex.exercise_name,
+    note: (mex.note || "").trim() || undefined,
     sets: mex.sets
       .filter(s => (s.reps || 0) > 0)
       .map(s => ({ weight_kg: s.weight || 0, reps: s.reps || 0,
@@ -833,6 +1014,7 @@ async function saveSession(w, saveBtn, status) {
     const d = await r.json();
     if (!r.ok || d.error) throw new Error(d.error || r.statusText);
     clearDraft();
+    clearSessionStart();
     status.className = "logstatus ok";
     status.textContent = "✓ Saved " + d.sets_written + " sets — your coach can see it now.";
     setTimeout(() => { LOGGING = false; render(CURRENT); }, 1400);
@@ -847,6 +1029,7 @@ function render(d) {
   CURRENT = d;
   if (LOGGING && d && d.workout) { renderLogger(d.workout); return; }
   document.body.classList.remove("logging-active");
+  clearInterval(_clockTimer);
   const main = document.getElementById("main");
   main.textContent = "";
 
@@ -895,6 +1078,9 @@ function render(d) {
     main.appendChild(det);
   }
 }
+
+// Re-arm audio when returning to the tab (iOS suspends the context in background).
+document.addEventListener("visibilitychange", () => { if (!document.hidden) _audio(); });
 
 fetch(DATA_URL)
   .then(r => r.json())
