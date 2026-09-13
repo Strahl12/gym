@@ -1862,16 +1862,23 @@ def join_submit():
         return _render_join(token, f"The name '{name}' is taken — pick another.", name, 400)
     if len(password) < chat_auth.MIN_PASSWORD_LEN:
         return _render_join(token, f"Password must be at least {chat_auth.MIN_PASSWORD_LEN} characters.", name, 400)
-    if not hevy_key or not add_user._verify_hevy_key(hevy_key):
-        return _render_join(token, "That Hevy API key didn't work — check it and try again.", name, 400)
+
+    # Hevy is optional: a key opts into Hevy sync; blank means in-app logging only.
+    use_hevy = bool(hevy_key)
+    if use_hevy and not add_user._verify_hevy_key(hevy_key):
+        return _render_join(token, "That Hevy API key didn't work — check it, or leave it blank to "
+                            "log workouts in the app instead.", name, 400)
 
     # Use an existing routine folder if the account has one; else leave unset.
-    folders   = add_user._list_hevy_folders(hevy_key)
-    folder_id = folders[0]["id"] if folders else None
+    folder_id = None
+    if use_hevy:
+        folders   = add_user._list_hevy_folders(hevy_key)
+        folder_id = folders[0]["id"] if folders else None
 
     try:
         with _CONFIG_LOCK:               # create_user activates config + seeds the DB
-            add_user.create_user(name, hevy_key, folder_id)
+            add_user.create_user(name, hevy_key, folder_id,
+                                 log_source="hevy" if use_hevy else "app")
     except ValueError as e:
         return _render_join(token, str(e), name, 400)
     except Exception as e:

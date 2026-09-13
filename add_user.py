@@ -98,7 +98,8 @@ def _render_profile(values: dict) -> str:
         text = re.sub(pattern, replacement, text, count=1, flags=re.MULTILINE)
 
     sub(r'^HEVY_ROUTINE_FOLDER_ID = .*$',
-        f'HEVY_ROUTINE_FOLDER_ID = {values["folder_id"]!r}')
+        f'HEVY_ROUTINE_FOLDER_ID = {values["folder_id"]!r}\n'
+        f'LOG_SOURCE = {values.get("log_source", "hevy")!r}')
     return text
 
 
@@ -115,10 +116,13 @@ def _render_secrets(values: dict) -> str:
 
 def create_user(name: str, hevy_key: str, folder_id=None,
                 withings_id: str = "", withings_secret: str = "",
-                withings_refresh: str = "") -> str:
+                withings_refresh: str = "", log_source: str = "hevy") -> str:
     """Non-interactive user creation, shared by the CLI wizard and the web
     invite flow. Creates users/<name>/ from the template, seeds gym.db, and
     returns the generated CHAT_TOKEN. Raises ValueError on a bad or taken name.
+
+    log_source="app" makes the user Hevy-free (in-app logger only): no Hevy key
+    needed, and config.uses_hevy() reads False from the written profile.
 
     The caller is responsible for any process-global concerns: this activates
     config for `name` to seed the DB, so serialise it against other config use.
@@ -142,6 +146,7 @@ def create_user(name: str, hevy_key: str, folder_id=None,
         "withings_secret":  withings_secret,
         "withings_refresh": withings_refresh,
         "folder_id":        folder_id,
+        "log_source":       log_source,
     }
     user_dir.mkdir(parents=True)
     (user_dir / "profile.py").write_text(_render_profile(values))

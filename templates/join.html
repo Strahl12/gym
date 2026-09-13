@@ -49,16 +49,17 @@
       <input type="password" name="password" autocomplete="new-password"
              minlength="{{ min_len }}" required>
     </label>
-    <label>Hevy API key
-      <input name="hevy_key" required autocapitalize="none" autocomplete="off"
-             spellcheck="false">
+    <label>Hevy API key <span style="text-transform:none;letter-spacing:0;color:var(--cyan)">— optional</span>
+      <input name="hevy_key" autocapitalize="none" autocomplete="off"
+             spellcheck="false" placeholder="Leave blank to log in the app">
     </label>
     <button type="submit">Create account</button>
   </form>
-  <p class="hint">Get your Hevy API key from
+  <p class="hint">If you use <b>Hevy</b>, paste your API key from
   <a href="{{ hevy_url }}" target="_blank" rel="noopener">hevy.com developer settings</a>
-  (you'll need a Hevy account). Your phone can generate and remember the password
-  for you.</p>
+  and your coach will programme sessions into your Hevy app. <b>No Hevy?</b> Leave it
+  blank — you'll log your workouts right here in the app instead. Your phone can
+  generate and remember the password for you.</p>
 </div>
 </body>
 </html>
