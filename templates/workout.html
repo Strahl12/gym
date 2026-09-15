@@ -146,6 +146,58 @@
             margin-top: .35rem; cursor: pointer; }
   .addset:hover { border-color: var(--cyan); }
 
+  /* Bottom sheets (set-type + RPE pickers, Hevy-style) */
+  .sheet-overlay { position: fixed; inset: 0; z-index: 80; background: rgba(0,0,0,.55);
+                   display: flex; align-items: flex-end; opacity: 0; transition: opacity .16s ease; }
+  .sheet-overlay.open { opacity: 1; }
+  .sheet { width: 100%; max-width: 720px; margin: 0 auto; background: var(--panel);
+           border-top: 1px solid var(--cyan); box-shadow: 0 -8px 30px rgba(0,229,255,.2);
+           padding: .8rem 1rem calc(1rem + env(safe-area-inset-bottom));
+           transform: translateY(14px); transition: transform .16s ease; }
+  .sheet-overlay.open .sheet { transform: none; }
+  .sheet__title { font-family: var(--mono); font-size: .8rem; font-weight: 700; text-align: center;
+                  letter-spacing: .06em; color: var(--ink); padding: .3rem 0 .5rem; }
+  .sheet__sub { font-family: var(--mono); font-size: .66rem; text-align: center; color: var(--dim);
+                margin-bottom: .5rem; }
+  .sheet__opt { display: flex; align-items: center; gap: .8rem; width: 100%; text-align: left;
+                background: transparent; border: 0; border-top: 1px solid var(--line);
+                padding: .85rem .3rem; cursor: pointer; color: var(--ink); font: inherit; }
+  .sheet__opt:hover { background: var(--panel-2); }
+  .sheet__optlabel { font-family: var(--mono); font-size: .82rem; letter-spacing: .02em; }
+  .sheet__opt.danger .sheet__optlabel { color: var(--danger); }
+  /* Set-type badge (row + sheet) */
+  .st-badge { display: inline-flex; align-items: center; justify-content: center;
+              width: 1.55rem; height: 1.55rem; flex: none; font-family: var(--mono);
+              font-size: .78rem; font-weight: 800; border: 1px solid var(--line);
+              background: var(--panel-2); border-radius: 0; cursor: pointer; }
+  .st-warm   { color: #ffb300; border-color: #ffb300; }
+  .st-normal { color: var(--ink); }
+  .st-fail   { color: var(--danger); border-color: var(--danger); }
+  .st-drop   { color: var(--cyan); border-color: var(--cyan); }
+  .st-remove { color: var(--danger); border-color: transparent; background: transparent; }
+  /* RPE cell (row) + picker (sheet) */
+  .rpe-cell { min-width: 2.9rem; font-family: var(--mono); font-size: 16px; text-align: center;
+              color: var(--cyan); background: var(--panel-2); border: 1px solid var(--line);
+              border-radius: 0; padding: .22rem .2rem; cursor: pointer; }
+  .rpe-cell.empty { color: var(--dim); }
+  .rpe-big { font-family: var(--mono); font-size: 2.6rem; font-weight: 800; text-align: center;
+             color: var(--cyan); text-shadow: 0 0 14px rgba(0,229,255,.5); line-height: 1.1; }
+  .rpe-hint { font-family: var(--mono); font-size: .72rem; text-align: center; color: var(--dim);
+              margin: .1rem 0 .7rem; min-height: 1.1rem; line-height: 1.3; }
+  .rpe-row { display: flex; flex-wrap: nowrap; gap: .25rem; justify-content: center; }
+  .rpe-opt { flex: 1 1 0; min-width: 0; font-family: var(--mono); font-size: .82rem; font-weight: 700;
+             color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: 0;
+             padding: .55rem .1rem; cursor: pointer; }
+  .rpe-opt.on { color: #05050a; background: var(--cyan); border-color: var(--cyan);
+                box-shadow: 0 0 12px rgba(0,229,255,.5); }
+  .sheet__done { width: 100%; margin-top: .8rem; font-family: var(--mono); font-size: .8rem; font-weight: 700;
+                 letter-spacing: .08em; text-transform: uppercase; color: #05050a; background: var(--lime);
+                 border: 0; border-radius: 0; padding: .7rem; cursor: pointer; }
+  .sheet__clear { width: 100%; margin-top: .4rem; font-family: var(--mono); font-size: .62rem;
+                  letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
+                  background: transparent; border: 1px solid var(--line); border-radius: 0;
+                  padding: .5rem; cursor: pointer; }
+
   /* Add / swap exercise controls in the logger */
   .ex__ctl { font-family: var(--mono); font-size: .68rem; line-height: 1; color: var(--ink);
              background: transparent; border: 1px solid var(--line); border-radius: 0;
@@ -790,7 +842,7 @@ function comingUp(seq) {
 
 // ── Logging mode ────────────────────────────────────────────────────────────
 // A session is logged as an in-memory MODEL (list of exercises, each with set
-// rows: {weight, reps, rpe, warmup, done}). Seeded from the prescription, then
+// rows: {weight, reps, rpe, type, done}). Seeded from the prescription, then
 // overlaid with any previously-saved session or an unsaved localStorage draft.
 let MODEL = null;
 
@@ -856,6 +908,94 @@ async function seedFromHistory(mex) {
   } catch (e) {}
 }
 
+// ── Bottom sheets: set-type classifier + RPE picker (Hevy-style) ─────────────
+function openSheet(build) {
+  const overlay = el("div", "sheet-overlay");
+  const sheet = el("div", "sheet");
+  const close = () => { overlay.classList.remove("open");
+                        setTimeout(() => overlay.remove(), 160); };
+  overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
+  build(sheet, close);
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add("open"));
+  return close;
+}
+
+const SET_TYPES = [
+  { key: "warmup",  badge: "W", label: "Warm Up Set", cls: "st-warm" },
+  { key: "normal",  badge: "1", label: "Normal Set",  cls: "st-normal" },
+  { key: "failure", badge: "F", label: "Failure Set", cls: "st-fail" },
+  { key: "drop",    badge: "D", label: "Drop Set",    cls: "st-drop" },
+];
+const SET_TYPE_BY = Object.fromEntries(SET_TYPES.map(t => [t.key, t]));
+function setType(mset) { return mset.type || (mset.warmup ? "warmup" : "normal"); }
+function isWarm(mset)  { return setType(mset) === "warmup"; }
+
+function openSetType(mset, mex, rerender) {
+  openSheet((sheet, close) => {
+    sheet.appendChild(el("div", "sheet__title", "Select Set Type"));
+    SET_TYPES.forEach(t => {
+      const row = el("button", "sheet__opt"); row.type = "button";
+      row.appendChild(el("span", "st-badge " + t.cls, t.badge));
+      row.appendChild(el("span", "sheet__optlabel", t.label));
+      row.addEventListener("click", () => { mset.type = t.key; delete mset.warmup;
+        saveDraft(); close(); rerender(); });
+      sheet.appendChild(row);
+    });
+    const rm = el("button", "sheet__opt danger"); rm.type = "button";
+    rm.appendChild(el("span", "st-badge st-remove", "✕"));
+    rm.appendChild(el("span", "sheet__optlabel", "Remove Set"));
+    rm.addEventListener("click", () => {
+      mex.sets.splice(mex.sets.indexOf(mset), 1); saveDraft(); close(); rerender();
+    });
+    sheet.appendChild(rm);
+  });
+}
+
+const RPE_VALUES = [6, 7, 7.5, 8, 8.5, 9, 9.5, 10];
+const RPE_DESC = {
+  6:   "could definitely do 4 more",
+  7:   "could definitely do 3 more",
+  7.5: "could maybe do 3 more",
+  8:   "could definitely do 2 more",
+  8.5: "could maybe do 2 more",
+  9:   "could definitely do 1 more",
+  9.5: "could maybe do 1 more",
+  10:  "couldn't do any more",
+};
+function openRpe(mset, rerender) {
+  openSheet((sheet, close) => {
+    sheet.appendChild(el("div", "sheet__title", "Log Set RPE"));
+    const sub = (mset.weight ? mset.weight + "kg × " : "") + (mset.reps || 0) + " reps";
+    sheet.appendChild(el("div", "sheet__sub", sub));
+    const has = mset.rpe !== "" && mset.rpe != null;
+    const big = el("div", "rpe-big", has ? String(mset.rpe) : "—");
+    sheet.appendChild(big);
+    const desc = el("div", "rpe-hint",
+      has ? (RPE_DESC[parseFloat(mset.rpe)] || "Select RPE") : "How hard was that set?");
+    sheet.appendChild(desc);
+    const row = el("div", "rpe-row");
+    RPE_VALUES.forEach(v => {
+      const b = el("button", "rpe-opt" + (parseFloat(mset.rpe) === v ? " on" : ""), String(v));
+      b.type = "button";
+      b.addEventListener("click", () => {
+        mset.rpe = v; big.textContent = String(v); desc.textContent = RPE_DESC[v] || ""; saveDraft();
+        row.querySelectorAll(".rpe-opt").forEach(x => x.classList.remove("on"));
+        b.classList.add("on");
+      });
+      row.appendChild(b);
+    });
+    sheet.appendChild(row);
+    const done = el("button", "sheet__done", "Done ✓"); done.type = "button";
+    done.addEventListener("click", () => { close(); rerender(); });
+    sheet.appendChild(done);
+    const clr = el("button", "sheet__clear", "Clear"); clr.type = "button";
+    clr.addEventListener("click", () => { mset.rpe = ""; saveDraft(); close(); rerender(); });
+    sheet.appendChild(clr);
+  });
+}
+
 // Build the editable model from the prescribed workout.
 function modelFromPrescription(w) {
   return (w.exercises || []).map(ex => ({
@@ -866,7 +1006,7 @@ function modelFromPrescription(w) {
     setup: SETUPS[ex.exercise_name] || "",
     sets: (ex.sets || []).map(s => ({
       weight: s.weight_kg || 0, reps: s.reps || 0, rpe: "",
-      warmup: !!s.is_warmup, done: false,
+      type: s.is_warmup ? "warmup" : "normal", done: false,
     })),
   }));
 }
@@ -878,7 +1018,8 @@ function overlaySaved(model, logged) {
     const saved = byName[m.exercise_name];
     if (saved) m.sets = saved.map(s => ({
       weight: s.weight_kg || 0, reps: s.reps || 0,
-      rpe: s.rpe == null ? "" : s.rpe, warmup: !!s.is_warmup, done: true,
+      rpe: s.rpe == null ? "" : s.rpe,
+      type: s.set_type || (s.is_warmup ? "warmup" : "normal"), done: true,
     }));
   });
   return model;
@@ -891,8 +1032,15 @@ function setRow(mset, mex, rerender) {
   done.title = "Mark set completed";
   done.addEventListener("change", () => { mset.done = done.checked; saveDraft();
     row.classList.toggle("is-done", mset.done);
-    if (mset.done && !mset.warmup) RT.start(mex.rest_seconds || 90, mex.exercise_name); });
+    if (mset.done && !isWarm(mset)) RT.start(mex.rest_seconds || 90, mex.exercise_name); });
   row.appendChild(done);
+
+  // Set-type badge (W / 1 / F / D) — opens the classifier sheet.
+  const t = SET_TYPE_BY[setType(mset)] || SET_TYPE_BY.normal;
+  const badge = el("button", "st-badge " + t.cls, t.badge); badge.type = "button";
+  badge.title = "Set type";
+  badge.addEventListener("click", () => openSetType(mset, mex, rerender));
+  row.appendChild(badge);
 
   // Highlight the whole value on focus so a new number types straight over it.
   const selectAll = inp => inp.addEventListener("focus", () => { try { inp.select(); } catch (e) {} });
@@ -910,17 +1058,11 @@ function setRow(mset, mex, rerender) {
   reps.addEventListener("input", () => { mset.reps = parseInt(reps.value) || 0; saveDraft(); });
   row.appendChild(reps);
 
-  const rpe = el("input", "rpe"); rpe.type = "number"; rpe.step = "0.5";
-  rpe.min = "0"; rpe.max = "10"; rpe.value = mset.rpe; rpe.placeholder = "RPE";
-  rpe.inputMode = "decimal"; selectAll(rpe);
-  rpe.addEventListener("input", () => { mset.rpe = rpe.value; saveDraft(); });
-  row.appendChild(rpe);
-
-  const warm = el("span", "warmtag" + (mset.warmup ? " on" : ""), "warm");
-  warm.title = "Toggle warm-up set (excluded from working-set counts)";
-  warm.addEventListener("click", () => { mset.warmup = !mset.warmup; saveDraft();
-    warm.classList.toggle("on", mset.warmup); });
-  row.appendChild(warm);
+  const has = mset.rpe !== "" && mset.rpe != null;
+  const rpeCell = el("button", "rpe-cell" + (has ? "" : " empty"), has ? String(mset.rpe) : "RPE");
+  rpeCell.type = "button"; rpeCell.title = "Log RPE";
+  rpeCell.addEventListener("click", () => openRpe(mset, rerender));
+  row.appendChild(rpeCell);
 
   const rm = el("button", "rm", "×"); rm.type = "button"; rm.title = "Remove set";
   rm.addEventListener("click", () => {
@@ -998,8 +1140,8 @@ function loggerCard(mex, rerender) {
   add.addEventListener("click", () => {
     const last = mex.sets[mex.sets.length - 1];
     mex.sets.push(last
-      ? { weight: last.weight, reps: last.reps, rpe: "", warmup: false, done: false }
-      : { weight: 0, reps: 0, rpe: "", warmup: false, done: false });
+      ? { weight: last.weight, reps: last.reps, rpe: "", type: "normal", done: false }
+      : { weight: 0, reps: 0, rpe: "", type: "normal", done: false });
     saveDraft(); rerender();
   });
   card.appendChild(add);
@@ -1061,7 +1203,7 @@ function renderLogger(w) {
   addEx.addEventListener("click", () => {
     MODEL.push({ exercise_name: "", is_bodyweight: false, rest_seconds: 90, _editing: true,
                  alternates: [], setup: "",
-                 sets: [{ weight: 0, reps: 0, rpe: "", warmup: false, done: false }] });
+                 sets: [{ weight: 0, reps: 0, rpe: "", type: "normal", done: false }] });
     saveDraft(); rerender();
   });
   main.appendChild(addEx);
@@ -1092,9 +1234,10 @@ async function saveSession(w, saveBtn, status) {
     note: (mex.note || "").trim() || undefined,
     sets: mex.sets
       .filter(s => (s.reps || 0) > 0)
-      .map(s => ({ weight_kg: s.weight || 0, reps: s.reps || 0,
-                   rpe: s.rpe === "" ? null : parseFloat(s.rpe),
-                   is_warmup: !!s.warmup })),
+      .map(s => { const type = setType(s);
+                  return { weight_kg: s.weight || 0, reps: s.reps || 0,
+                           rpe: s.rpe === "" ? null : parseFloat(s.rpe),
+                           is_warmup: type === "warmup", set_type: type }; }),
   })).filter(e => e.sets.length);
 
   // Setups persist independently of whether sets were logged this time.

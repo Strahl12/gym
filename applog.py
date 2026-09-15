@@ -39,6 +39,14 @@ def _session_id(d: str, session_type: str) -> str:
     return f"app_{d.replace('-', '')}_{session_type}"
 
 
+def _ensure_set_type_column(con: sqlite3.Connection) -> None:
+    """Add the nullable set_type column (warmup/normal/failure/drop) on first use.
+    Supplements is_warmup — everything existing still keys off is_warmup."""
+    cols = {r[1] for r in con.execute("PRAGMA table_info(sets)").fetchall()}
+    if "set_type" not in cols:
+        con.execute("ALTER TABLE sets ADD COLUMN set_type TEXT")
+
+
 def log_session(db_path: str, payload: dict) -> dict:
     """Write a logged session into the sets table (source='app').
 
@@ -55,6 +63,7 @@ def log_session(db_path: str, payload: dict) -> dict:
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
     try:
+        _ensure_set_type_column(con)
         bw_readings = _bodyweight_lookup(con)
         main_lifts = {
             r["exercise_name"]
@@ -85,7 +94,8 @@ def log_session(db_path: str, payload: dict) -> dict:
                 if reps <= 0:
                     continue
                 weight_kg = float(s.get("weight_kg") or 0)
-                is_warmup = 1 if s.get("is_warmup") else 0
+                set_type = (s.get("set_type") or "").strip().lower() or None
+                is_warmup = 1 if (s.get("is_warmup") or set_type == "warmup") else 0
                 rpe_raw = s.get("rpe")
                 rpe = float(rpe_raw) if rpe_raw not in (None, "") else None
                 bw_for_set = _bw_on_or_before(bw_readings, d) if is_bw else 0.0
@@ -95,12 +105,12 @@ def log_session(db_path: str, payload: dict) -> dict:
                     INSERT INTO sets
                         (source, session_id, date, workout_name, session_type,
                          muscle_group, exercise, is_main_lift, is_bodyweight,
-                         is_warmup, set_number, weight_kg, reps, e1rm, rpe)
-                    VALUES ('app', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         is_warmup, set_number, weight_kg, reps, e1rm, rpe, set_type)
+                    VALUES ('app', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     session_id, d, workout_name, session_type,
                     MUSCLE_TO_SESSION.get(muscle, "other"), name,
-                    is_main, is_bw, is_warmup, set_number, weight_kg, reps, e1rm, rpe,
+                    is_main, is_bw, is_warmup, set_number, weight_kg, reps, e1rm, rpe, set_type,
                 ))
                 set_number += 1
                 total += 1
@@ -170,8 +180,9 @@ def logged_session(db_path: str, d: str | None = None) -> dict | None:
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
     try:
+        _ensure_set_type_column(con)
         rows = con.execute(
-            "SELECT exercise, set_number, weight_kg, reps, rpe, is_warmup "
+            "SELECT exercise, set_number, weight_kg, reps, rpe, is_warmup, set_type "
             "FROM sets WHERE date = ? AND source = 'app' ORDER BY set_number",
             (d,),
         ).fetchall()
@@ -187,6 +198,7 @@ def logged_session(db_path: str, d: str | None = None) -> dict | None:
             "reps": r["reps"],
             "rpe": r["rpe"],
             "is_warmup": bool(r["is_warmup"]),
+            "set_type": r["set_type"] or ("warmup" if r["is_warmup"] else "normal"),
         })
     return {
         "date": d,

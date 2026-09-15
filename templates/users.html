@@ -24,6 +24,11 @@
   .pill.active  { color: var(--lime); border-color: color-mix(in srgb, var(--lime) 55%, transparent); }
   .pill.pending { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 55%, transparent); }
   .muted { color: var(--dim); }
+  .rm { font-family: var(--mono); font-size: .62rem; letter-spacing: .08em; text-transform: uppercase;
+        color: var(--danger); background: transparent; border: 1px solid var(--line); border-radius: 0;
+        padding: .2rem .5rem; cursor: pointer; }
+  .rm:hover { border-color: var(--danger); text-shadow: 0 0 8px rgba(255,45,85,.6); }
+  .rm[disabled] { opacity: .3; cursor: default; }
 </style>
 </head>
 <body>
@@ -44,12 +49,12 @@
     <thead>
       <tr>
         <th>User</th><th>Login</th><th>Status</th>
-        <th>Last active</th><th>Last workout</th><th>Sessions</th><th>Withings</th>
+        <th>Last active</th><th>Last workout</th><th>Sessions</th><th>Withings</th><th></th>
       </tr>
     </thead>
     <tbody>
       {% for u in users %}
-      <tr>
+      <tr data-user="{{ u.user }}">
         <td class="user">{{ u.user }}</td>
         <td class="muted">{{ u.username }}{% if not u.has_password %} (no pw){% endif %}</td>
         <td>
@@ -61,11 +66,39 @@
         <td>{{ u.last_workout }}</td>
         <td>{{ u.sessions }}</td>
         <td>{{ '✓' if u.withings else '—' }}</td>
+        <td>{% if u.user != dev_user %}<button class="rm" data-user="{{ u.user }}">Remove</button>{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   </div>
 </main>
+<script>
+// Dev-only account removal. Requires typing the exact username to confirm, since
+// it wipes the account from the app (data is moved to users/.trash, recoverable).
+document.querySelectorAll("button.rm").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    const user = btn.dataset.user;
+    const typed = prompt('Remove "' + user + '"? This deletes their account from the app.\n\n'
+                       + 'Type the username to confirm:');
+    if (typed === null) return;
+    if (typed.trim() !== user) { alert("Name didn't match — nothing removed."); return; }
+    btn.disabled = true; btn.textContent = "Removing…";
+    try {
+      const r = await fetch("/app/delete-user", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user }),
+      });
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || r.statusText);
+      const row = document.querySelector('tr[data-user="' + user + '"]');
+      if (row) row.remove();
+    } catch (e) {
+      btn.disabled = false; btn.textContent = "Remove";
+      alert("Couldn't remove " + user + " — " + e.message);
+    }
+  });
+});
+</script>
 </body>
 </html>

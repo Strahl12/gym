@@ -1861,7 +1861,43 @@ def app_users():
     if _session_user() != DEV_USER:
         abort(404)
     users = _users_overview()
-    return render_template("users.html", users=users, count=len(users))
+    return render_template("users.html", users=users, count=len(users), dev_user=DEV_USER)
+
+
+def _remove_user_response(name: str):
+    """Dev-only: remove a user. Rather than hard-delete, move users/<name>/ into
+    users/.trash/<name>-<ts>/ (reversible; deregistered since _load_tokens only
+    scans one level). Refuses the dev account and hidden dirs."""
+    global TOKENS
+    name = (name or "").strip()
+    if not name or name.startswith(("_", ".")):
+        return jsonify({"error": "invalid user name"}), 400
+    if name == DEV_USER:
+        return jsonify({"error": "can't remove the dev account"}), 400
+    src = USERS_ROOT / name
+    if not src.is_dir():
+        return jsonify({"error": "no such user"}), 404
+    import shutil
+    trash = USERS_ROOT / ".trash"
+    dest = trash / f"{name}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    try:
+        with _CONFIG_LOCK:                 # serialise against config/token use
+            trash.mkdir(exist_ok=True)
+            shutil.move(str(src), str(dest))
+            TOKENS = _load_tokens()        # deregister their chat token
+    except Exception as e:
+        print(f"[chat] delete-user {name!r} failed: {e}")
+        return jsonify({"error": "couldn't remove — try again"}), 500
+    print(f"[chat] dev removed user {name!r} -> .trash/{dest.name}")
+    return jsonify({"ok": True, "user": name})
+
+
+@app.post("/app/delete-user")
+def app_delete_user():
+    if _session_user() != DEV_USER:
+        abort(404)
+    body = request.get_json(silent=True) or {}
+    return _remove_user_response(body.get("user") or request.form.get("user") or "")
 
 
 # -------------------------------------------------- new-user self-signup
