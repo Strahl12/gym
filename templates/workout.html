@@ -157,6 +157,9 @@
               background: var(--panel-2); border: 1px solid var(--cyan); border-radius: 0;
               padding: .3rem .5rem; }
   .ex__pick:focus { outline: none; box-shadow: inset 0 0 0 1px rgba(0,229,255,.35); }
+  .pickalts { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin: .5rem 0 .1rem; }
+  .pickalts__lbl { font-family: var(--mono); font-size: .55rem; letter-spacing: .1em;
+                   text-transform: uppercase; color: var(--dim); }
   .addex { display: block; width: 100%; font-family: var(--mono); font-size: .62rem;
            letter-spacing: .1em; text-transform: uppercase; color: var(--cyan);
            background: transparent; border: 1px dashed var(--line); border-radius: 0;
@@ -168,25 +171,38 @@
 
   /* Rest timer — fixed neon bar pinned to the right edge, so the number keyboard
      (which covers the bottom) never hides it. */
-  .rtimer { position: fixed; right: .4rem; top: 50%; transform: translateY(-50%);
+  .rtimer { position: fixed; right: .4rem; top: 50%;
+            transform: translate3d(0, -50%, 0);   /* 3d transform → own compositor layer,
+                                                     so it never repaints/lags on scroll */
+            will-change: transform; -webkit-backface-visibility: hidden; backface-visibility: hidden;
             z-index: 60; display: flex; flex-direction: column; align-items: center; gap: .3rem;
             background: var(--panel); border: 1px solid var(--cyan);
             box-shadow: 0 0 16px rgba(0,229,255,.35); padding: .5rem .35rem; }
   .rtimer[hidden] { display: none; }
+  .rtimer__rest { display: flex; flex-direction: column; align-items: center; gap: .3rem; }
+  .rtimer__rest[hidden] { display: none; }
   .rtimer__label { font-family: var(--mono); font-size: .5rem; letter-spacing: .06em;
                    text-transform: uppercase; color: var(--dim); max-width: 3.4rem;
                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
   .rtimer__time { font-family: var(--mono); font-size: 1.15rem; font-weight: 700; color: var(--cyan);
                   text-shadow: 0 0 9px rgba(0,229,255,.55); min-width: 2.8rem; text-align: center; }
-  .rtimer.done { border-color: var(--lime); box-shadow: 0 0 20px rgba(182,255,0,.5);
-                 animation: rtflash .6s steps(1) infinite; }
-  .rtimer.done .rtimer__time { color: var(--lime); text-shadow: 0 0 12px rgba(182,255,0,.7); }
+  .rtimer__rest.done { animation: rtflash .6s steps(1) infinite; }
+  .rtimer__rest.done .rtimer__time { color: var(--lime); text-shadow: 0 0 12px rgba(182,255,0,.7); }
+  .rtimer__rest.done ~ .rtimer__totalbox .rtimer__total { color: var(--lime); }
   @keyframes rtflash { 50% { opacity: .5; } }
   .rtimer__ctl { display: flex; flex-direction: column; gap: .28rem; }
   .rtimer__btn { font-family: var(--mono); font-size: .62rem; color: var(--ink);
                  background: transparent; border: 1px solid var(--line); border-radius: 0;
                  padding: .2rem .35rem; cursor: pointer; min-width: 2.2rem; }
   .rtimer__btn:hover { border-color: var(--cyan); color: var(--cyan); }
+  /* White TOTAL session clock, under the rest controls */
+  .rtimer__totalbox { display: flex; flex-direction: column; align-items: center; gap: .05rem; }
+  .rtimer__rest:not([hidden]) ~ .rtimer__totalbox { margin-top: .4rem; padding-top: .4rem;
+                 border-top: 1px solid rgba(255,255,255,.14); }
+  .rtimer__totallabel { font-family: var(--mono); font-size: .48rem; letter-spacing: .12em;
+                 text-transform: uppercase; color: var(--dim); }
+  .rtimer__total { font-family: var(--mono); font-size: .95rem; font-weight: 700; color: #fff;
+                 text-shadow: 0 0 6px rgba(255,255,255,.35); text-align: center; }
 
   /* Live total-session time in the logging banner */
   .banner__clock { font-family: var(--mono); font-size: .74rem; font-weight: 700; letter-spacing: .06em;
@@ -201,6 +217,8 @@
             margin-top: .45rem; }
   .exnote:focus { outline: none; border-color: var(--cyan); box-shadow: inset 0 0 0 1px rgba(0,229,255,.3); }
   .exnote::placeholder { color: var(--dim); }
+  .exsetup { color: var(--cyan); }
+  .exsetup:focus { border-color: var(--cyan); }
 
   /* ── Neon boost while logging ─────────────────────────────────────────── */
   body.logging-active { background:
@@ -242,6 +260,12 @@
   .logstatus { font-family: var(--mono); font-size: .64rem; letter-spacing: .06em;
                text-align: center; margin-top: .6rem; color: var(--dim); }
   .logstatus.err { color: var(--danger); } .logstatus.ok { color: var(--lime); }
+  .discardbtn { display: block; margin: .6rem auto 0; font-family: var(--mono); font-size: .6rem;
+                letter-spacing: .1em; text-transform: uppercase; color: var(--danger);
+                background: transparent; border: 1px solid transparent; border-radius: 0;
+                padding: .3rem .6rem; cursor: pointer; opacity: .8; }
+  .discardbtn:hover { opacity: 1; border-color: var(--danger); text-shadow: 0 0 8px rgba(255,45,85,.6); }
+  .discardbtn.inline { display: inline-block; margin: .55rem 0 0 .5rem; }
   .draftflag { font-family: var(--mono); font-size: .58rem; letter-spacing: .08em;
                text-transform: uppercase; color: var(--amber, #ffb300); margin-top: .3rem; }
 
@@ -288,6 +312,7 @@ const SWAP_URL = CHAT_URL + "/workout/swap";
 const LOG_URL    = CHAT_URL + "/workout/log";
 const LOGGED_URL = CHAT_URL + "/workout/logged";
 const EXLIST_URL = CHAT_URL + "/workout/exercises";
+const SETUP_URL  = CHAT_URL + "/workout/setup";
 const CYAN = "#00e5ff", LIME = "#b6ff00";
 let swapping = false;   // one swap (Hevy PUT) at a time, across all cards
 let LOGGING = false;    // editable logging mode on the Workout tab
@@ -404,12 +429,17 @@ function _emit(mode, ac) {
   }
 }
 
+// Fixed neon bar pinned to the right-hand centre. Always shown while logging
+// (with a white TOTAL session clock under the controls); the rest countdown
+// appears above it when armed. Countdown is driven by an absolute end-time, so
+// the alarm fires exactly when the display hits 0 (no drift between them).
 const RT = {
-  el: null, disp: null, label: null, pauseBtn: null,
-  remain: 0, total: 0, timer: null, last: 0, running: false,
+  el: null, rest: null, disp: null, label: null, pauseBtn: null, soundBtn: null, totalEl: null,
+  endAt: 0, remain: 0, total: 0, timer: null, running: false, resting: false,
   ensure() {
     if (this.el) return;
     const bar = el("div", "rtimer"); bar.hidden = true;
+    const rest = el("div", "rtimer__rest"); rest.hidden = true;
     this.label = el("div", "rtimer__label", "Rest");
     this.disp  = el("div", "rtimer__time", "0:00");
     const ctl  = el("div", "rtimer__ctl");
@@ -422,16 +452,38 @@ const RT = {
     ctl.appendChild(mk("＋15", () => this.bump(15)));
     this.pauseBtn = mk("❚❚", () => this.toggle());
     ctl.appendChild(this.pauseBtn);
-    ctl.appendChild(mk("✕", () => this.stop()));
-    bar.appendChild(this.label); bar.appendChild(this.disp); bar.appendChild(ctl);
+    ctl.appendChild(mk("✕", () => this.stopRest()));
+    rest.appendChild(this.label); rest.appendChild(this.disp); rest.appendChild(ctl);
+    this.rest = rest;
+
+    const tot = el("div", "rtimer__totalbox");
+    tot.appendChild(el("div", "rtimer__totallabel", "Total"));
+    this.totalEl = el("div", "rtimer__total", "0:00");
+    tot.appendChild(this.totalEl);
+
+    bar.appendChild(rest); bar.appendChild(tot);
     document.body.appendChild(bar);
     this.el = bar;
   },
   fmt(s) { s = Math.max(0, Math.round(s));
            return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); },
+  // Show the bar + drive the total clock (called on entering/rendering logging).
+  showBar() { this.ensure(); this.el.hidden = false; this.loop(); },
+  hideBar() { if (this.timer) clearInterval(this.timer); this.timer = null;
+              this.resting = false; if (this.rest) this.rest.hidden = true;
+              if (this.el) this.el.hidden = true; },
+  loop() {
+    clearInterval(this.timer);
+    this.timer = setInterval(() => this.paint(), 250);
+    this.paint();
+  },
   paint() {
+    if (this.totalEl) this.totalEl.textContent = fmtClock(Date.now() - sessionStart());
+    if (!this.resting) return;
+    if (this.running) this.remain = (this.endAt - Date.now()) / 1000;
+    if (this.running && this.remain <= 0) { this.remain = 0; this.fire(); }
     this.disp.textContent = this.fmt(this.remain);
-    this.el.classList.toggle("done", this.remain <= 0);
+    this.rest.classList.toggle("done", this.remain <= 0);
     this.pauseBtn.textContent = this.running ? "❚❚" : "▶";
   },
   cycleSound() {
@@ -444,36 +496,39 @@ const RT = {
   start(seconds, name) {
     this.ensure();
     _audio();                        // prime/unlock while we're in the tap that started it
-    this.total = this.remain = Math.max(1, seconds || 90);
-    this.label.textContent = name ? "Rest · " + name : "Rest";
     this.el.hidden = false;
-    this.tick();
+    this.total  = Math.max(1, seconds || 90);
+    this.remain = this.total;
+    this.endAt  = Date.now() + this.total * 1000;
+    this.running = true; this.resting = true;
+    this.label.textContent = name ? "Rest · " + name : "Rest";
+    this.rest.hidden = false; this.rest.classList.remove("done");
+    this.loop();
   },
-  tick() {
-    this.running = true;
-    clearInterval(this.timer);
-    this.last = Date.now();
-    this.timer = setInterval(() => {
-      const now = Date.now();
-      this.remain -= (now - this.last) / 1000; this.last = now;
-      if (this.remain <= 0) { this.remain = 0; this.fire(); }
-      this.paint();
-    }, 250);
-    this.paint();
-  },
-  fire() { clearInterval(this.timer); this.running = false;
+  fire() { this.running = false;
            try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {}
            playAlarm(); },
   toggle() {
-    if (this.remain <= 0) { this.remain = this.total; this.tick(); return; }
-    if (this.running) { clearInterval(this.timer); this.running = false; this.paint(); }
-    else this.tick();
+    if (!this.resting) return;
+    if (this.remain <= 0) { this.start(this.total, this.label.textContent.replace(/^Rest · /, "")); return; }
+    if (this.running) { this.running = false; }                 // pause: freeze remain
+    else { this.running = true; this.endAt = Date.now() + this.remain * 1000; }
+    this.paint();
   },
   bump(d) { this.remain = Math.max(0, this.remain + d);
-            if (d > 0) this.el.classList.remove("done"); this.paint(); },
-  stop() { clearInterval(this.timer); this.running = false;
-           if (this.el) this.el.hidden = true; },
+            this.endAt = Date.now() + this.remain * 1000;
+            if (d > 0) this.rest.classList.remove("done"); this.paint(); },
+  stopRest() { this.resting = false; this.running = false;
+               if (this.rest) this.rest.hidden = true; this.paint(); },
 };
+
+// Saved per-exercise setup notes (seat height, pin, pad), keyed by exercise name.
+let SETUPS = {};
+async function loadSetups() {
+  try { const r = await fetch(SETUP_URL); const d = await r.json(); SETUPS = d.setups || {}; }
+  catch (e) { SETUPS = {}; }
+  return SETUPS;
+}
 
 // ── Exercise catalogue (for add / swap pickers in the logger) ────────────────
 let CATALOG = null;   // { names: [...], bw: Set<name> }
@@ -753,9 +808,18 @@ function loadDraft() {
   try { const r = localStorage.getItem(draftKey()); return r ? JSON.parse(r) : null; }
   catch (e) { return null; }
 }
+// Throw away the in-progress (unsaved) workout entirely: draft, session clock,
+// timer. Does NOT touch anything already saved to the DB this day.
+function discardWorkout() {
+  if (!confirm("Discard this in-progress workout? Any sets you haven't saved will be lost.")) return;
+  clearDraft();
+  clearSessionStart();
+  RT.hideBar();
+  LOGGING = false;
+  render(CURRENT);
+}
 
 // ── Total session clock (counts up from first entry into logging) ────────────
-let _clockTimer = null;
 function startKey() {
   const d = (CURRENT && CURRENT.date) || new Date().toISOString().slice(0, 10);
   return "logstart:" + USER + ":" + d;
@@ -798,6 +862,8 @@ function modelFromPrescription(w) {
     exercise_name: ex.exercise_name,
     is_bodyweight: isBodyweight(ex),
     rest_seconds: ex.rest_seconds || 90,
+    alternates: (ex.alternates || []).slice(),
+    setup: SETUPS[ex.exercise_name] || "",
     sets: (ex.sets || []).map(s => ({
       weight: s.weight_kg || 0, reps: s.reps || 0, rpe: "",
       warmup: !!s.is_warmup, done: false,
@@ -828,22 +894,25 @@ function setRow(mset, mex, rerender) {
     if (mset.done && !mset.warmup) RT.start(mex.rest_seconds || 90, mex.exercise_name); });
   row.appendChild(done);
 
+  // Highlight the whole value on focus so a new number types straight over it.
+  const selectAll = inp => inp.addEventListener("focus", () => { try { inp.select(); } catch (e) {} });
+
   const w = el("input"); w.type = "number"; w.step = "2.5"; w.min = "0";
   w.value = mset.weight || ""; w.placeholder = mex.is_bodyweight ? "BW+" : "kg";
-  w.inputMode = "decimal";
+  w.inputMode = "decimal"; selectAll(w);
   w.addEventListener("input", () => { mset.weight = parseFloat(w.value) || 0; saveDraft(); });
   row.appendChild(w);
 
   row.appendChild(el("span", "x", "×"));
 
   const reps = el("input"); reps.type = "number"; reps.step = "1"; reps.min = "0";
-  reps.value = mset.reps || ""; reps.placeholder = "reps"; reps.inputMode = "numeric";
+  reps.value = mset.reps || ""; reps.placeholder = "reps"; reps.inputMode = "numeric"; selectAll(reps);
   reps.addEventListener("input", () => { mset.reps = parseInt(reps.value) || 0; saveDraft(); });
   row.appendChild(reps);
 
   const rpe = el("input", "rpe"); rpe.type = "number"; rpe.step = "0.5";
   rpe.min = "0"; rpe.max = "10"; rpe.value = mset.rpe; rpe.placeholder = "RPE";
-  rpe.inputMode = "decimal";
+  rpe.inputMode = "decimal"; selectAll(rpe);
   rpe.addEventListener("input", () => { mset.rpe = rpe.value; saveDraft(); });
   row.appendChild(rpe);
 
@@ -876,15 +945,36 @@ function loggerCard(mex, rerender) {
       if (v && v !== mex.exercise_name) {
         mex.exercise_name = v;
         mex.is_bodyweight = !!(CATALOG && CATALOG.bw.has(v));
+        mex.setup = SETUPS[v] || "";
         await seedFromHistory(mex);            // suggest weight + reps from history
       }
       if (mex.exercise_name) { delete mex._editing; saveDraft(); rerender(); }
+    };
+    const pickName = async nm => {
+      mex.exercise_name = nm;
+      mex.is_bodyweight = !!(CATALOG && CATALOG.bw.has(nm));
+      mex.setup = SETUPS[nm] || "";
+      await seedFromHistory(mex);
+      delete mex._editing; saveDraft(); rerender();
     };
     inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); commit(); } });
     const ok = el("button", "ex__ctl first", "✓"); ok.type = "button"; ok.title = "Confirm";
     ok.addEventListener("click", commit);
     head.appendChild(inp); head.appendChild(ok);
     card.appendChild(head);
+
+    // Sensible same-slot alternates from the prescription, as quick-pick chips.
+    const alts = (mex.alternates || []).filter(a => a && a !== mex.exercise_name);
+    if (alts.length) {
+      const box = el("div", "pickalts");
+      box.appendChild(el("span", "pickalts__lbl", "Suggested:"));
+      alts.forEach(nm => {
+        const b = el("button", "alt-btn", nm); b.type = "button";
+        b.addEventListener("click", () => pickName(nm));
+        box.appendChild(b);
+      });
+      card.appendChild(box);
+    }
     setTimeout(() => inp.focus(), 0);
   } else {
     head.appendChild(el("span", "ex__name", mex.exercise_name));
@@ -914,6 +1004,12 @@ function loggerCard(mex, rerender) {
   });
   card.appendChild(add);
 
+  const setup = el("input", "exnote exsetup"); setup.type = "text";
+  setup.placeholder = "⚙ Setup — seat / pin / pad numbers (saved for next time)";
+  setup.value = mex.setup || "";
+  setup.addEventListener("input", () => { mex.setup = setup.value; saveDraft(); });
+  card.appendChild(setup);
+
   const note = el("input", "exnote"); note.type = "text";
   note.placeholder = "Tag a note (form cue, pain, felt easy…)";
   note.value = mex.note || "";
@@ -925,6 +1021,7 @@ function loggerCard(mex, rerender) {
 async function enterLogging(w) {
   LOGGING = true;
   loadCatalog();                         // fire-and-forget; datalist ready shortly
+  await loadSetups();                    // saved seat/pin numbers, before we build the model
   MODEL = modelFromPrescription(w);
   const draft = loadDraft();
   if (draft && draft.length) {
@@ -952,13 +1049,9 @@ function renderLogger(w) {
   banner.appendChild(el("div", "banner__title", "Logging — " + (w.title || "session")));
   banner.appendChild(el("div", "banner__meta",
     "Enter what you actually did. Tick each set as you go — saved to this device."));
-  const clock = el("div", "banner__clock");
-  banner.appendChild(clock);
-  const start = sessionStart();
-  const paintClock = () => { clock.innerHTML = "<b>Session</b> " + fmtClock(Date.now() - start); };
-  paintClock();
-  clearInterval(_clockTimer); _clockTimer = setInterval(paintClock, 1000);
   main.appendChild(banner);
+  sessionStart();          // stamp the session start (drives the sidebar TOTAL clock)
+  RT.showBar();
   if (loadDraft()) main.appendChild(el("div", "draftflag", "● unsaved draft restored"));
 
   const rerender = () => renderLogger(w);
@@ -967,6 +1060,7 @@ function renderLogger(w) {
   const addEx = el("button", "addex", "＋ Add exercise"); addEx.type = "button";
   addEx.addEventListener("click", () => {
     MODEL.push({ exercise_name: "", is_bodyweight: false, rest_seconds: 90, _editing: true,
+                 alternates: [], setup: "",
                  sets: [{ weight: 0, reps: 0, rpe: "", warmup: false, done: false }] });
     saveDraft(); rerender();
   });
@@ -981,6 +1075,11 @@ function renderLogger(w) {
   bar.appendChild(cancel); bar.appendChild(save);
   main.appendChild(bar);
   main.appendChild(status);
+
+  const discard = el("button", "discardbtn", "✕ Discard this workout");
+  discard.type = "button";
+  discard.addEventListener("click", discardWorkout);
+  main.appendChild(discard);
 
   // Keep the scroll position across rebuilds so the page doesn't jump (unless a
   // picker just opened, where we want the focused input scrolled into view).
@@ -998,6 +1097,10 @@ async function saveSession(w, saveBtn, status) {
                    is_warmup: !!s.warmup })),
   })).filter(e => e.sets.length);
 
+  // Setups persist independently of whether sets were logged this time.
+  const setups = MODEL.filter(m => (m.setup || "").trim() && m.exercise_name)
+                      .map(m => ({ exercise: m.exercise_name, setup: m.setup.trim() }));
+
   if (!exercises.length) {
     status.className = "logstatus err";
     status.textContent = "Add at least one set with reps before saving.";
@@ -1009,7 +1112,7 @@ async function saveSession(w, saveBtn, status) {
     const r = await fetch(LOG_URL, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ date: CURRENT.date, session_type: w.session_type,
-                             workout_name: w.title, exercises }),
+                             workout_name: w.title, exercises, setups }),
     });
     const d = await r.json();
     if (!r.ok || d.error) throw new Error(d.error || r.statusText);
@@ -1029,7 +1132,7 @@ function render(d) {
   CURRENT = d;
   if (LOGGING && d && d.workout) { renderLogger(d.workout); return; }
   document.body.classList.remove("logging-active");
-  clearInterval(_clockTimer);
+  RT.hideBar();
   const main = document.getElementById("main");
   main.textContent = "";
 
@@ -1065,6 +1168,12 @@ function render(d) {
   logBtn.type = "button";
   logBtn.addEventListener("click", () => enterLogging(w));
   banner.appendChild(logBtn);
+  if (loadDraft()) {
+    const disc = el("button", "discardbtn inline", "✕ Discard");
+    disc.type = "button";
+    disc.addEventListener("click", discardWorkout);
+    banner.appendChild(disc);
+  }
   main.appendChild(banner);
 
   if (d.upcoming && d.upcoming.length) main.appendChild(comingUp(d.upcoming));

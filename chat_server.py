@@ -1277,6 +1277,15 @@ def _applog_response(user: str):
     print(f"[chat] {user}: logged {result['sets_written']} sets "
           f"({result['session_type']}) to {result['session_id']}")
 
+    # Persist per-exercise setup notes (seat/pin/pad) so they pre-fill next time.
+    setups = body.get("setups")
+    if isinstance(setups, list) and setups:
+        try:
+            applog.save_setups(db_path, [(s.get("exercise"), s.get("setup"))
+                                         for s in setups if isinstance(s, dict)])
+        except Exception as e:
+            print(f"[chat] {user}: setup save failed: {e}")
+
     # Persist any per-exercise workout notes to the athlete's Log (visible to them
     # and the coach). Idempotent per (exercise, day): re-saving edits, not piles up.
     notes = [((e.get("exercise_name") or "").strip(), (e.get("note") or "").strip())
@@ -1296,6 +1305,17 @@ def _applog_response(user: str):
             con.close()
 
     return jsonify({"ok": True, **result})
+
+
+def _setups_response(user: str):
+    """{exercise: setup} map so the logger can pre-fill saved seat/pin numbers."""
+    import applog
+    db_path = str(USERS_ROOT / user / "gym.db")
+    try:
+        return jsonify({"setups": applog.read_setups(db_path)})
+    except Exception as e:
+        print(f"[chat] {user}: setups read failed: {e}")
+        return jsonify({"setups": {}})
 
 
 def _exercises_response(user: str):
@@ -1506,6 +1526,14 @@ def chat_workout_exercises(token: str):
     if user is None:
         abort(404)
     return _exercises_response(user)
+
+
+@app.get("/u/<token>/workout/setup")
+def chat_workout_setup(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return _setups_response(user)
 
 
 @app.get("/u/<token>/devinfo")
@@ -1742,6 +1770,14 @@ def app_workout_exercises():
     if user is None:
         abort(401)
     return _exercises_response(user)
+
+
+@app.get("/app/workout/setup")
+def app_workout_setup():
+    user = _session_user()
+    if user is None:
+        abort(401)
+    return _setups_response(user)
 
 
 @app.get("/app/devinfo")

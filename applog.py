@@ -116,6 +116,53 @@ def log_session(db_path: str, payload: dict) -> dict:
         con.close()
 
 
+def _ensure_setup_table(con: sqlite3.Connection) -> None:
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS exercise_setup (
+            exercise   TEXT PRIMARY KEY,
+            setup      TEXT,
+            updated_at TEXT
+        )
+    """)
+
+
+def save_setups(db_path: str, items: list[tuple[str, str]]) -> None:
+    """Persist per-exercise setup notes (seat height, pin, pad position…) keyed by
+    exercise, so they pre-fill next time. A blank value clears the row."""
+    con = sqlite3.connect(db_path)
+    try:
+        _ensure_setup_table(con)
+        now = _date.today().isoformat()
+        for name, setup in items:
+            name = (name or "").strip()
+            if not name:
+                continue
+            setup = (setup or "").strip()
+            if setup:
+                con.execute(
+                    "INSERT INTO exercise_setup (exercise, setup, updated_at) VALUES (?, ?, ?) "
+                    "ON CONFLICT(exercise) DO UPDATE SET setup = excluded.setup, "
+                    "updated_at = excluded.updated_at",
+                    (name, setup, now))
+            else:
+                con.execute("DELETE FROM exercise_setup WHERE exercise = ?", (name,))
+        con.commit()
+    finally:
+        con.close()
+
+
+def read_setups(db_path: str) -> dict:
+    """{exercise: setup} for every exercise with a saved setup note."""
+    con = sqlite3.connect(db_path)
+    con.row_factory = sqlite3.Row
+    try:
+        _ensure_setup_table(con)
+        rows = con.execute("SELECT exercise, setup FROM exercise_setup").fetchall()
+    finally:
+        con.close()
+    return {r["exercise"]: r["setup"] for r in rows if r["setup"]}
+
+
 def logged_session(db_path: str, d: str | None = None) -> dict | None:
     """Return the app-logged session for a date (default today), grouped by
     exercise, so the editor can re-open it. None if nothing app-logged that day."""
