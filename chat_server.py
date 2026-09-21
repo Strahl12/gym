@@ -557,6 +557,17 @@ def _db(user: str) -> sqlite3.Connection:
             content  TEXT NOT NULL
         )
     """)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS chat_spend (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts            TEXT NOT NULL,
+            date          TEXT NOT NULL,
+            model         TEXT,
+            input_tokens  INTEGER DEFAULT 0,
+            output_tokens INTEGER DEFAULT 0,
+            cost_usd      REAL NOT NULL
+        )
+    """)
     return con
 
 
@@ -616,6 +627,83 @@ def _rate_ok(user: str) -> bool:
         return False
     q.append(now)
     return True
+
+
+# ── Per-user daily chat budget ────────────────────────────────────────────
+# Every coach call's exact token usage is priced and recorded in the user's
+# chat_spend table; _chat_response refuses further chat once today's total
+# crosses the user's budget. Complements _rate_ok (message count) with a cost
+# cap, so one user can't drain the shared Anthropic credit balance.
+
+# $/MTok (input, output). Cache reads/writes bill at 0.1x / 1.25x input rate.
+_MODEL_PRICES = {
+    "claude-sonnet-4-6":         (3.00, 15.00),
+    "claude-haiku-4-5-20251001": (1.00, 5.00),
+}
+# Snapshot of the config default, taken before any per-user profile overlay can
+# mutate the process-global (config.activate resets it, but belt-and-braces).
+_DEFAULT_CHAT_BUDGET = float(getattr(config, "DAILY_CHAT_BUDGET_USD", 0.50))
+# The engine run behind regenerate_routine happens in a subprocess, so its real
+# usage isn't visible here — meter it as a flat estimate per invocation.
+_REGEN_EST_COST = 0.10
+
+
+def _usage_cost(model: str, usage: dict) -> float:
+    in_rate, out_rate = _MODEL_PRICES.get(model, (3.00, 15.00))
+    return (usage.get("input_tokens", 0) * in_rate
+            + usage.get("cache_creation_input_tokens", 0) * in_rate * 1.25
+            + usage.get("cache_read_input_tokens", 0) * in_rate * 0.10
+            + usage.get("output_tokens", 0) * out_rate) / 1_000_000
+
+
+def _record_spend(user: str, model: str, usages: list[dict],
+                  flat_cost: float = 0.0) -> None:
+    """Price the API rounds of one chat turn and append to the user's ledger."""
+    cost = sum(_usage_cost(model, u) for u in usages) + flat_cost
+    tin  = sum(u.get("input_tokens", 0) + u.get("cache_creation_input_tokens", 0)
+               + u.get("cache_read_input_tokens", 0) for u in usages)
+    tout = sum(u.get("output_tokens", 0) for u in usages)
+    if cost <= 0:
+        return
+    try:
+        con = _db(user)
+        try:
+            con.execute(
+                "INSERT INTO chat_spend (ts, date, model, input_tokens, output_tokens, cost_usd) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (datetime.now().isoformat(timespec="seconds"),
+                 date.today().isoformat(), model, tin, tout, round(cost, 6)))
+            con.commit()
+        finally:
+            con.close()
+    except Exception as e:
+        print(f"[chat] {user}: spend record failed: {e}")
+
+
+def _spend_today(user: str) -> float:
+    try:
+        con = _db(user)
+        try:
+            row = con.execute("SELECT COALESCE(SUM(cost_usd), 0) FROM chat_spend "
+                              "WHERE date = ?", (date.today().isoformat(),)).fetchone()
+            return float(row[0])
+        finally:
+            con.close()
+    except Exception:
+        return 0.0
+
+
+def _chat_budget(user: str) -> float:
+    """The user's daily chat budget (USD): profile override, else the config
+    default. Read straight from profile.py so no config.activate is needed."""
+    try:
+        import profile_editor
+        v = profile_editor.read_profile(user).get("daily_chat_budget_usd")
+        if v is not None:
+            return float(v)
+    except Exception:
+        pass
+    return _DEFAULT_CHAT_BUDGET
 
 
 def _to_api_messages(history: list[dict]) -> list[dict]:
@@ -789,6 +877,9 @@ def _run_tool(user: str, name: str, args: dict) -> tuple[str, bool]:
             return "Applied: " + "; ".join(summaries), False
         if name == "regenerate_routine":
             print(f"[chat] {user}: regenerating routine (force={bool(args.get('force'))})")
+            # The engine subprocess's real token usage isn't visible here — meter
+            # it as a flat estimate so budget caps still bite on the priciest path.
+            _record_spend(user, "engine (est.)", [], flat_cost=_REGEN_EST_COST)
             return _regenerate_routine(user, bool(args.get("force")))
         if name == "set_rest_timer":
             return _set_rest_timer(user, args.get("exercise", ""), args.get("seconds"))
@@ -853,44 +944,49 @@ def _coach_reply(user: str, history: list[dict]) -> str:
                                 onboarding_block=ONBOARDING_GUIDE if needs_onboarding else "")
 
     messages = _to_api_messages(history)
-    for _ in range(MAX_TOOL_ROUNDS):
-        resp = requests.post(
-            ANTHROPIC_URL,
-            headers=headers,
-            json={
-                "model":      CLAUDE_MODEL,
-                "max_tokens": CHAT_MAX_TOKENS,
-                "system":     system,
-                "tools":      CHAT_TOOLS,
-                "messages":   messages,
-            },
-            timeout=120,
-        )
-        if not resp.ok:
-            try:
-                err_msg = resp.json().get("error", {}).get("message", "")
-            except ValueError:
-                err_msg = ""
-            _note_api_error(resp.status_code, err_msg or resp.reason)
-            raise RuntimeError(f"Anthropic API {resp.status_code}: {err_msg or resp.reason}")
-        _note_api_ok()
-        data = resp.json()
+    usages: list[dict] = []           # per-round token usage → the spend ledger
+    try:
+        for _ in range(MAX_TOOL_ROUNDS):
+            resp = requests.post(
+                ANTHROPIC_URL,
+                headers=headers,
+                json={
+                    "model":      CLAUDE_MODEL,
+                    "max_tokens": CHAT_MAX_TOKENS,
+                    "system":     system,
+                    "tools":      CHAT_TOOLS,
+                    "messages":   messages,
+                },
+                timeout=120,
+            )
+            if not resp.ok:
+                try:
+                    err_msg = resp.json().get("error", {}).get("message", "")
+                except ValueError:
+                    err_msg = ""
+                _note_api_error(resp.status_code, err_msg or resp.reason)
+                raise RuntimeError(f"Anthropic API {resp.status_code}: {err_msg or resp.reason}")
+            _note_api_ok()
+            data = resp.json()
+            usages.append(data.get("usage") or {})
 
-        if data.get("stop_reason") != "tool_use":
-            texts = [b["text"] for b in data["content"] if b["type"] == "text"]
-            return "\n".join(texts).strip()
+            if data.get("stop_reason") != "tool_use":
+                texts = [b["text"] for b in data["content"] if b["type"] == "text"]
+                return "\n".join(texts).strip()
 
-        messages.append({"role": "assistant", "content": data["content"]})
-        results = []
-        for block in data["content"]:
-            if block["type"] != "tool_use":
-                continue
-            result, is_error = _run_tool(user, block["name"], block["input"] or {})
-            results.append({"type": "tool_result", "tool_use_id": block["id"],
-                            "content": result, "is_error": is_error})
-        messages.append({"role": "user", "content": results})
+            messages.append({"role": "assistant", "content": data["content"]})
+            results = []
+            for block in data["content"]:
+                if block["type"] != "tool_use":
+                    continue
+                result, is_error = _run_tool(user, block["name"], block["input"] or {})
+                results.append({"type": "tool_result", "tool_use_id": block["id"],
+                                "content": result, "is_error": is_error})
+            messages.append({"role": "user", "content": results})
 
-    raise RuntimeError("tool loop exceeded MAX_TOOL_ROUNDS")
+        raise RuntimeError("tool loop exceeded MAX_TOOL_ROUNDS")
+    finally:
+        _record_spend(user, CLAUDE_MODEL, usages)
 
 
 def _history_response(user: str):
@@ -1492,6 +1588,9 @@ def _chat_response(user: str):
         return jsonify({"error": f"message too long (max {MAX_MESSAGE_CHARS} chars)"}), 400
     if not _rate_ok(user):
         return jsonify({"error": "rate limit reached — try again in a while"}), 429
+    budget = _chat_budget(user)
+    if budget > 0 and _spend_today(user) >= budget:
+        return jsonify({"error": "daily coach budget used up — chat resets at midnight"}), 429
 
     con = _db(user)
     try:
@@ -1986,6 +2085,12 @@ def _users_overview() -> list[dict]:
             last_workout, sessions = srow["d"], srow["n"]
         except sqlite3.OperationalError:
             last_workout, sessions = None, 0
+        try:
+            spend_today = con.execute(
+                "SELECT COALESCE(SUM(cost_usd), 0) FROM chat_spend WHERE date = ?",
+                (date.today().isoformat(),)).fetchone()[0]
+        except sqlite3.OperationalError:
+            spend_today = 0.0
         con.close()
         try:
             onboarding = profile_editor.read_profile(user)["needs_onboarding"]
@@ -2001,6 +2106,8 @@ def _users_overview() -> list[dict]:
             "last_workout": _ago(last_workout),
             "sessions": sessions,
             "withings": (d / "withings_token.json").is_file(),
+            "spend_today": round(float(spend_today), 3),
+            "budget": _chat_budget(user),
         })
     rows.sort(key=lambda r: (r["last_active"] == "never", r["user"]))
     return rows

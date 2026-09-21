@@ -91,6 +91,11 @@ MAIN_LIFTS = {
 # Hevy API. The wizard can do this for you.
 HEVY_ROUTINE_FOLDER_ID = None
 
+# ── Chat budget ───────────────────────────────────────────────────────────
+# Daily coach-chat spend cap (USD). Uncomment to override the default (0.50);
+# 0 disables the cap. Edited by the operator only — the coach can't change it.
+# DAILY_CHAT_BUDGET_USD = 0.50
+
 # ── Focus lifts ───────────────────────────────────────────────────────────
 DEFAULT_FOCUS_LIFTS = {
     "push": "Incline Barbell Bench Press",

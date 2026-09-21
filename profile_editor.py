@@ -65,6 +65,7 @@ def read_profile(user: str) -> dict:
         "skill_work":              ns.get("SKILL_WORK", []),
         "hevy_routine_folder_id":  ns.get("HEVY_ROUTINE_FOLDER_ID"),
         "log_source":              ns.get("LOG_SOURCE", "hevy"),
+        "daily_chat_budget_usd":   ns.get("DAILY_CHAT_BUDGET_USD"),
     }
 
 

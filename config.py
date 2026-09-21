@@ -120,6 +120,13 @@ LOG_SOURCE = "hevy"
 # Per-session-type default focus lift
 DEFAULT_FOCUS_LIFTS: dict[str, str] = {}
 
+# Daily Anthropic spend cap for the coach chat, per user (USD). The chat server
+# records each coach call's token cost and refuses further chat once the user's
+# spend for the day crosses this. 0 disables the cap. Override per-user in
+# profile.py (file-edit only — deliberately NOT exposed to the coach's
+# update_profile tool, so athletes can't raise their own budget via chat).
+DAILY_CHAT_BUDGET_USD = 0.50
+
 # Exercises that should never be prescribed for this user
 EXCLUDED_EXERCISES: list[str] = []
 
@@ -352,6 +359,7 @@ def activate(user_name: str) -> None:
     global SESSION_TEMPLATES
     global LOG_SOURCE
     global FREQUENT_EXERCISES
+    global DAILY_CHAT_BUDGET_USD
 
     user_dir = _USERS_ROOT / user_name
     if not user_dir.is_dir():
@@ -377,6 +385,7 @@ def activate(user_name: str) -> None:
     LOG_SOURCE = "hevy"
     SESSION_TEMPLATES = copy.deepcopy(_SESSION_TEMPLATES_DEFAULT)
     FREQUENT_EXERCISES = []
+    DAILY_CHAT_BUDGET_USD = 0.50
 
     # Per-user secrets: file > shell env (explicit isolation when run_all switches users)
     user_secrets = _read_dotenv(user_dir / "secrets.env")
