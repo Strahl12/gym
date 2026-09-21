@@ -61,13 +61,14 @@
   .ex__flag { font-family: var(--mono); font-size: .56rem;
               letter-spacing: .12em; text-transform: uppercase; color: var(--lime);
               text-shadow: 0 0 8px rgba(182,255,0,.5); }
-  .ready { font-family: var(--mono); font-size: .55rem; letter-spacing: .08em;
-           text-transform: uppercase; padding: .1rem .42rem; border: 1px solid;
-           white-space: nowrap; }
-  .ready--ready { color: var(--lime); border-color: var(--lime); text-shadow: 0 0 7px rgba(182,255,0,.5); }
-  .ready--build { color: var(--cyan); border-color: var(--cyan); }
-  .ready--hold  { color: #ffb300; border-color: #ffb300; }
-  .ready--ease  { color: var(--danger); border-color: var(--danger); }
+  .ready { display: inline-flex; align-items: center; gap: .3rem; font-family: var(--mono);
+           font-size: .55rem; letter-spacing: .08em; text-transform: uppercase;
+           padding: .1rem .42rem; border: 1px solid; white-space: nowrap; }
+  .rag-dot { width: .5rem; height: .5rem; border-radius: 50%; background: currentColor;
+             box-shadow: 0 0 6px currentColor; flex: none; }
+  .rag-green { color: var(--lime); border-color: var(--lime); text-shadow: 0 0 7px rgba(182,255,0,.5); }
+  .rag-amber { color: #ffb300; border-color: #ffb300; text-shadow: 0 0 7px rgba(255,179,0,.5); }
+  .rag-red   { color: var(--danger); border-color: var(--danger); text-shadow: 0 0 7px rgba(255,45,85,.5); }
   .readnote { font-family: var(--mono); font-size: .6rem; letter-spacing: .03em;
               color: var(--dim); margin-top: .45rem; line-height: 1.4; }
   .hist-btn { margin-left: auto; font-family: var(--mono); font-size: .56rem;
@@ -197,6 +198,14 @@
                   letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
                   background: transparent; border: 1px solid var(--line); border-radius: 0;
                   padding: .5rem; cursor: pointer; }
+  .classify-info { border-top: 1px solid var(--line); margin: .2rem 0 .5rem; }
+  .classify-row { display: flex; justify-content: space-between; gap: 1rem; padding: .4rem .2rem;
+                  border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: .74rem; }
+  .classify-k { color: var(--dim); text-transform: uppercase; letter-spacing: .1em; font-size: .6rem;
+                align-self: center; }
+  .classify-v { color: var(--cyan); text-transform: capitalize; }
+  .classify-q { font-size: .8rem; color: var(--ink); text-align: center; line-height: 1.4;
+                margin: .6rem 0 .5rem; }
 
   /* Add / swap exercise controls in the logger */
   .ex__ctl { font-family: var(--mono); font-size: .68rem; line-height: 1; color: var(--ink);
@@ -209,6 +218,17 @@
               background: var(--panel-2); border: 1px solid var(--cyan); border-radius: 0;
               padding: .3rem .5rem; }
   .ex__pick:focus { outline: none; box-shadow: inset 0 0 0 1px rgba(0,229,255,.35); }
+  .ex__results { display: flex; flex-direction: column; max-height: 15rem; overflow-y: auto;
+                 border: 1px solid var(--cyan); border-top: 0; background: var(--panel); margin-bottom: .3rem; }
+  .ex__results[hidden] { display: none; }
+  .ex__result { display: flex; align-items: baseline; gap: .5rem; text-align: left; width: 100%;
+                background: transparent; border: 0; border-top: 1px solid var(--line);
+                padding: .5rem .6rem; cursor: pointer; color: var(--ink); font: inherit; }
+  .ex__result:first-child { border-top: 0; }
+  .ex__result:hover { background: var(--panel-2); }
+  .ex__result-name { font-family: var(--mono); font-size: .82rem; }
+  .ex__result-meta { font-family: var(--mono); font-size: .58rem; color: var(--dim);
+                     text-transform: uppercase; letter-spacing: .04em; margin-left: auto; white-space: nowrap; }
   .pickalts { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin: .5rem 0 .1rem; }
   .pickalts__lbl { font-family: var(--mono); font-size: .55rem; letter-spacing: .1em;
                    text-transform: uppercase; color: var(--dim); }
@@ -365,6 +385,7 @@ const LOG_URL    = CHAT_URL + "/workout/log";
 const LOGGED_URL = CHAT_URL + "/workout/logged";
 const EXLIST_URL = CHAT_URL + "/workout/exercises";
 const SETUP_URL  = CHAT_URL + "/workout/setup";
+const CLASSIFY_URL = CHAT_URL + "/workout/classify";
 const CYAN = "#00e5ff", LIME = "#b6ff00";
 let swapping = false;   // one swap (Hevy PUT) at a time, across all cards
 let LOGGING = false;    // editable logging mode on the Workout tab
@@ -583,23 +604,44 @@ async function loadSetups() {
 }
 
 // ── Exercise catalogue (for add / swap pickers in the logger) ────────────────
-let CATALOG = null;   // { names: [...], bw: Set<name> }
+let CATALOG = null;   // { items: [{name,muscle,equipment}], bw: Set<name> }
 async function loadCatalog() {
   if (CATALOG) return CATALOG;
   try {
     const r = await fetch(EXLIST_URL);
     const d = await r.json();
     const list = d.exercises || [];
-    CATALOG = { names: list.map(e => e.name),
+    CATALOG = { items: list,
                 bw: new Set(list.filter(e => e.bodyweight).map(e => e.name)) };
   } catch (e) {
-    CATALOG = { names: [], bw: new Set() };
+    CATALOG = { items: [], bw: new Set() };
   }
-  let dl = document.getElementById("exlist");
-  if (!dl) { dl = el("datalist"); dl.id = "exlist"; document.body.appendChild(dl); }
-  dl.textContent = "";
-  CATALOG.names.forEach(n => { const o = el("option"); o.value = n; dl.appendChild(o); });
   return CATALOG;
+}
+
+// Hevy-style filtered dropdown: rank prefix matches first, then substring, and
+// show each result's muscle · equipment. Populates `results` under the input.
+function fillSearch(results, q, onPick) {
+  results.textContent = "";
+  q = (q || "").trim().toLowerCase();
+  if (!q || !CATALOG) { results.hidden = true; return; }
+  const starts = [], contains = [];
+  for (const it of CATALOG.items) {
+    const nl = it.name.toLowerCase();
+    if (nl.startsWith(q)) starts.push(it);
+    else if (nl.indexOf(q) !== -1) contains.push(it);
+  }
+  const ranked = starts.concat(contains).slice(0, 25);
+  if (!ranked.length) { results.hidden = true; return; }
+  ranked.forEach(it => {
+    const row = el("button", "ex__result"); row.type = "button";
+    row.appendChild(el("span", "ex__result-name", it.name));
+    const meta = [it.muscle, it.equipment].filter(Boolean).join(" · ");
+    if (meta) row.appendChild(el("span", "ex__result-meta", meta));
+    row.addEventListener("click", () => onPick(it.name));
+    results.appendChild(row);
+  });
+  results.hidden = false;
 }
 
 function exerciseCard(ex, idx) {
@@ -610,8 +652,10 @@ function exerciseCard(ex, idx) {
   if (ex.muscle_group) head.appendChild(el("span", "ex__tag", ex.muscle_group.replace(/_/g, " ")));
   if (ex.equipment_category) head.appendChild(el("span", "ex__tag", ex.equipment_category));
   if (ex.is_main_lift) head.appendChild(el("span", "ex__flag", "★ Main lift"));
-  if (ex.readiness && ex.readiness.state && ex.readiness.state !== "new") {
-    const chip = el("span", "ready ready--" + ex.readiness.state, ex.readiness.label);
+  if (ex.readiness && ex.readiness.rag && ex.readiness.rag !== "none") {
+    const chip = el("span", "ready rag-" + ex.readiness.rag);
+    chip.appendChild(el("span", "rag-dot"));
+    chip.appendChild(document.createTextNode(ex.readiness.label));
     chip.title = ex.readiness.detail || "";
     head.appendChild(chip);
   }
@@ -996,6 +1040,99 @@ function openRpe(mset, rerender) {
   });
 }
 
+// ── Classify-on-add: an exercise not in the library → Claude works out what it is,
+// asks a question if the name's unclear, then saves it so it's known next time. ──
+async function pickInto(mex, name, isBw, rerender) {
+  mex.exercise_name = name;
+  mex.is_bodyweight = !!isBw;
+  mex.setup = SETUPS[name] || "";
+  await seedFromHistory(mex);
+  delete mex._editing; saveDraft(); rerender();
+}
+
+async function addUnknownExercise(mex, name, rerender) {
+  let res;
+  try {
+    const r = await fetch(CLASSIFY_URL, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }) });
+    res = await r.json();
+    if (res.error) throw new Error(res.error);
+  } catch (e) {
+    await pickInto(mex, name, false, rerender);   // classify down — use the raw name
+    return;
+  }
+  if (res.known) { await pickInto(mex, res.name, res.is_bodyweight, rerender); return; }
+  openClassifySheet(mex, name, res, rerender);
+}
+
+function openClassifySheet(mex, name, res, rerender) {
+  openSheet((sheet, close) => {
+    sheet.appendChild(el("div", "sheet__title", "Add “" + name + "”"));
+    sheet.appendChild(el("div", "sheet__sub", "New exercise — Claude classified it as:"));
+    const info = el("div", "classify-info");
+    const paint = r => {
+      info.textContent = "";
+      const line = (k, v) => { const d = el("div", "classify-row");
+        d.appendChild(el("span", "classify-k", k));
+        d.appendChild(el("span", "classify-v", (v || "—").toString().replace(/_/g, " ")));
+        info.appendChild(d); };
+      line("Muscle", r.muscle); line("Equipment", r.equipment);
+      line("Type", r.exercise_type); if (r.session_type) line("Day", r.session_type);
+    };
+    paint(res);
+    sheet.appendChild(info);
+
+    if (res.question) {
+      sheet.appendChild(el("div", "classify-q", res.question));
+      const hint = el("input", "exnote"); hint.type = "text";
+      hint.placeholder = "Answer to refine (optional)…";
+      sheet.appendChild(hint);
+      const refine = el("button", "sheet__clear", "↻ Re-check with my answer"); refine.type = "button";
+      refine.addEventListener("click", async () => {
+        refine.textContent = "Re-checking…";
+        try {
+          const r = await fetch(CLASSIFY_URL, { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, hint: hint.value }) });
+          const d = await r.json();
+          if (!d.error) { res = d; paint(d); }
+        } catch (e) {}
+        refine.textContent = "↻ Re-check with my answer";
+      });
+      sheet.appendChild(refine);
+    }
+
+    const err = el("div", "classify-q"); err.style.display = "none";
+    sheet.appendChild(err);
+    const use = el("button", "sheet__done", "Use it ✓"); use.type = "button";
+    use.addEventListener("click", async () => {
+      use.disabled = true; use.textContent = "Saving…";
+      let saved = false;
+      try {
+        const r = await fetch(CLASSIFY_URL, { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, save: true, meta: res }) });
+        const d = await r.json().catch(() => ({}));
+        saved = r.ok && !d.error;
+      } catch (e) {}
+      if (!saved) {
+        err.textContent = "Couldn't save — check your connection and try again.";
+        err.style.display = "";
+        use.disabled = false; use.textContent = "Use it ✓";
+        return;
+      }
+      if (CATALOG) {
+        CATALOG.items.push({ name, muscle: (res.muscle || "").replace(/_/g, " "), equipment: res.equipment });
+        if (res.is_bodyweight) CATALOG.bw.add(name);
+      }
+      close();
+      await pickInto(mex, name, res.is_bodyweight, rerender);
+    });
+    sheet.appendChild(use);
+    const cancel = el("button", "sheet__clear", "Cancel"); cancel.type = "button";
+    cancel.addEventListener("click", close);
+    sheet.appendChild(cancel);
+  });
+}
+
 // Build the editable model from the prescribed workout.
 function modelFromPrescription(w) {
   return (w.exercises || []).map(ex => ({
@@ -1078,20 +1215,13 @@ function loggerCard(mex, rerender) {
   const head = el("div", "ex__head");
 
   if (mex._editing) {
-    // Inline exercise picker (add or swap). Commit on ✓ or Enter; blank keeps old.
+    // Inline exercise picker (add or swap) with a Hevy-style filtered dropdown.
     const inp = el("input", "ex__pick");
-    inp.type = "text"; inp.setAttribute("list", "exlist");
+    inp.type = "text"; inp.autocomplete = "off"; inp.autocapitalize = "words";
     inp.placeholder = "Search exercise…"; inp.value = mex.exercise_name || "";
-    const commit = async () => {
-      const v = inp.value.trim();
-      if (v && v !== mex.exercise_name) {
-        mex.exercise_name = v;
-        mex.is_bodyweight = !!(CATALOG && CATALOG.bw.has(v));
-        mex.setup = SETUPS[v] || "";
-        await seedFromHistory(mex);            // suggest weight + reps from history
-      }
-      if (mex.exercise_name) { delete mex._editing; saveDraft(); rerender(); }
-    };
+    const results = el("div", "ex__results"); results.hidden = true;
+
+    // Adopt a chosen name (known catalogue exercise): tag it, seed, close.
     const pickName = async nm => {
       mex.exercise_name = nm;
       mex.is_bodyweight = !!(CATALOG && CATALOG.bw.has(nm));
@@ -1099,11 +1229,21 @@ function loggerCard(mex, rerender) {
       await seedFromHistory(mex);
       delete mex._editing; saveDraft(); rerender();
     };
+    // Free-text confirm (✓ / Enter): known name → pick it; unknown → classify it.
+    const commit = async () => {
+      const v = inp.value.trim();
+      if (!v) { if (mex.exercise_name) { delete mex._editing; saveDraft(); rerender(); } return; }
+      const known = CATALOG && CATALOG.items.find(it => it.name.toLowerCase() === v.toLowerCase());
+      if (known) { pickName(known.name); return; }
+      await addUnknownExercise(mex, v, rerender);   // Claude classifies it
+    };
+    inp.addEventListener("input", () => fillSearch(results, inp.value, pickName));
     inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); commit(); } });
     const ok = el("button", "ex__ctl first", "✓"); ok.type = "button"; ok.title = "Confirm";
     ok.addEventListener("click", commit);
     head.appendChild(inp); head.appendChild(ok);
     card.appendChild(head);
+    card.appendChild(results);
 
     // Sensible same-slot alternates from the prescription, as quick-pick chips.
     const alts = (mex.alternates || []).filter(a => a && a !== mex.exercise_name);

@@ -77,8 +77,15 @@ def _jaccard(a: str, b: str) -> float:
     return len(wa & wb) / len(wa | wb)
 
 
+def _slug(name: str) -> str:
+    """Collapse a name to lowercase alphanumerics: 'Push-up' / 'push up' → 'push_up'."""
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+
 def resolve_id(name: str) -> Optional[str]:
-    """Return Hevy template ID for a canonical name, hevy_title, or alias."""
+    """Return Hevy template ID for a canonical name, hevy_title, or alias.
+    Falls back to slug-normalised comparison so punctuation/spacing variants
+    ('push up', 'Push-up') resolve to the same entry."""
     db = _load()
     name_lower = name.lower()
     for hevy_id, ex in db.items():
@@ -88,6 +95,13 @@ def resolve_id(name: str) -> Optional[str]:
             return hevy_id
         if any(a.lower() == name_lower for a in ex.get("aliases", [])):
             return hevy_id
+    name_slug = _slug(name)
+    if name_slug:
+        for hevy_id, ex in db.items():
+            if _slug(ex["canonical"]) == name_slug or _slug(ex["hevy_title"]) == name_slug:
+                return hevy_id
+            if any(_slug(a) == name_slug for a in ex.get("aliases", [])):
+                return hevy_id
     return None
 
 
@@ -139,6 +153,29 @@ def save_exercise(hevy_id: str, title: str, canonical_name: str,
         "equipment":     equipment,
         "exercise_type": exercise_type,
         "session_type":  "",
+    }
+    _flush(db)
+
+
+def save_custom_exercise(hevy_id: str, title: str, muscle: str, equipment: str,
+                         exercise_type: str, session_type: str = "",
+                         movement_pattern: str = "", is_compound: bool = False,
+                         secondary_muscles: Optional[list] = None) -> None:
+    """Add/replace a custom (athlete-added) exercise with full taxonomy fields.
+    Used when the logger classifies a name that wasn't in the library."""
+    db = _load()
+    db[hevy_id] = {
+        "hevy_title":        title,
+        "canonical":         title,
+        "aliases":           [],
+        "muscle":            muscle,
+        "equipment":         equipment,
+        "exercise_type":     exercise_type,
+        "session_type":      session_type or "",
+        "movement_pattern":  movement_pattern or "",
+        "is_compound":       bool(is_compound),
+        "secondary_muscles": secondary_muscles or [],
+        "custom":            True,
     }
     _flush(db)
 

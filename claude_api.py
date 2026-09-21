@@ -379,6 +379,21 @@ def _build_system_prompt(block_directive: Optional[str] = None) -> str:
         )
 
     # ── Session slot tables ────────────────────────────────────────────────
+    def _resolve_rotation(options, weights=None):
+        """Today's pick for a rotating main-lift slot (e.g. incline ⇄ flat bench):
+        the option least-recently trained, weighted so higher-weight variants come
+        up more often. Deterministic from logged history — transparent to Claude,
+        which just sees a fixed lift for the day."""
+        import context as _ctx
+        weights = (list(weights or []) + [1.0] * len(options))[:len(options)]
+        best, best_score = options[0], -1.0
+        for name, w in zip(options, weights):
+            d = _ctx.days_since_last(name)
+            d = 999 if d is None else d
+            if d * w > best_score:
+                best, best_score = name, d * w
+        return best
+
     templates = getattr(config, "SESSION_TEMPLATES_EFFECTIVE", None) or config.SESSION_TEMPLATES
     slot_lines = []
     for stype in config.SESSION_CYCLE:
@@ -387,7 +402,12 @@ def _build_system_prompt(block_directive: Optional[str] = None) -> str:
             continue
         slot_lines.append(f"\n### {stype.upper()}")
         for i, s in enumerate(slots, 1):
-            action = f"FIXED: {s['fixed']}" if s.get("fixed") else "pick from priority list"
+            if s.get("rotate"):
+                action = f"FIXED: {_resolve_rotation(s['rotate'], s.get('rotate_weights'))}"
+            elif s.get("fixed"):
+                action = f"FIXED: {s['fixed']}"
+            else:
+                action = "pick from priority list"
             pattern = s.get("movement_pattern") or "any"
             tags = []
             if s.get("is_compound") is True:

@@ -1307,6 +1307,138 @@ def _applog_response(user: str):
     return jsonify({"ok": True, **result})
 
 
+# Vocabulary Claude may answer with in the classify prompt. It is friendlier than
+# the exercises.json taxonomy (exercise_lib.VALID_*), so answers are mapped through
+# the _TO_LIB tables below before validation or persistence — every consumer of the
+# library detects bodyweight via equipment == "none" / "bodyweight" in exercise_type.
+_CLASSIFY_EQUIP  = {"barbell", "dumbbell", "machine", "cable", "kettlebell", "band",
+                    "bodyweight", "none", "other"}
+_CLASSIFY_ETYPES = {"weight_reps", "bodyweight", "bodyweight_weighted", "reps_only", "duration"}
+_EQUIP_TO_LIB = {"bodyweight": "none", "band": "resistance_band", "cable": "machine"}
+_ETYPE_TO_LIB = {"bodyweight": "bodyweight_weighted"}
+
+
+_CLASSIFY_MUSCLES = {
+    "abdominals", "shoulders", "biceps", "triceps", "forearms", "quadriceps",
+    "hamstrings", "calves", "glutes", "abductors", "adductors", "lats",
+    "upper_back", "traps", "lower_back", "chest", "cardio", "neck", "full_body", "other",
+}
+_CLASSIFY_PATTERNS = {
+    "vertical_push", "horizontal_push", "vertical_pull", "horizontal_pull", "hip_hinge",
+    "quad_dominant", "knee_flexion", "elbow_flexion", "elbow_extension", "shoulder_abduction",
+    "ankle_plantarflexion", "core_flexion", "core_anti_extension",
+}
+
+
+def _classify_exercise(name: str, hint: str, api_key: str) -> dict | None:
+    """Classify an athlete-added exercise from its name via Claude (Haiku): fills
+    muscle / equipment / type / pattern and, if the name is unclear, one short
+    clarifying question. Uses the raw messages API (same as the coach). None on failure."""
+    import json as _json, requests as _requests
+    if not api_key:
+        return None
+    system = (
+        "Classify a single gym exercise from its name for a workout logger. "
+        "Return ONLY a JSON object (no prose) with keys: "
+        f"muscle (primary, one of {sorted(_CLASSIFY_MUSCLES)}); "
+        f"equipment (one of {sorted(_CLASSIFY_EQUIP)}); "
+        "exercise_type (weight_reps = external load; bodyweight = pure bodyweight; "
+        "bodyweight_weighted = bodyweight that can add load e.g. weighted pull-up/dip; "
+        "reps_only = counted reps, no load; duration = timed); "
+        'session_type (one of "push","pull","legs","arms", or "" if unclear); '
+        f"movement_pattern (one of {sorted(_CLASSIFY_PATTERNS)} or \"\"); "
+        "is_compound (boolean); secondary_muscles (array from the muscle list, may be empty); "
+        "confident (boolean — true only if the name clearly identifies the exercise); "
+        "question (if NOT confident, ONE short question to disambiguate e.g. equipment or variation; else \"\")."
+    )
+    user = name if not hint else f"{name}\nAthlete clarification: {hint}"
+    try:
+        resp = _requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": api_key, "anthropic-version": "2023-06-01",
+                     "content-type": "application/json"},
+            json={"model": "claude-haiku-4-5-20251001", "max_tokens": 400,
+                  "system": system, "messages": [{"role": "user", "content": user}]},
+            timeout=30)
+        resp.raise_for_status()
+        text = (resp.json()["content"][0]["text"]).strip()
+        if text.startswith("```"):
+            text = text.split("```")[1]
+            text = text[4:] if text.startswith("json") else text
+        data = _json.loads(text.strip())
+    except Exception as e:
+        print(f"[chat] classify failed for {name!r}: {e}")
+        return None
+    muscle = data.get("muscle") if data.get("muscle") in _CLASSIFY_MUSCLES else "other"
+    equipment = data.get("equipment") if data.get("equipment") in _CLASSIFY_EQUIP else "other"
+    etype = data.get("exercise_type") if data.get("exercise_type") in _CLASSIFY_ETYPES else "weight_reps"
+    equipment = _EQUIP_TO_LIB.get(equipment, equipment)
+    etype = _ETYPE_TO_LIB.get(etype, etype)
+    stype = data.get("session_type") if data.get("session_type") in ("push", "pull", "legs", "arms") else ""
+    mp = data.get("movement_pattern") if data.get("movement_pattern") in _CLASSIFY_PATTERNS else ""
+    sec = [m for m in (data.get("secondary_muscles") or []) if m in _CLASSIFY_MUSCLES]
+    confident = bool(data.get("confident"))
+    return {"name": name, "muscle": muscle, "equipment": equipment, "exercise_type": etype,
+            "session_type": stype, "movement_pattern": mp, "is_compound": bool(data.get("is_compound")),
+            "secondary_muscles": sec, "confident": confident,
+            "question": (data.get("question") or "").strip() if not confident else "",
+            "is_bodyweight": equipment == "none" or "bodyweight" in etype}
+
+
+def _classify_response(user: str):
+    """Classify (and optionally persist) an athlete-added exercise. POST {name}
+    returns a best-guess classification + clarifying question; POST {name, save:true,
+    meta:{…}} writes it into the exercise library so it's known thereafter."""
+    import exercise_lib, re as _re
+    body = request.get_json(silent=True) or {}
+    name = (body.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "no name"}), 400
+
+    tid = exercise_lib.resolve_id(name)
+    if tid:                                   # already in the library — just report it
+        ex = exercise_lib.all_exercises().get(tid, {})
+        et = ex.get("exercise_type", "") or ""
+        return jsonify({"known": True, "name": name, "muscle": ex.get("muscle", ""),
+                        "equipment": ex.get("equipment", ""), "exercise_type": et,
+                        "is_bodyweight": ex.get("equipment") == "none" or "bodyweight" in et})
+
+    if body.get("save") and isinstance(body.get("meta"), dict):
+        m = body["meta"]
+        muscle = m.get("muscle") if m.get("muscle") in exercise_lib.VALID_MUSCLE_GROUPS else "other"
+        equipment = _EQUIP_TO_LIB.get(m.get("equipment"), m.get("equipment"))
+        if equipment not in exercise_lib.VALID_EQUIPMENT_CATEGORIES:
+            equipment = "other"
+        etype = _ETYPE_TO_LIB.get(m.get("exercise_type"), m.get("exercise_type"))
+        if etype not in exercise_lib.VALID_EXERCISE_TYPES:
+            etype = "weight_reps"
+        stype = m.get("session_type") if m.get("session_type") in ("push", "pull", "legs", "arms") else ""
+        mp = m.get("movement_pattern") if m.get("movement_pattern") in exercise_lib.VALID_MOVEMENT_PATTERNS else ""
+        sec = [x for x in (m.get("secondary_muscles") or []) if x in exercise_lib.VALID_MUSCLE_GROUPS]
+        slug = _re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")[:40] or "ex"
+        db = exercise_lib.all_exercises()
+        key, n = "custom_" + slug, 2
+        while key in db:            # distinct name whose truncated slug collides — never overwrite
+            key, n = f"custom_{slug}_{n}", n + 1
+        try:
+            exercise_lib.save_custom_exercise(key, name, muscle, equipment, etype,
+                                              stype, mp, bool(m.get("is_compound")), sec)
+        except Exception as e:
+            print(f"[chat] {user}: save custom exercise failed: {e}")
+            return jsonify({"error": "couldn't save"}), 500
+        print(f"[chat] {user}: saved custom exercise {name!r}")
+        return jsonify({"known": False, "saved": True, "name": name,
+                        "is_bodyweight": equipment == "none" or "bodyweight" in etype})
+
+    with _CONFIG_LOCK:
+        config.activate(user)
+        key = getattr(config, "ANTHROPIC_API_KEY", "") or ""
+    res = _classify_exercise(name, (body.get("hint") or "").strip(), key)   # network call outside lock
+    if not res:
+        return jsonify({"error": "classify unavailable"}), 502
+    return jsonify({"known": False, **res})
+
+
 def _setups_response(user: str):
     """{exercise: setup} map so the logger can pre-fill saved seat/pin numbers."""
     import applog
@@ -1330,7 +1462,9 @@ def _exercises_response(user: str):
             continue
         et = ex.get("exercise_type", "") or ""
         bw = ("bodyweight" in et) or ex.get("equipment") == "none"
-        out.append({"name": name, "bodyweight": bw})
+        out.append({"name": name, "bodyweight": bw,
+                    "muscle": (ex.get("muscle") or "").replace("_", " "),
+                    "equipment": ex.get("equipment") or ""})
     out.sort(key=lambda e: e["name"].lower())
     return jsonify({"exercises": out})
 
@@ -1534,6 +1668,14 @@ def chat_workout_setup(token: str):
     if user is None:
         abort(404)
     return _setups_response(user)
+
+
+@app.post("/u/<token>/workout/classify")
+def chat_workout_classify(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return _classify_response(user)
 
 
 @app.get("/u/<token>/devinfo")
@@ -1778,6 +1920,14 @@ def app_workout_setup():
     if user is None:
         abort(401)
     return _setups_response(user)
+
+
+@app.post("/app/workout/classify")
+def app_workout_classify():
+    user = _session_user()
+    if user is None:
+        abort(401)
+    return _classify_response(user)
 
 
 @app.get("/app/devinfo")
