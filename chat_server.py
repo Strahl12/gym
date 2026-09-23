@@ -931,11 +931,46 @@ def _coach_reply(user: str, history: list[dict]) -> str:
         _sync_recent(user)
         athlete_block = format_athlete_context(build_context(), all_lifts=True)
         athlete_block += _preferences_block(user)
+        # Today's prescription block. The session type is stated up front and
+        # marked authoritative: the chat history spans days, and the coach has
+        # previously trusted its own older "arms is live" messages over the
+        # fresh JSON (2026-09-23 — claimed a stale type + a regen that never
+        # happened). When today has no file yet, say so explicitly rather than
+        # leaving the model to guess from history.
         today_block = ""
-        workout_file = Path(config.LOG_DIR) / f"{date.today().isoformat()}_workout.json"
+        log_dir = Path(config.LOG_DIR)
+        workout_file = log_dir / f"{date.today().isoformat()}_workout.json"
+        delivered = "their Hevy app and the app's Workout tab" if config.uses_hevy() \
+                    else "the app's Workout tab"
         if workout_file.exists():
-            today_block = ("\n## Today's prescription (already in their Hevy app)\n"
-                           + workout_file.read_text())
+            raw = workout_file.read_text()
+            try:
+                stype = (json.loads(raw).get("session_type") or "unknown").upper()
+            except Exception:
+                stype = "UNKNOWN"
+            today_block = (
+                f"\n## TODAY ({date.today():%A %d %b}) — prescribed session: {stype}\n"
+                f"This is the live prescription, shown in {delivered}. It is the ONLY source of "
+                "truth for today's session. The engine regenerates each morning, so anything said "
+                "earlier in this conversation about 'today's session' may refer to a PREVIOUS day "
+                "and is now stale — never state today's session type from chat memory; read it "
+                "from this block.\n" + raw
+            )
+        else:
+            prior = sorted(log_dir.glob("*_workout.json")) if log_dir.exists() else []
+            if prior:
+                try:
+                    ptype = json.loads(prior[-1].read_text()).get("session_type", "?")
+                except Exception:
+                    ptype = "?"
+                last_line = f"The most recent prescription is {prior[-1].name[:10]} ({ptype})."
+            else:
+                last_line = "No prescriptions exist yet."
+            today_block = (
+                f"\n## TODAY ({date.today():%A %d %b}) — no session generated yet\n"
+                f"{last_line} Do not present an older session as today's; if they want one, "
+                "offer regenerate_routine."
+            )
         headers = _headers()
 
     profile_block, needs_onboarding = _profile_block(user)
@@ -1146,10 +1181,11 @@ def _exercise_meta(name: str) -> dict:
             "exercise_type":      ex.get("exercise_type", "weight_reps")}
 
 
-def _swap_weight(user: str, name: str, reps: int, is_bodyweight: bool) -> float:
+def _swap_weight(user: str, name: str, reps: int, is_bodyweight: bool,
+                 equipment: str = "") -> float:
     """Working weight for `name` at `reps`, seeded from its own most recent e1RM
-    (Epley inverse, rounded down to 2.5kg — same convention the engine uses for
-    rep-target jumps). Bodyweight movements stay at 0; no history → 0 (blank)."""
+    (Epley inverse, rounded down to the equipment's loadable increment — same
+    convention the engine uses). Bodyweight stays at 0; no history → 0 (blank)."""
     if is_bodyweight or reps <= 0:
         return 0.0
     import stats
@@ -1159,8 +1195,9 @@ def _swap_weight(user: str, name: str, reps: int, is_bodyweight: bool) -> float:
         e1 = None
     if not e1:
         return 0.0
+    inc = float((getattr(config, "EQUIPMENT_INCREMENTS", {}) or {}).get(equipment, 2.5))
     w = e1 / (1 + reps / 30)          # invert Epley for the new target reps
-    return (w // 2.5) * 2.5           # round DOWN to the barbell increment
+    return (w // inc) * inc           # round DOWN to the loadable increment
 
 
 def _log_swap_event(exercise: str, replacement: str, session_type: str | None) -> None:
@@ -1274,7 +1311,8 @@ def _swap_response(user: str):
                  or ex.get("equipment_category") == "none")
         for s in ex.get("sets", []):
             if not s.get("is_warmup"):
-                s["weight_kg"] = _swap_weight(user, to, int(s.get("reps") or 0), is_bw)
+                s["weight_kg"] = _swap_weight(user, to, int(s.get("reps") or 0), is_bw,
+                                              ex.get("equipment_category", ""))
         adjust_where = "in Hevy" if _user_uses_hevy(user) else "when you log it"
         ex["notes"] = (f"Swapped in for {old}. Working weight seeded from your recent "
                        f"{to} history — adjust {adjust_where} if it feels off.")
@@ -1551,6 +1589,21 @@ def _exercises_response(user: str):
     logger's add / swap pickers. Static library data, so no per-user state — the
     client fetches it once and drives a <datalist> autocomplete off it."""
     import exercise_lib
+    # Per-user recency: days since each exercise was last logged, so the picker
+    # can show "3d ago" and float recent movements to the top.
+    days: dict[str, int] = {}
+    try:
+        con = sqlite3.connect(USERS_ROOT / user / "gym.db")
+        rows = con.execute("SELECT exercise, MAX(date) FROM sets "
+                           "WHERE is_warmup = 0 AND reps > 0 GROUP BY exercise").fetchall()
+        con.close()
+        today = date.today()
+        for name, d in rows:
+            if name and d:
+                days[name] = (today - date.fromisoformat(d)).days
+    except Exception as e:
+        print(f"[chat] {user}: exercise recency lookup failed: {e}")
+
     out = []
     for ex in exercise_lib.all_exercises().values():
         name = ex.get("canonical") or ex.get("hevy_title")
@@ -1560,7 +1613,8 @@ def _exercises_response(user: str):
         bw = ("bodyweight" in et) or ex.get("equipment") == "none"
         out.append({"name": name, "bodyweight": bw,
                     "muscle": (ex.get("muscle") or "").replace("_", " "),
-                    "equipment": ex.get("equipment") or ""})
+                    "equipment": ex.get("equipment") or "",
+                    "days_ago": days.get(name)})
     out.sort(key=lambda e: e["name"].lower())
     return jsonify({"exercises": out})
 

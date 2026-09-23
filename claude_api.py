@@ -996,10 +996,11 @@ def _is_bodyweight(meta: dict) -> bool:
     return "bodyweight" in (meta.get("exercise_type") or "") or meta.get("equipment") == "none"
 
 
-def _reseed_weight(name: str, reps: int, is_bw: bool):
-    """Working weight for `name` at `reps` from its own e1RM history (Epley inverse,
-    floored to 2.5kg). Returns 0.0 for bodyweight, or None when a weighted movement
-    has no history to seed from (caller should reject the candidate)."""
+def _reseed_weight(name: str, reps: int, is_bw: bool, equipment: str = ""):
+    """Working weight for `name` at `reps` from its own e1RM history (Epley
+    inverse, floored to the equipment's loadable increment — 2.5kg default,
+    5kg machine stacks). Returns 0.0 for bodyweight, or None when a weighted
+    movement has no history to seed from (caller should reject the candidate)."""
     if is_bw:
         return 0.0
     if reps <= 0:
@@ -1011,7 +1012,111 @@ def _reseed_weight(name: str, reps: int, is_bw: bool):
         e1 = None
     if not e1:
         return None
-    return ((e1 / (1 + reps / 30)) // 2.5) * 2.5
+    inc = float((getattr(config, "EQUIPMENT_INCREMENTS", {}) or {}).get(equipment, 2.5))
+    return ((e1 / (1 + reps / 30)) // inc) * inc
+
+
+def _prior_session_stats(con, name: str):
+    """From the sets table: the exercise's most recent trained session's working
+    weight (mode load, ties heavier) + final-set RPE, and its per-session best
+    e1RM series. Returns (w0, last_rpe, series) or None if never trained."""
+    from collections import Counter
+    rows = con.execute(
+        "SELECT date, weight_kg, reps, rpe, e1rm FROM sets "
+        "WHERE exercise = ? AND is_warmup = 0 AND reps > 0 "
+        "ORDER BY date, set_number", (name,)).fetchall()
+    if not rows:
+        return None
+    by_date: dict = {}
+    for r in rows:
+        by_date.setdefault(r[0], []).append(r)
+    dates = sorted(by_date)
+    last = by_date[dates[-1]]
+    weights = [r[1] or 0 for r in last]
+    counts = Counter(weights)
+    top_count = max(counts.values())
+    w0 = max(w for w, c in counts.items() if c == top_count)
+    last_rpe = next((float(r[3]) for r in reversed(last) if r[3] is not None), None)
+    series = []
+    for d in dates:
+        vals = [r[4] for r in by_date[d] if r[4] and r[2] <= 15]
+        if vals:
+            series.append(max(vals))
+    return w0, last_rpe, series
+
+
+def _enforce_fatigue_rules(exercises: list[dict]) -> None:
+    """Deterministic backstop for two prompt rules the model measurably ignores
+    (probe.py audit: progressed after a ≥9.5-RPE final set in ~22-39% of
+    applicable cases, loaded plateaued lifts in ~28%): when the last logged set
+    of a lift was RPE ≥9.5, or its e1RM is flat across PLATEAU_SESSIONS, the
+    prescribed load may not EXCEED the previous session's working weight.
+    Clamps offending working sets down to that weight; holds/decreases and rep
+    schemes are never touched, so deliberate deloads pass through unchanged."""
+    import sqlite3 as _sqlite3
+    n_plateau = int(getattr(config, "PLATEAU_SESSIONS", 4))
+    try:
+        con = _sqlite3.connect(config.DB_PATH)
+    except Exception:
+        return
+    try:
+        for ex in exercises:
+            name = ex.get("exercise_name", "")
+            working = [s for s in ex.get("sets") or []
+                       if not s.get("is_warmup") and (s.get("weight_kg") or 0) > 0]
+            if not name or not working:
+                continue
+            prior = _prior_session_stats(con, name)
+            if not prior:
+                continue
+            w0, last_rpe, series = prior
+            if w0 <= 0:
+                continue
+            top = max(float(s["weight_kg"]) for s in working)
+            if top <= w0 + 1e-6:
+                continue
+            reason = None
+            if last_rpe is not None and last_rpe >= 9.5:
+                reason = f"final set was RPE {last_rpe:g}"
+            elif len(series) >= n_plateau and series[-1] <= series[-n_plateau]:
+                reason = f"e1RM flat across last {n_plateau} sessions"
+            if not reason:
+                continue
+            for s in working:
+                if float(s["weight_kg"]) > w0:
+                    s["weight_kg"] = w0
+            print(f"[claude_api] Fatigue guard: {name} held at {w0}kg "
+                  f"(model prescribed {top}kg; {reason})")
+            note = f"Load held at {w0}kg — {reason}."
+            ex["notes"] = (ex.get("notes") or "").rstrip()
+            ex["notes"] = (ex["notes"] + " " + note).strip() if ex["notes"] else note
+    finally:
+        con.close()
+
+
+def _snap_weights(exercises: list[dict]) -> None:
+    """Snap every prescribed set weight to the loadable increment for its
+    equipment (config.EQUIPMENT_INCREMENTS; 2.5kg default, e.g. 5kg machine
+    stacks). Nearest multiple wins; an exact halfway tie rounds DOWN so the
+    snap never nudges the athlete heavier than the model intended. Applies to
+    added weight on bodyweight lifts too; a 0/absent weight stays untouched."""
+    import math
+    inc_map = getattr(config, "EQUIPMENT_INCREMENTS", {}) or {}
+    for ex in exercises:
+        inc = float(inc_map.get(ex.get("equipment_category"), 2.5))
+        if inc <= 0:
+            continue
+        for s in ex.get("sets", []) or []:
+            w = s.get("weight_kg")
+            if not isinstance(w, (int, float)) or w <= 0:
+                continue
+            snapped = inc * math.floor(w / inc + 0.5 - 1e-9)
+            if snapped <= 0:
+                snapped = inc
+            if abs(snapped - w) > 1e-9:
+                print(f"[claude_api] Snapped {ex.get('exercise_name', '?')}: "
+                      f"{w}kg -> {snapped}kg ({inc}kg grid)")
+            s["weight_kg"] = round(snapped, 2)
 
 
 def _dedupe_recent(exercises: list[dict], context: dict) -> list[dict]:
@@ -1059,7 +1164,8 @@ def _dedupe_recent(exercises: list[dict], context: dict) -> list[dict]:
             for s in ex.get("sets", []):
                 ns = dict(s)
                 if not s.get("is_warmup"):
-                    w = _reseed_weight(cn, int(s.get("reps") or 0), is_bw)
+                    w = _reseed_weight(cn, int(s.get("reps") or 0), is_bw,
+                                       m.get("equipment", ""))
                     if w is None:      # weighted movement with no history — unusable
                         ok = False
                         break
@@ -1202,6 +1308,16 @@ def get_workout(context: dict, legacy: bool = False,
     # Deterministic no-repeat guard — enforce MIN_ACCESSORY_REPEAT_DAYS even if
     # Claude ignored the "recently trained" exclusion in the prompt.
     workout["exercises"] = _dedupe_recent(workout.get("exercises", []), context)
+
+    # Fatigue backstop — no load increases after a ≥9.5-RPE final set or on a
+    # plateaued lift (rules the prompt states but the model misses ~25% of the
+    # time per the probe.py audit).
+    _enforce_fatigue_rules(workout["exercises"])
+
+    # Snap every weight to its equipment's loadable grid — the model is told to
+    # use 2.5kg jumps but occasionally emits unloadable numbers (e.g. 83.5kg
+    # on a barbell), which athletes rightly complain about.
+    _snap_weights(workout["exercises"])
 
     return workout
 

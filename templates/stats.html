@@ -74,6 +74,11 @@
   .card .n { color: var(--cyan); text-shadow: 0 0 10px var(--cyan); }
   .cal-cell.trained { cursor: pointer; transition: filter .12s; }
   .cal-cell.trained:hover { filter: brightness(1.25); }
+  /* Neon ring on today's cell (outline doesn't fight the inline session glow) */
+  .cal-cell.today { outline: 2px solid #fff; outline-offset: 1px;
+                    box-shadow: 0 0 8px rgba(255,255,255,.85), 0 0 18px rgba(255,255,255,.4);
+                    animation: todayPulse 2s ease-in-out infinite; }
+  @keyframes todayPulse { 50% { outline-color: rgba(255,255,255,.55); } }
 
   /* Click-a-day session panel */
   .modal-back { position: fixed; inset: 0; z-index: 50; display: flex;
@@ -535,12 +540,17 @@ function monthGrid(year, month, calendar, colours) {
   let lead = (first.getDay() + 6) % 7; // Mon=0
   for (let i = 0; i < lead; i++) grid.appendChild(el("div", "cal-cell empty"));
   const days = new Date(year, month + 1, 0).getDate();
+  const now = new Date();
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   for (let day = 1; day <= days; day++) {
     const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     const st = calendar[iso];
-    const cell = el("div", "cal-cell" + (st ? " trained" : ""), String(day));
+    const isToday = iso === todayIso;
+    const cell = el("div", "cal-cell" + (st ? " trained" : "") + (isToday ? " today" : ""), String(day));
     if (st) { cell.style.background = colours[st];
-              cell.style.boxShadow = `0 0 5px ${colours[st]}, 0 0 10px ${colours[st]}`;
+              // today's white ring glow rides alongside the session-colour glow
+              cell.style.boxShadow = `0 0 5px ${colours[st]}, 0 0 10px ${colours[st]}`
+                + (isToday ? ", 0 0 8px rgba(255,255,255,.85)" : "");
               cell.title = `${iso} — ${st} · tap for detail`;
               cell.addEventListener("click", () => openDay(iso, colours)); }
     grid.appendChild(cell);

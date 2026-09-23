@@ -214,24 +214,44 @@
   .ex__ctl.first { margin-left: auto; }
   .ex__ctl:hover { border-color: var(--cyan); color: var(--cyan); }
   .ex__ctl.del:hover { border-color: var(--danger); color: var(--danger); }
-  .ex__pick { flex: 1 1 100%; font-family: var(--mono); font-size: 16px; color: var(--ink);
-              background: var(--panel-2); border: 1px solid var(--cyan); border-radius: 0;
-              padding: .3rem .5rem; }
-  .ex__pick:focus { outline: none; box-shadow: inset 0 0 0 1px rgba(0,229,255,.35); }
-  .ex__results { display: flex; flex-direction: column; max-height: 15rem; overflow-y: auto;
-                 border: 1px solid var(--cyan); border-top: 0; background: var(--panel); margin-bottom: .3rem; }
-  .ex__results[hidden] { display: none; }
-  .ex__result { display: flex; align-items: baseline; gap: .5rem; text-align: left; width: 100%;
-                background: transparent; border: 0; border-top: 1px solid var(--line);
-                padding: .5rem .6rem; cursor: pointer; color: var(--ink); font: inherit; }
-  .ex__result:first-child { border-top: 0; }
-  .ex__result:hover { background: var(--panel-2); }
-  .ex__result-name { font-family: var(--mono); font-size: .82rem; }
-  .ex__result-meta { font-family: var(--mono); font-size: .58rem; color: var(--dim);
-                     text-transform: uppercase; letter-spacing: .04em; margin-left: auto; white-space: nowrap; }
-  .pickalts { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin: .5rem 0 .1rem; }
-  .pickalts__lbl { font-family: var(--mono); font-size: .55rem; letter-spacing: .1em;
-                   text-transform: uppercase; color: var(--dim); }
+  /* Floating exercise picker (Hevy-style, rides the bottom-sheet machinery) */
+  .sheet--picker { height: 86vh; display: flex; flex-direction: column; }
+  .picker__search { width: 100%; box-sizing: border-box; font-family: var(--mono); font-size: 16px;
+                    color: var(--ink); background: var(--panel-2); border: 1px solid var(--cyan);
+                    border-radius: 0; padding: .5rem .6rem; margin-top: .2rem; }
+  .picker__search:focus { outline: none; box-shadow: inset 0 0 0 1px rgba(0,229,255,.35); }
+  .picker__filters { display: flex; gap: .3rem; overflow-x: auto; flex: none;
+                     padding: .55rem 0 .1rem; -webkit-overflow-scrolling: touch; }
+  .picker__filters--sub { padding: .35rem 0 .5rem; }
+  .picker__filters[hidden] { display: none; }
+  .pchip { flex: none; font-family: var(--mono); font-size: .62rem; letter-spacing: .06em;
+           text-transform: capitalize; color: var(--dim); background: var(--panel-2);
+           border: 1px solid var(--line); border-radius: 0; padding: .28rem .55rem; cursor: pointer; }
+  .pchip.on { color: #05050a; background: var(--cyan); border-color: var(--cyan);
+              box-shadow: 0 0 10px rgba(0,229,255,.45); }
+  .pchip--region { text-transform: uppercase; letter-spacing: .1em; }
+  .pchip--region.on { background: var(--magenta); border-color: var(--magenta);
+                      box-shadow: 0 0 10px rgba(255,0,102,.5); }
+  .picker__list { flex: 1; overflow-y: auto; border-top: 1px solid var(--line); }
+  .picker__row { display: flex; align-items: center; gap: .6rem; width: 100%; text-align: left;
+                 background: transparent; border: 0; border-bottom: 1px solid var(--line);
+                 padding: .6rem .3rem; cursor: pointer; color: var(--ink); font: inherit; }
+  .picker__row:hover { background: var(--panel-2); }
+  .picker__main { min-width: 0; }
+  .picker__name { font-family: var(--mono); font-size: .84rem; overflow: hidden;
+                  text-overflow: ellipsis; white-space: nowrap; }
+  .picker__meta { font-family: var(--mono); font-size: .56rem; color: var(--dim);
+                  text-transform: uppercase; letter-spacing: .05em; margin-top: .12rem; }
+  .picker__days { margin-left: auto; flex: none; font-family: var(--mono); font-size: .6rem;
+                  letter-spacing: .04em; color: var(--dim); white-space: nowrap; }
+  .picker__days.recent { color: var(--lime); text-shadow: 0 0 6px rgba(182,255,0,.4); }
+  .picker__hdr { font-family: var(--mono); font-size: .56rem; letter-spacing: .14em;
+                 text-transform: uppercase; color: var(--cyan); padding: .55rem .3rem .25rem;
+                 border-bottom: 1px solid var(--line); }
+  .picker__create { color: var(--cyan); }
+  .picker__create .picker__name { color: var(--cyan); }
+  .picker__empty { font-family: var(--mono); font-size: .7rem; color: var(--dim);
+                   text-align: center; padding: 1.2rem 0; }
   .addex { display: block; width: 100%; font-family: var(--mono); font-size: .62rem;
            letter-spacing: .1em; text-transform: uppercase; color: var(--cyan);
            background: transparent; border: 1px dashed var(--line); border-radius: 0;
@@ -604,7 +624,7 @@ async function loadSetups() {
 }
 
 // ── Exercise catalogue (for add / swap pickers in the logger) ────────────────
-let CATALOG = null;   // { items: [{name,muscle,equipment}], bw: Set<name> }
+let CATALOG = null;   // { items: [{name,muscle,equipment,days_ago}], bw: Set<name> }
 async function loadCatalog() {
   if (CATALOG) return CATALOG;
   try {
@@ -619,29 +639,136 @@ async function loadCatalog() {
   return CATALOG;
 }
 
-// Hevy-style filtered dropdown: rank prefix matches first, then substring, and
-// show each result's muscle · equipment. Populates `results` under the input.
-function fillSearch(results, q, onPick) {
-  results.textContent = "";
-  q = (q || "").trim().toLowerCase();
-  if (!q || !CATALOG) { results.hidden = true; return; }
-  const starts = [], contains = [];
-  for (const it of CATALOG.items) {
-    const nl = it.name.toLowerCase();
-    if (nl.startsWith(q)) starts.push(it);
-    else if (nl.indexOf(q) !== -1) contains.push(it);
-  }
-  const ranked = starts.concat(contains).slice(0, 25);
-  if (!ranked.length) { results.hidden = true; return; }
-  ranked.forEach(it => {
-    const row = el("button", "ex__result"); row.type = "button";
-    row.appendChild(el("span", "ex__result-name", it.name));
-    const meta = [it.muscle, it.equipment].filter(Boolean).join(" · ");
-    if (meta) row.appendChild(el("span", "ex__result-meta", meta));
-    row.addEventListener("click", () => onPick(it.name));
-    results.appendChild(row);
+// ── Floating exercise picker (Hevy-style) ───────────────────────────────────
+// Full-height sheet: search box, body-part filter chips, and a scrollable list
+// with each exercise's muscle · equipment and days-since-last-performed. With
+// no query, recently-trained exercises float to the top (suggested alternates
+// above them for swaps). A non-matching query offers "create new" → classify.
+function daysLabel(d) {
+  if (d == null) return "never";
+  if (d === 0) return "today";
+  if (d === 1) return "1d ago";
+  return d + "d ago";
+}
+
+function openExercisePicker(opts, onPick) {
+  const items = (CATALOG && CATALOG.items) || [];
+  const byName = {};
+  items.forEach(it => { byName[it.name] = it; });
+  openSheet((sheet, close) => {
+    sheet.classList.add("sheet--picker");
+    sheet.appendChild(el("div", "sheet__title", opts.title || "Add Exercise"));
+    const inp = el("input", "picker__search");
+    inp.type = "text"; inp.autocomplete = "off"; inp.placeholder = "Search exercises…";
+    sheet.appendChild(inp);
+    const regionRow = el("div", "picker__filters");
+    sheet.appendChild(regionRow);
+    const muscleRow = el("div", "picker__filters picker__filters--sub");
+    sheet.appendChild(muscleRow);
+    const list = el("div", "picker__list");
+    sheet.appendChild(list);
+
+    // Two-tier body-part filter: region first, then that region's muscles.
+    const REGIONS = {
+      "upper body": ["abdominals", "chest", "lats", "neck", "traps", "upper back",
+                     "biceps", "forearms", "lower back", "shoulders", "triceps"],
+      "lower body": ["abductors", "adductors", "calves", "glutes",
+                     "hamstrings", "quadriceps"],
+    };
+    let region = "";   // "" | "upper body" | "lower body"
+    let muscle = "";   // "" | a muscle within the active region
+    const present = new Set(items.map(i => i.muscle).filter(Boolean));
+    const matches = it => {
+      if (muscle) return it.muscle === muscle;
+      if (region) return REGIONS[region].includes(it.muscle);
+      return true;
+    };
+
+    const pick = (name, isNew) => { close(); onPick(name, !!isNew); };
+
+    const row = it => {
+      const b = el("button", "picker__row"); b.type = "button";
+      const main = el("div", "picker__main");
+      main.appendChild(el("div", "picker__name", it.name));
+      const meta = [it.muscle, it.equipment].filter(Boolean).join(" · ");
+      if (meta) main.appendChild(el("div", "picker__meta", meta));
+      b.appendChild(main);
+      const d = el("span", "picker__days" + (it.days_ago != null && it.days_ago <= 7 ? " recent" : ""),
+                   daysLabel(it.days_ago));
+      b.appendChild(d);
+      b.addEventListener("click", () => pick(it.name));
+      return b;
+    };
+
+    function renderChips() {
+      regionRow.textContent = "";
+      muscleRow.textContent = "";
+      const mk = (row, label, on, fn, cls) => {
+        const c = el("button", "pchip" + (cls ? " " + cls : "") + (on ? " on" : ""), label);
+        c.type = "button";
+        c.addEventListener("click", () => { fn(); renderChips(); renderList(); });
+        row.appendChild(c);
+      };
+      mk(regionRow, "All", !region, () => { region = ""; muscle = ""; }, "pchip--region");
+      Object.keys(REGIONS).forEach(r =>
+        mk(regionRow, r, region === r, () => { region = r; muscle = ""; }, "pchip--region"));
+      if (region) {
+        mk(muscleRow, "all " + region, !muscle, () => { muscle = ""; });
+        REGIONS[region].filter(m => present.has(m)).forEach(m =>
+          mk(muscleRow, m, muscle === m, () => { muscle = m; }));
+      }
+      muscleRow.hidden = !region;
+    }
+
+    function renderList() {
+      list.textContent = "";
+      const q = (inp.value || "").trim().toLowerCase();
+      let pool = items.filter(matches);
+
+      if (!q) {
+        // Suggested alternates first (swap flow), then most-recently-trained.
+        const sugg = (opts.suggested || []).filter(n => n && matches(byName[n] || {}));
+        if (sugg.length) {
+          list.appendChild(el("div", "picker__hdr", "Suggested"));
+          sugg.forEach(n => list.appendChild(row(byName[n] || { name: n, days_ago: null })));
+          list.appendChild(el("div", "picker__hdr", "All exercises"));
+        }
+        pool = pool.slice().sort((a, b) => {
+          const da = a.days_ago == null ? 1e9 : a.days_ago;
+          const db = b.days_ago == null ? 1e9 : b.days_ago;
+          return da - db || a.name.localeCompare(b.name);
+        });
+      } else {
+        const starts = [], contains = [];
+        for (const it of pool) {
+          const nl = it.name.toLowerCase();
+          if (nl.startsWith(q)) starts.push(it);
+          else if (nl.indexOf(q) !== -1) contains.push(it);
+        }
+        pool = starts.concat(contains);
+      }
+
+      pool.slice(0, 80).forEach(it => list.appendChild(row(it)));
+      if (!pool.length && !q) list.appendChild(el("div", "picker__empty", "No exercises here yet."));
+
+      // Offer create-new whenever the typed name isn't an exact match.
+      const typed = (inp.value || "").trim();
+      if (typed && !items.some(i => i.name.toLowerCase() === q)) {
+        const c = el("button", "picker__row picker__create"); c.type = "button";
+        const main = el("div", "picker__main");
+        main.appendChild(el("div", "picker__name", "＋ Create “" + typed + "”"));
+        main.appendChild(el("div", "picker__meta", "new exercise — Claude will classify it"));
+        c.appendChild(main);
+        c.addEventListener("click", () => pick(typed, true));
+        list.appendChild(c);
+      }
+    }
+
+    inp.addEventListener("input", renderList);
+    renderChips();
+    renderList();
+    setTimeout(() => inp.focus(), 0);
   });
-  results.hidden = false;
 }
 
 function exerciseCard(ex, idx) {
@@ -1047,7 +1174,7 @@ async function pickInto(mex, name, isBw, rerender) {
   mex.is_bodyweight = !!isBw;
   mex.setup = SETUPS[name] || "";
   await seedFromHistory(mex);
-  delete mex._editing; saveDraft(); rerender();
+  saveDraft(); rerender();
 }
 
 async function addUnknownExercise(mex, name, rerender) {
@@ -1128,7 +1255,14 @@ function openClassifySheet(mex, name, res, rerender) {
     });
     sheet.appendChild(use);
     const cancel = el("button", "sheet__clear", "Cancel"); cancel.type = "button";
-    cancel.addEventListener("click", close);
+    cancel.addEventListener("click", () => {
+      close();
+      // A freshly-added card that never got a name is useless — drop it.
+      if (!mex.exercise_name) {
+        const i = MODEL.indexOf(mex);
+        if (i >= 0) { MODEL.splice(i, 1); saveDraft(); rerender(); }
+      }
+    });
     sheet.appendChild(cancel);
   });
 }
@@ -1214,65 +1348,28 @@ function loggerCard(mex, rerender) {
   const card = el("div", "ex logging");
   const head = el("div", "ex__head");
 
-  if (mex._editing) {
-    // Inline exercise picker (add or swap) with a Hevy-style filtered dropdown.
-    const inp = el("input", "ex__pick");
-    inp.type = "text"; inp.autocomplete = "off"; inp.autocapitalize = "words";
-    inp.placeholder = "Search exercise…"; inp.value = mex.exercise_name || "";
-    const results = el("div", "ex__results"); results.hidden = true;
-
-    // Adopt a chosen name (known catalogue exercise): tag it, seed, close.
-    const pickName = async nm => {
-      mex.exercise_name = nm;
-      mex.is_bodyweight = !!(CATALOG && CATALOG.bw.has(nm));
-      mex.setup = SETUPS[nm] || "";
-      await seedFromHistory(mex);
-      delete mex._editing; saveDraft(); rerender();
-    };
-    // Free-text confirm (✓ / Enter): known name → pick it; unknown → classify it.
-    const commit = async () => {
-      const v = inp.value.trim();
-      if (!v) { if (mex.exercise_name) { delete mex._editing; saveDraft(); rerender(); } return; }
-      const known = CATALOG && CATALOG.items.find(it => it.name.toLowerCase() === v.toLowerCase());
-      if (known) { pickName(known.name); return; }
-      await addUnknownExercise(mex, v, rerender);   // Claude classifies it
-    };
-    inp.addEventListener("input", () => fillSearch(results, inp.value, pickName));
-    inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); commit(); } });
-    const ok = el("button", "ex__ctl first", "✓"); ok.type = "button"; ok.title = "Confirm";
-    ok.addEventListener("click", commit);
-    head.appendChild(inp); head.appendChild(ok);
-    card.appendChild(head);
-    card.appendChild(results);
-
-    // Sensible same-slot alternates from the prescription, as quick-pick chips.
-    const alts = (mex.alternates || []).filter(a => a && a !== mex.exercise_name);
-    if (alts.length) {
-      const box = el("div", "pickalts");
-      box.appendChild(el("span", "pickalts__lbl", "Suggested:"));
-      alts.forEach(nm => {
-        const b = el("button", "alt-btn", nm); b.type = "button";
-        b.addEventListener("click", () => pickName(nm));
-        box.appendChild(b);
+  head.appendChild(el("span", "ex__name", mex.exercise_name));
+  const swap = el("button", "ex__ctl first", "⇄"); swap.type = "button";
+  swap.title = "Swap this exercise";
+  swap.addEventListener("click", async () => {
+    await loadCatalog();
+    openExercisePicker(
+      { title: "Swap Exercise",
+        suggested: (mex.alternates || []).filter(a => a && a !== mex.exercise_name) },
+      async (name, isNew) => {
+        if (isNew) await addUnknownExercise(mex, name, rerender);
+        else await pickInto(mex, name, CATALOG.bw.has(name), rerender);
       });
-      card.appendChild(box);
-    }
-    setTimeout(() => inp.focus(), 0);
-  } else {
-    head.appendChild(el("span", "ex__name", mex.exercise_name));
-    const swap = el("button", "ex__ctl first", "⇄"); swap.type = "button";
-    swap.title = "Swap this exercise";
-    swap.addEventListener("click", () => { mex._editing = true; rerender(); });
-    const del = el("button", "ex__ctl del", "✕"); del.type = "button";
-    del.title = "Remove exercise";
-    del.addEventListener("click", () => {
-      if (mex.sets.some(s => s.done) &&
-          !confirm("Remove " + mex.exercise_name + " and its logged sets?")) return;
-      MODEL.splice(MODEL.indexOf(mex), 1); saveDraft(); rerender();
-    });
-    head.appendChild(swap); head.appendChild(del);
-    card.appendChild(head);
-  }
+  });
+  const del = el("button", "ex__ctl del", "✕"); del.type = "button";
+  del.title = "Remove exercise";
+  del.addEventListener("click", () => {
+    if (mex.sets.some(s => s.done) &&
+        !confirm("Remove " + mex.exercise_name + " and its logged sets?")) return;
+    MODEL.splice(MODEL.indexOf(mex), 1); saveDraft(); rerender();
+  });
+  head.appendChild(swap); head.appendChild(del);
+  card.appendChild(head);
 
   mex.sets.forEach(mset => card.appendChild(setRow(mset, mex, rerender)));
 
@@ -1321,7 +1418,6 @@ async function enterLogging(w) {
 
 function renderLogger(w) {
   document.body.classList.add("logging-active");
-  const editing = !!(MODEL && MODEL.some(m => m._editing));
   const keepY = window.scrollY;
   const main = document.getElementById("main");
   main.textContent = "";
@@ -1340,11 +1436,19 @@ function renderLogger(w) {
   MODEL.forEach(mex => main.appendChild(loggerCard(mex, rerender)));
 
   const addEx = el("button", "addex", "＋ Add exercise"); addEx.type = "button";
-  addEx.addEventListener("click", () => {
-    MODEL.push({ exercise_name: "", is_bodyweight: false, rest_seconds: 90, _editing: true,
-                 alternates: [], setup: "",
-                 sets: [{ weight: 0, reps: 0, rpe: "", type: "normal", done: false }] });
-    saveDraft(); rerender();
+  addEx.addEventListener("click", async () => {
+    await loadCatalog();
+    openExercisePicker({ title: "Add Exercise" }, async (name, isNew) => {
+      // New exercises default to 4 sets; seedFromHistory fills weight/reps
+      // from the last logged session of this movement.
+      const mex = { exercise_name: "", is_bodyweight: false, rest_seconds: 90,
+                    alternates: [], setup: "",
+                    sets: Array.from({ length: 4 }, () =>
+                      ({ weight: 0, reps: 0, rpe: "", type: "normal", done: false })) };
+      MODEL.push(mex);
+      if (isNew) await addUnknownExercise(mex, name, rerender);
+      else await pickInto(mex, name, CATALOG.bw.has(name), rerender);
+    });
   });
   main.appendChild(addEx);
 
@@ -1363,9 +1467,9 @@ function renderLogger(w) {
   discard.addEventListener("click", discardWorkout);
   main.appendChild(discard);
 
-  // Keep the scroll position across rebuilds so the page doesn't jump (unless a
-  // picker just opened, where we want the focused input scrolled into view).
-  if (!editing) requestAnimationFrame(() => window.scrollTo(0, keepY));
+  // Keep the scroll position across rebuilds so the page doesn't jump (the
+  // exercise picker is an overlay now, so this applies unconditionally).
+  requestAnimationFrame(() => window.scrollTo(0, keepY));
 }
 
 async function saveSession(w, saveBtn, status) {

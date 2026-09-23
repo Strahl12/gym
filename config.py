@@ -174,7 +174,7 @@ MIN_ACCESSORY_REPEAT_DAYS = 3
 
 # Per-muscle overrides for the no-repeat window above. Fast-recovering muscles
 # that tolerate high training frequency may repeat sooner than the default.
-MUSCLE_REPEAT_DAYS = {"calves": 1, "abs": 1, "forearms": 1}
+MUSCLE_REPEAT_DAYS = {"calves": 1, "abdominals": 1, "forearms": 1}
 
 
 def repeat_window_for(name: str, muscle: str = "") -> int:
@@ -191,11 +191,14 @@ MAX_CONSECUTIVE_DAYS = 5
 # Plateau detection: flag if e1RM hasn't improved across this many sessions
 PLATEAU_SESSIONS = 4
 
-# Equipment increments (kg)
+# Equipment increments (kg) — the loadable weight grid per equipment type.
+# Every prescribed weight is snapped to this grid post-generation
+# (claude_api._snap_weights), so athletes never see unloadable numbers
+# like 83.5kg on a barbell.
 EQUIPMENT_INCREMENTS = {
     "barbell":   2.5,
     "cable":     2.5,
-    "dumbbell":  2.0,
+    "dumbbell":  2.5,
     "machine":   5.0,
 }
 
