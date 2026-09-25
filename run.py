@@ -56,7 +56,8 @@ def _setup_logging(log_dir: str) -> None:
 
 def main(dry_run: bool = False, context_only: bool = False, find_templates: bool = False,
          as_workout: bool = False, confirm: bool = False, note: str = "",
-         set_focus: tuple = (), force: bool = False, creator_recs: bool = False):
+         set_focus: tuple = (), force: bool = False, creator_recs: bool = False,
+         session_type: str = ""):
 
     # ── Template lookup helper ─────────────────────────────────────────────
     if find_templates:
@@ -152,7 +153,15 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
     # ── 2. Build context ───────────────────────────────────────────────────
     print("\n===== CURRENT =====")
     from context import build_context
-    ctx = build_context()
+    # An explicitly-requested session type (athlete asked the coach) pins the
+    # whole context; the reactive chooser only decides when nothing was asked.
+    if session_type and session_type not in _cfg.SESSION_CYCLE:
+        log.warning(f"Ignoring unknown --session-type {session_type!r} "
+                    f"(cycle: {', '.join(_cfg.SESSION_CYCLE)})")
+        session_type = ""
+    ctx = build_context(session_type=session_type or None)
+    if session_type:
+        log.info(f"Session type PINNED by request: {session_type}")
 
     from context import recent_session_types
     import sqlite3 as _sqlite3
@@ -433,6 +442,7 @@ if __name__ == "__main__":
     creator_recs   = "--creator-recs"   in sys.argv
 
     note = _arg_value("--note") or ""
+    session_type = (_arg_value("--session-type") or "").strip().lower()
 
     set_focus: tuple = ()
     if "--set-focus" in sys.argv:
@@ -498,4 +508,4 @@ if __name__ == "__main__":
 
     main(dry_run=dry_run, context_only=context_only, find_templates=find_templates,
          as_workout=as_workout, confirm=confirm, note=note, set_focus=set_focus, force=force,
-         creator_recs=creator_recs)
+         creator_recs=creator_recs, session_type=session_type)

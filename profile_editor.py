@@ -66,6 +66,7 @@ def read_profile(user: str) -> dict:
         "hevy_routine_folder_id":  ns.get("HEVY_ROUTINE_FOLDER_ID"),
         "log_source":              ns.get("LOG_SOURCE", "hevy"),
         "daily_chat_budget_usd":   ns.get("DAILY_CHAT_BUDGET_USD"),
+        "exercise_novelty":        ns.get("EXERCISE_NOVELTY"),
     }
 
 
@@ -295,6 +296,12 @@ def _apply_scalar(profile: dict, op: dict) -> str:
     if kind == "complete_onboarding":
         profile["needs_onboarding"] = False
         return "onboarding complete"
+    if kind == "set_exercise_novelty":
+        if not isinstance(val, int) or val not in (0, 1, 2):
+            raise ProfileEditError(f"exercise_novelty must be 0 (locked), 1 (balanced) "
+                                   f"or 2 (exploratory), got {val!r}")
+        profile["exercise_novelty"] = val
+        return f"exercise novelty: {val} ({['locked-in', 'balanced', 'exploratory'][val]})"
     if kind == "set_session_duration":
         dt = op.get("day_type")
         if dt not in ("weekday", "weekend"):
@@ -440,7 +447,8 @@ def apply_operations(user: str, operations: list[dict]) -> list[str]:
             summaries.append(_apply_set_excluded(user, profile, op))
         elif kind in ("set_training_mode", "set_goal_mode",
                       "set_target_weight_kg", "set_weight_rate_kg_per_week",
-                      "complete_onboarding", "set_session_duration"):
+                      "complete_onboarding", "set_session_duration",
+                      "set_exercise_novelty"):
             summaries.append(_apply_scalar(profile, op))
         else:
             raise ProfileEditError(f"unknown op {op.get('op')!r}")
@@ -456,6 +464,13 @@ def apply_operations(user: str, operations: list[dict]) -> list[str]:
     text = _sub_line(text, "GOAL_MODE", profile["goal_mode"])
     text = _sub_line(text, "TARGET_WEIGHT_KG", profile["target_weight_kg"])
     text = _sub_line(text, "WEIGHT_RATE_KG_PER_WEEK", profile["weight_rate_kg_per_week"])
+    # Older profiles predate the novelty setting — sub if present, else append
+    if profile.get("exercise_novelty") is not None:
+        if re.search(r"^EXERCISE_NOVELTY = ", text, flags=re.MULTILINE):
+            text = _sub_line(text, "EXERCISE_NOVELTY", profile["exercise_novelty"])
+        else:
+            text = (text.rstrip() + "\n\n# Exercise variety: 0 locked | 1 balanced | 2 exploratory\n"
+                    + f"EXERCISE_NOVELTY = {profile['exercise_novelty']!r}\n")
 
     # Prove the regenerated file is valid Python with the values we intended
     check = _exec_profile(text)

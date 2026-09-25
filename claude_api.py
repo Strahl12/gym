@@ -383,8 +383,11 @@ def _build_system_prompt(block_directive: Optional[str] = None) -> str:
         """Today's pick for a rotating main-lift slot (e.g. incline ⇄ flat bench):
         the option least-recently trained, weighted so higher-weight variants come
         up more often. Deterministic from logged history — transparent to Claude,
-        which just sees a fixed lift for the day."""
+        which just sees a fixed lift for the day. At novelty 0 (locked-in) the
+        primary option always wins — anchors never change."""
         import context as _ctx
+        if int(getattr(config, "EXERCISE_NOVELTY", 1)) == 0:
+            return options[0]
         weights = (list(weights or []) + [1.0] * len(options))[:len(options)]
         best, best_score = options[0], -1.0
         for name, w in zip(options, weights):
@@ -705,6 +708,19 @@ def format_athlete_context(context: dict, all_lifts: bool = False) -> str:
             comp_parts.append(f"rate {sign}{config.WEIGHT_RATE_KG_PER_WEEK}kg/wk")
         lines.append("Body composition: " + " | ".join(comp_parts))
 
+    nov = int(getattr(config, "EXERCISE_NOVELTY", 1))
+    nov_guide = {
+        0: "LOCKED-IN: keep exercise selection maximally consistent — repeat the athlete's "
+           "established movements; introduce nothing unfamiliar.",
+        1: "BALANCED (default): favour established movements; a sensible variation is fine "
+           "when the slot and priority list support it.",
+        2: "EXPLORATORY: the athlete enjoys variety — when accessories tie on priority, "
+           "prefer movements they've had little exposure to (still from the priority list, "
+           "still filling the template slot; introduce at conservative starting loads).",
+    }.get(nov, "")
+    if nov_guide:
+        lines.append(f"\n## Exercise variety preference\n  {nov_guide}")
+
     tm = getattr(config, "TRAINING_MODE", "mixed")
     tm_guide = {
         "strength":    "Use BOTTOM of each main lift's rep range. Accessories 4-8 reps. Load priority.",
@@ -1016,6 +1032,22 @@ def _reseed_weight(name: str, reps: int, is_bw: bool, equipment: str = ""):
     return ((e1 / (1 + reps / 30)) // inc) * inc
 
 
+def _strip_accessory_warmups(exercises: list[dict]) -> None:
+    """Warm-up sets belong to main lifts only (the athlete is already warm by
+    the time accessories come around) — the prompt says so, but the model
+    sometimes adds a bar warm-up to accessories like skullcrushers anyway.
+    Deterministically drop warm-up sets from every non-main exercise."""
+    for ex in exercises:
+        if ex.get("is_main_lift"):
+            continue
+        sets = ex.get("sets") or []
+        warm = [s for s in sets if s.get("is_warmup")]
+        if warm:
+            ex["sets"] = [s for s in sets if not s.get("is_warmup")]
+            print(f"[claude_api] Stripped {len(warm)} warm-up set(s) from accessory "
+                  f"'{ex.get('exercise_name', '?')}'")
+
+
 def _prior_session_stats(con, name: str):
     """From the sets table: the exercise's most recent trained session's working
     weight (mode load, ties heavier) + final-set RPE, and its per-session best
@@ -1308,6 +1340,9 @@ def get_workout(context: dict, legacy: bool = False,
     # Deterministic no-repeat guard — enforce MIN_ACCESSORY_REPEAT_DAYS even if
     # Claude ignored the "recently trained" exclusion in the prompt.
     workout["exercises"] = _dedupe_recent(workout.get("exercises", []), context)
+
+    # Warm-ups are for main lifts only — drop any the model added to accessories.
+    _strip_accessory_warmups(workout["exercises"])
 
     # Fatigue backstop — no load increases after a ≥9.5-RPE final set or on a
     # plateaued lift (rules the prompt states but the model misses ~25% of the

@@ -134,6 +134,17 @@ EXCLUDED_EXERCISES: list[str] = []
 # no-repeat gate (treated as a 1-day window). Set per-user in profile.py.
 FREQUENT_EXERCISES: list[str] = []
 
+# How adventurous exercise selection is (the athlete's "novelty slider"):
+#   0 — locked in: anchor lifts never rotate; accessories picked purely by the
+#       recovery-priority formula.
+#   1 — sensible rotation (default): anchor slots with a `rotate` list may
+#       oscillate between equivalent lifts (e.g. incline ⇄ flat bench).
+#   2 — explore: rotation plus a priority boost for library exercises the
+#       athlete has little or no exposure to — still template-slot-constrained
+#       and history-seeded, never random.
+# Adjustable per-user in profile.py or via the coach (update_profile).
+EXERCISE_NOVELTY = 1
+
 # Skill / practice work — optional list of duration-type drills
 SKILL_WORK: list[str] = []
 
@@ -363,6 +374,7 @@ def activate(user_name: str) -> None:
     global LOG_SOURCE
     global FREQUENT_EXERCISES
     global DAILY_CHAT_BUDGET_USD
+    global EXERCISE_NOVELTY
 
     user_dir = _USERS_ROOT / user_name
     if not user_dir.is_dir():
@@ -389,6 +401,7 @@ def activate(user_name: str) -> None:
     SESSION_TEMPLATES = copy.deepcopy(_SESSION_TEMPLATES_DEFAULT)
     FREQUENT_EXERCISES = []
     DAILY_CHAT_BUDGET_USD = 0.50
+    EXERCISE_NOVELTY = 1
 
     # Per-user secrets: file > shell env (explicit isolation when run_all switches users)
     user_secrets = _read_dotenv(user_dir / "secrets.env")

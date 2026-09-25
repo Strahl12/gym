@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ user }} — Gym Coach</title>
-<link rel="stylesheet" href="/static/tdr.css?v=8">
+<script src="/static/theme.js?v=1"></script>
+<link rel="stylesheet" href="/static/tdr.css?v=10">
 <style>
   body { margin: 0; display: flex; flex-direction: column; height: 100dvh; }
   #msgs { flex: 1; overflow-y: auto; padding: 1rem;
@@ -24,6 +25,15 @@
                    border-left: 2px solid var(--cyan); box-shadow: -3px 0 12px rgba(0,229,255,.18); }
   .ts { font-family: var(--mono); font-size: .6rem; letter-spacing: .08em; color: var(--cyan);
         text-shadow: 0 0 6px rgba(0,229,255,.9), 0 0 12px rgba(0,229,255,.5); }
+  .quickreply { display: flex; gap: .5rem; margin: .5rem 0 .2rem 38px; }
+  .qr { font-family: var(--mono); font-size: .74rem; font-weight: 700; letter-spacing: .1em;
+        text-transform: uppercase; background: transparent; border-radius: 0;
+        padding: .5rem 1.4rem; cursor: pointer; }
+  .qr.yes { color: var(--lime); border: 1px solid var(--lime);
+            box-shadow: 0 0 10px rgba(182,255,0,.3); }
+  .qr.yes:hover { background: var(--lime); color: #05050a; }
+  .qr.no { color: var(--danger); border: 1px solid var(--danger); }
+  .qr.no:hover { background: var(--danger); color: #05050a; }
   .line.assistant .ts { margin-left: 38px; }
   #err { color: var(--danger); font-family: var(--mono); font-size: .72rem;
          letter-spacing: .05em; padding: 0 1rem .5rem; display: none; }
@@ -79,6 +89,7 @@
         <a id="review-link" href="#">▸ Review</a>
         <a id="stats-link" href="#">▸ Stats</a>
         <a id="log-link" href="#">▸ Log</a>
+        <a id="settings-link" href="#">▸ Settings</a>
       </div>
     </details>
   </div>
@@ -106,6 +117,7 @@ document.getElementById("workout-link").href = base + "/workout";
 document.getElementById("stats-link").href = base + "/stats";
 document.getElementById("review-link").href = base + "/review";
 document.getElementById("log-link").href = base + "/log";
+document.getElementById("settings-link").href = base + "/settings";
 
 // Dev panel (rendered only for the dev user) — Anthropic API / credit health.
 let refreshDev = () => {};
@@ -181,6 +193,8 @@ function fmtTs(d) {
 }
 
 function add(role, text, ts) {
+  // A new user message supersedes any pending Yes/No confirmation buttons.
+  if (role === "user") document.querySelectorAll(".quickreply").forEach(q => q.remove());
   const line = document.createElement("div");
   line.className = "line " + role;
   const bubble = document.createElement("div");
@@ -207,23 +221,45 @@ function add(role, text, ts) {
   return bubble;
 }
 
+// When the coach asks for a yes/no confirmation, render tappable buttons under
+// the bubble instead of making the athlete type another message.
+function maybeQuickReplies(bubble, text) {
+  const t = (text || "").trim();
+  if (!(/confirm/i.test(t) && t.endsWith("?"))) return;
+  const qr = document.createElement("div");
+  qr.className = "quickreply";
+  for (const [label, msg] of [["✓ Yes", "Yes"], ["✕ No", "No"]]) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "qr " + (msg === "Yes" ? "yes" : "no");
+    b.textContent = label;
+    b.addEventListener("click", () => { qr.remove(); sendText(msg); });
+    qr.appendChild(b);
+  }
+  (bubble._line || bubble).appendChild(qr);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
 async function loadHistory() {
   try {
     const r = await fetch(base + "/history");
-    for (const m of await r.json()) add(m.role, m.content, m.ts);
+    let lastBubble = null, lastRole = "", lastText = "";
+    for (const m of await r.json()) {
+      lastBubble = add(m.role, m.content, m.ts);
+      lastRole = m.role; lastText = m.content;
+    }
+    // A confirmation left hanging before a reload still gets its buttons.
+    if (lastRole === "assistant") maybeQuickReplies(lastBubble, lastText);
   } catch (ex) {
     err.textContent = "could not load history";
     err.style.display = "block";
   }
 }
 
-async function submit(e) {
-  e.preventDefault();
-  const text = box.value.trim();
+async function sendText(text) {
   if (!text || send.disabled) return;
   err.style.display = "none";
   add("user", text);
-  box.value = "";
   send.disabled = true;
   const thinking = add("assistant", "…");
   try {
@@ -235,6 +271,7 @@ async function submit(e) {
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || r.statusText);
     thinking.textContent = data.reply;
+    maybeQuickReplies(thinking, data.reply);
   } catch (ex) {
     (thinking._line || thinking).remove();
     err.textContent = ex.message;
@@ -245,6 +282,14 @@ async function submit(e) {
     box.focus();
     refreshDev();   // a failed send may have flipped credit state
   }
+}
+
+async function submit(e) {
+  e.preventDefault();
+  const text = box.value.trim();
+  if (!text || send.disabled) return;
+  box.value = "";
+  sendText(text);
 }
 
 document.getElementById("f").addEventListener("submit", submit);

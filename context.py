@@ -540,6 +540,19 @@ def exercise_priorities(session_type: str) -> list[dict]:
     result: list[dict] = []
     seen: set[str] = set()
 
+    # Novelty 2 (explore): accessories the athlete has barely trained get a
+    # bounded priority boost so unfamiliar movements surface more often. Still
+    # slot/pattern-constrained downstream — never random.
+    novelty = int(getattr(config, "EXERCISE_NOVELTY", 1))
+    exposure: dict[str, int] = {}
+    if novelty >= 2:
+        try:
+            exposure = {r["exercise"]: r["n"] for r in con.execute(
+                "SELECT exercise, COUNT(DISTINCT date) AS n FROM sets "
+                "WHERE is_warmup = 0 GROUP BY exercise")}
+        except sqlite3.OperationalError:
+            pass
+
     for ex in roster:
         name = ex["exercise_name"]
         if name in suspended:
@@ -551,13 +564,16 @@ def exercise_priorities(session_type: str) -> list[dict]:
         star  = int(ex["star_rating"])
         raw   = days_val / ex["target_freq_days"]
         cap   = STAR_CAP.get(star, 1.0)
+        pr = min(raw, cap)
+        if novelty >= 2 and not ex["is_main_lift"] and exposure.get(name, 0) <= 2:
+            pr = min(pr * 1.3 + 0.3, cap + 0.5)
         result.append({
             "exercise_name":    name,
             "is_main_lift":     bool(ex["is_main_lift"]),
             "target_freq_days": ex["target_freq_days"],
             "days_since_last":  days,
             "star_rating":      star,
-            "priority":         round(min(raw, cap), 2),
+            "priority":         round(pr, 2),
             "movement_pattern": _mp_by_canonical.get(name, ""),
             "is_compound":      _compound_by_canonical.get(name, True),
         })
@@ -1149,14 +1165,19 @@ def recent_chat_messages(hours: int = 48, limit: int = 15) -> list[dict]:
     return [{"ts": r["ts"], "message": r["content"][:500]} for r in reversed(rows)]
 
 
-def build_context() -> dict:
+def build_context(session_type: Optional[str] = None) -> dict:
     """
     Returns a dict with all context needed by Claude to prescribe today's workout.
     Also serialisable to JSON for logging / debugging.
+
+    `session_type` pins the session to an explicitly-requested type (e.g. the
+    athlete asked the coach for push) instead of the reactive suggestion — every
+    dependent field (template, focus lift, recovery numbers) follows it.
     """
     today      = date.today().isoformat()
     is_weekend = date.today().weekday() >= 5
-    session_type = suggest_session_type()
+    if session_type not in config.SESSION_CYCLE:
+        session_type = suggest_session_type()
 
     # Build per-lift context for main lifts
     lifts_context = {}

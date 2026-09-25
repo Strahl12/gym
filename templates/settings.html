@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Settings — {{ user }}</title>
+<script src="/static/theme.js?v=1"></script>
+<link rel="stylesheet" href="/static/tdr.css?v=10">
+<style>
+  body { margin: 0; }
+  main { padding: 1rem; max-width: 720px; margin: 0 auto;
+         padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
+  .panel { background: var(--panel); border: 1px solid var(--line);
+           border-left: 2px solid var(--cyan); box-shadow: -3px 0 12px rgba(0,229,255,.12);
+           padding: .9rem 1rem; margin-bottom: 1rem; }
+  .panel h2 { font-family: var(--mono); font-size: .72rem; letter-spacing: .16em;
+              text-transform: uppercase; color: var(--cyan);
+              text-shadow: 0 0 9px rgba(0,229,255,.5); margin: 0 0 .35rem; }
+  .panel .sub { font-size: .8rem; color: var(--dim); line-height: 1.5; margin: 0 0 .8rem; }
+
+  /* Theme segmented control */
+  .seg { display: flex; gap: .4rem; }
+  .seg button { flex: 1; font-family: var(--mono); font-size: .68rem; font-weight: 700;
+                letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
+                background: var(--panel-2); border: 1px solid var(--line); border-radius: 0;
+                padding: .6rem 0; cursor: pointer; }
+  .seg button.on { color: #05050a; background: var(--cyan); border-color: var(--cyan);
+                   box-shadow: 0 0 12px rgba(0,229,255,.5); }
+
+  /* Variety slider */
+  .slider-row { display: flex; align-items: center; gap: .8rem; margin: .4rem 0 .2rem; }
+  input[type=range] { flex: 1; accent-color: var(--magenta); height: 2rem; }
+  .slider-labels { display: flex; justify-content: space-between; font-family: var(--mono);
+                   font-size: .58rem; letter-spacing: .08em; text-transform: uppercase;
+                   color: var(--dim); margin-bottom: .6rem; }
+  .nov-name { font-family: var(--mono); font-size: .8rem; font-weight: 700;
+              letter-spacing: .06em; text-transform: uppercase; color: var(--magenta);
+              text-shadow: 0 0 8px rgba(255,0,102,.5); }
+  .nov-desc { font-size: .82rem; color: var(--ink); line-height: 1.5; margin-top: .35rem;
+              min-height: 3.2em; }
+  .status { font-family: var(--mono); font-size: .62rem; letter-spacing: .06em;
+            color: var(--dim); margin-top: .5rem; min-height: 1em; }
+  .status.ok { color: var(--lime); }
+  .status.err { color: var(--danger); }
+</style>
+</head>
+<body>
+<header class="hud">
+  <div class="hud__bar">
+    <span class="hud__brand"><b>■</b>SETTINGS</span>
+    <span class="hud__jp">設定</span>
+    <span class="tag">{{ user }}</span>
+    <span class="hud__spacer"></span>
+    <details class="hud__menu">
+      <summary>Menu</summary>
+      <div class="hud__menu-panel">
+        <a href="{{ chat_url }}">▸ Chat</a>
+        <a href="{{ chat_url }}/workout">▸ Workout</a>
+        <a href="{{ chat_url }}/review">▸ Review</a>
+        <a href="{{ chat_url }}/stats">▸ Stats</a>
+        <a href="{{ chat_url }}/log">▸ Log</a>
+        <a class="current" href="{{ chat_url }}/settings">▸ Settings</a>
+      </div>
+    </details>
+  </div>
+  <div class="hud__hazard"></div>
+</header>
+<main>
+
+  <div class="panel">
+    <h2>Appearance</h2>
+    <p class="sub">Follow your phone's setting, or force a mode on this device.</p>
+    <div class="seg" id="themeseg">
+      <button type="button" data-v="system">System</button>
+      <button type="button" data-v="dark">Dark</button>
+      <button type="button" data-v="light">Light</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Programming variety</h2>
+    <p class="sub">How adventurous your coach is with exercise selection. Saved to your
+      profile — the next generated session uses it. You can also just tell your coach.</p>
+    <div class="slider-row">
+      <input id="nov" type="range" min="0" max="2" step="1" value="1">
+    </div>
+    <div class="slider-labels"><span>Locked in</span><span>Balanced</span><span>Exploratory</span></div>
+    <div class="nov-name" id="novname"></div>
+    <div class="nov-desc" id="novdesc"></div>
+    <div class="status" id="novstatus"></div>
+  </div>
+
+</main>
+<script>
+const DATA_URL = {{ data_url | tojson }};
+const SAVE_URL = {{ save_url | tojson }};
+
+// ── Theme ──────────────────────────────────────────────────────────────────
+const seg = document.getElementById("themeseg");
+function paintSeg() {
+  const cur = window.__gymTheme.get();
+  seg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.v === cur));
+}
+seg.querySelectorAll("button").forEach(b =>
+  b.addEventListener("click", () => { window.__gymTheme.set(b.dataset.v); paintSeg(); }));
+paintSeg();
+
+// ── Variety slider ──────────────────────────────────────────────────────────
+const NOV = {
+  0: ["Locked in", "Your anchor lifts never change and accessories stay to the tried and " +
+      "tested. Maximum consistency — nothing unfamiliar shows up."],
+  1: ["Balanced", "Anchors can sensibly oscillate between equivalents (e.g. incline ⇄ flat " +
+      "bench, resolved from your training history). Accessories favour what you know."],
+  2: ["Exploratory", "Rotation plus a nudge toward movements you've rarely trained — still " +
+      "slot-constrained and started at conservative loads, never random."],
+};
+const nov = document.getElementById("nov");
+const novname = document.getElementById("novname");
+const novdesc = document.getElementById("novdesc");
+const novstatus = document.getElementById("novstatus");
+let saveTimer = null;
+
+function paintNov() {
+  const [name, desc] = NOV[nov.value] || NOV[1];
+  novname.textContent = name;
+  novdesc.textContent = desc;
+}
+
+nov.addEventListener("input", () => {
+  paintNov();
+  novstatus.className = "status"; novstatus.textContent = "…";
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {          // debounce while dragging
+    try {
+      const r = await fetch(SAVE_URL, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: parseInt(nov.value, 10) }),
+      });
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || r.statusText);
+      novstatus.className = "status ok";
+      novstatus.textContent = "✓ saved — applies from your next generated session";
+    } catch (e) {
+      novstatus.className = "status err";
+      novstatus.textContent = "save failed — " + e.message;
+    }
+  }, 400);
+});
+
+(async () => {
+  try {
+    const r = await fetch(DATA_URL);
+    const d = await r.json();
+    if (d.exercise_novelty != null) nov.value = d.exercise_novelty;
+  } catch (e) {}
+  paintNov();
+})();
+</script>
+</body>
+</html>

@@ -61,10 +61,15 @@ Answer questions about their training using the athlete data below.
 Rules:
 - Be concise and specific to the data. Plain text only — no markdown headings or tables
   (replies render in a small chat bubble). Weights in kg.
+- When you need a yes/no confirmation, END the message with the single word "Confirm?"
+  — the app renders tappable Yes/No buttons for exactly that ending. One question per
+  confirmation; never bundle two decisions into one Confirm.
 - You CAN regenerate today's routine: regenerate_routine re-runs the programming engine
   (fresh Hevy/Withings sync, fresh prescription) and replaces today's session in their
   Hevy app. The engine reads this chat, so whatever they've told you here — less time,
-  feeling beaten up, want a different session type, a movement swap — gets factored in.
+  feeling beaten up, a movement swap — gets factored in. If they asked for a SPECIFIC
+  session type, pass session_type: the engine then honours it deterministically. Never
+  tell them the engine "overrode" their requested type — with session_type set it can't.
   Confirm what they want changed and get an explicit yes before calling it; warn that it
   replaces the current routine and takes a minute or two. If the engine declines (rest
   day, activity day, Claude recommends rest), relay the reason and stop — only retry with
@@ -194,7 +199,7 @@ CHAT_TOOLS = [
                                             "set_training_mode", "set_goal_mode",
                                             "set_target_weight_kg", "set_weight_rate_kg_per_week",
                                             "set_session_duration", "set_excluded_exercises",
-                                            "complete_onboarding"]},
+                                            "complete_onboarding", "set_exercise_novelty"]},
                             "name": {"type": "string",
                                      "description": "Lift name (set_main_lift / remove_main_lift / set_focus_lift)"},
                             "hevy_exercise_title": {"type": "string",
@@ -210,7 +215,10 @@ CHAT_TOOLS = [
                             "value": {"description": "Value for the scalar set_* ops. For "
                                       "set_excluded_exercises: the FULL new list of exact "
                                       "Hevy titles (replaces the old list). For "
-                                      "set_session_duration: minutes."},
+                                      "set_session_duration: minutes. For "
+                                      "set_exercise_novelty: 0 (locked-in — anchors never "
+                                      "change), 1 (balanced, default), or 2 (exploratory — "
+                                      "surfaces movements they've rarely trained)."},
                         },
                         "required": ["op"],
                     },
@@ -226,13 +234,21 @@ CHAT_TOOLS = [
                        "their requests here are factored in), gets a fresh prescription, and "
                        "replaces today's routine in their Hevy app. Use after profile changes or "
                        "when they want today's session redone. Takes a minute or two. Only call "
-                       "after the athlete has explicitly confirmed in this conversation.",
+                       "after the athlete has explicitly confirmed in this conversation. "
+                       "IMPORTANT: when the athlete asked for a specific session type (\"give me "
+                       "push\"), you MUST pass session_type — without it the engine picks its own "
+                       "type from the data and may override their request.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "force": {"type": "boolean",
                           "description": "Override a rest-day or activity-day block. Only after "
                                          "the athlete explicitly insists on training despite it."},
+                "session_type": {"type": "string",
+                                 "enum": ["push", "pull", "legs", "arms"],
+                                 "description": "Pin the session to this type. REQUIRED whenever "
+                                                "the athlete asked for a specific session type — "
+                                                "the engine honours it deterministically."},
             },
         },
     },
@@ -770,17 +786,21 @@ def _profile_block(user: str) -> tuple[str, bool]:
     return "\n".join(lines), p["needs_onboarding"]
 
 
-def _regenerate_routine(user: str, force: bool) -> tuple[str, bool]:
+def _regenerate_routine(user: str, force: bool, session_type: str = "") -> tuple[str, bool]:
     """Run the full engine (run.py) as a subprocess and summarize the outcome.
 
     A subprocess keeps the engine's config.activate / logging setup out of this
     process; sys.executable is the same venv python that launched us.
+    `session_type` pins the requested type through to the engine so an athlete's
+    explicit "give me push" can't be overridden by the reactive chooser.
     """
     import json as _json
     started = time.time()
     cmd = [sys.executable, str(ROOT / "run.py"), "--user", user]
     if force:
         cmd.append("--force")
+    if session_type in ("push", "pull", "legs", "arms"):
+        cmd += ["--session-type", session_type]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True,
                               timeout=REGEN_TIMEOUT_S, cwd=ROOT)
@@ -876,11 +896,13 @@ def _run_tool(user: str, name: str, args: dict) -> tuple[str, bool]:
             print(f"[chat] {user}: profile updated — {'; '.join(summaries)}")
             return "Applied: " + "; ".join(summaries), False
         if name == "regenerate_routine":
-            print(f"[chat] {user}: regenerating routine (force={bool(args.get('force'))})")
+            stype = (args.get("session_type") or "").strip().lower()
+            print(f"[chat] {user}: regenerating routine "
+                  f"(force={bool(args.get('force'))}, session_type={stype or 'auto'})")
             # The engine subprocess's real token usage isn't visible here — meter
             # it as a flat estimate so budget caps still bite on the priciest path.
             _record_spend(user, "engine (est.)", [], flat_cost=_REGEN_EST_COST)
-            return _regenerate_routine(user, bool(args.get("force")))
+            return _regenerate_routine(user, bool(args.get("force")), stype)
         if name == "set_rest_timer":
             return _set_rest_timer(user, args.get("exercise", ""), args.get("seconds"))
         if name == "get_weekly_review":
@@ -1573,6 +1595,35 @@ def _classify_response(user: str):
     return jsonify({"known": False, **res})
 
 
+def _settings_data_response(user: str):
+    """Current athlete-adjustable settings for the Settings page."""
+    import profile_editor
+    try:
+        nov = profile_editor.read_profile(user).get("exercise_novelty")
+    except Exception:
+        nov = None
+    return jsonify({"exercise_novelty": 1 if nov is None else nov})
+
+
+def _settings_novelty_response(user: str):
+    """Persist the programming-variety slider (same profile op the coach uses)."""
+    body = request.get_json(silent=True) or {}
+    v = body.get("value")
+    if isinstance(v, bool) or not isinstance(v, int) or v not in (0, 1, 2):
+        return jsonify({"error": "value must be 0, 1 or 2"}), 400
+    import profile_editor
+    try:
+        with _CONFIG_LOCK:                 # serialise profile writes
+            profile_editor.apply_operations(user, [{"op": "set_exercise_novelty", "value": v}])
+    except profile_editor.ProfileEditError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        print(f"[chat] {user}: novelty save failed: {e}")
+        return jsonify({"error": "couldn't save — try again"}), 500
+    print(f"[chat] {user}: exercise novelty set to {v} via settings")
+    return jsonify({"ok": True, "exercise_novelty": v})
+
+
 def _setups_response(user: str):
     """{exercise: setup} map so the logger can pre-fill saved seat/pin numbers."""
     import applog
@@ -1831,6 +1882,33 @@ def chat_workout_classify(token: str):
     return _classify_response(user)
 
 
+@app.get("/u/<token>/settings")
+def chat_settings_page(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return render_template("settings.html", user=user.title(),
+                           data_url=f"/u/{token}/settings/data",
+                           save_url=f"/u/{token}/settings/novelty",
+                           chat_url=f"/u/{token}")
+
+
+@app.get("/u/<token>/settings/data")
+def chat_settings_data(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return _settings_data_response(user)
+
+
+@app.post("/u/<token>/settings/novelty")
+def chat_settings_novelty(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return _settings_novelty_response(user)
+
+
 @app.get("/u/<token>/devinfo")
 def chat_devinfo(token: str):
     if _user_for(token) != DEV_USER:
@@ -2081,6 +2159,33 @@ def app_workout_classify():
     if user is None:
         abort(401)
     return _classify_response(user)
+
+
+@app.get("/app/settings")
+def app_settings_page():
+    user = _session_user()
+    if user is None:
+        return redirect("/login", code=302)
+    return render_template("settings.html", user=user.title(),
+                           data_url="/app/settings/data",
+                           save_url="/app/settings/novelty",
+                           chat_url="/app")
+
+
+@app.get("/app/settings/data")
+def app_settings_data():
+    user = _session_user()
+    if user is None:
+        abort(401)
+    return _settings_data_response(user)
+
+
+@app.post("/app/settings/novelty")
+def app_settings_novelty():
+    user = _session_user()
+    if user is None:
+        abort(401)
+    return _settings_novelty_response(user)
 
 
 @app.get("/app/devinfo")
