@@ -4763,7 +4763,9 @@
   "68F8A292": {
     "hevy_title": "Skullcrusher (Dumbbell)",
     "canonical": "Skullcrusher (Dumbbell)",
-    "aliases": [],
+    "aliases": [
+      "Dumbbell Skullcrusher"
+    ],
     "muscle": "triceps",
     "equipment": "dumbbell",
     "session_type": "push",
@@ -5878,15 +5880,6 @@
     "secondary_muscles": [
       "forearms"
     ]
-  },
-  "390cd42a-bf69-43ef-b5f9-19ce9413765a": {
-    "hevy_title": "Dumbbell Skullcrusher",
-    "canonical": "Dumbbell Skullcrusher",
-    "aliases": [],
-    "muscle": "triceps",
-    "equipment": "dumbbell",
-    "exercise_type": "weight_reps",
-    "session_type": ""
   },
   "8247b323-383b-4638-a605-0d38317499e0": {
     "hevy_title": "Straight Arm Lateral Pull Down (one-arm)",

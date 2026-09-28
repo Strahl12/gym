@@ -89,6 +89,31 @@ def print_template_ids_for_main_lifts():
 # ── Template resolution ────────────────────────────────────────────────────
 
 
+# Custom (UUID-style) exercise template ids are PER Hevy ACCOUNT, but the
+# exercise library (exercises.json) is shared across all users — a custom id
+# created on one athlete's account 400s the entire routine post for everyone
+# else ("Found invalid exercise template id"). Validate custom ids against the
+# active account before including them; cache per (account, id).
+_CUSTOM_ID_OK: dict = {}
+
+
+def _looks_custom(tid: str) -> bool:
+    return "-" in tid or len(tid) > 12
+
+
+def _custom_id_valid(tid: str) -> bool:
+    key = ((config.HEVY_API_KEY or "")[:8], tid)
+    if key in _CUSTOM_ID_OK:
+        return _CUSTOM_ID_OK[key]
+    try:
+        r = requests.get(f"{BASE_URL}/exercise_templates/{tid}", headers=_headers(), timeout=15)
+        ok = r.ok
+    except Exception:
+        ok = True          # network blip — don't block the post on validation
+    _CUSTOM_ID_OK[key] = ok
+    return ok
+
+
 def _resolve_template_id(exercise_name: str, ex_meta: dict | None = None) -> Optional[str]:
     """
     Resolve a Hevy template ID for the given exercise name.
@@ -170,6 +195,10 @@ def build_hevy_payload(workout: dict) -> dict:
         if not tid:
             print(f"[hevy] WARNING: no template ID found for '{name}' — skipping")
             continue
+        if _looks_custom(tid) and not _custom_id_valid(tid):
+            print(f"[hevy] WARNING: '{name}' resolves to a custom template ({tid}) that "
+                  "isn't valid on this athlete's Hevy account — skipping")
+            continue
 
         hevy_sets = []
         for s in ex.get("sets", []):
@@ -224,6 +253,10 @@ def build_routine_payload(workout: dict) -> dict:
         tid  = _resolve_template_id(name, ex)
         if not tid:
             print(f"[hevy] WARNING: no template ID found for '{name}' — skipping")
+            continue
+        if _looks_custom(tid) and not _custom_id_valid(tid):
+            print(f"[hevy] WARNING: '{name}' resolves to a custom template ({tid}) that "
+                  "isn't valid on this athlete's Hevy account — skipping")
             continue
         sets = [
             {"type": "warmup" if s.get("is_warmup") else "normal",

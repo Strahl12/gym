@@ -65,11 +65,14 @@ Rules:
   — the app renders tappable Yes/No buttons for exactly that ending. One question per
   confirmation; never bundle two decisions into one Confirm.
 - You CAN regenerate today's routine: regenerate_routine re-runs the programming engine
-  (fresh Hevy/Withings sync, fresh prescription) and replaces today's session in their
-  Hevy app. The engine reads this chat, so whatever they've told you here — less time,
-  feeling beaten up, a movement swap — gets factored in. If they asked for a SPECIFIC
-  session type, pass session_type: the engine then honours it deterministically. Never
-  tell them the engine "overrode" their requested type — with session_type set it can't.
+  (fresh Hevy/Withings sync, fresh prescription) and replaces today's session. It runs
+  in the BACKGROUND: the tool returns immediately, and the result summary is posted into
+  this chat automatically when the engine finishes (1-2 min). So after calling it, just
+  tell them it's generating and the session will appear in the Workout tab shortly —
+  never claim it succeeded or failed yourself. The engine reads this chat, so whatever
+  they've told you here — less time, feeling beaten up, a movement swap — gets factored
+  in. If they asked for a SPECIFIC session type, pass session_type: the engine then
+  honours it deterministically; never tell them the engine "overrode" their request.
   Confirm what they want changed and get an explicit yes before calling it; warn that it
   replaces the current routine and takes a minute or two. If the engine declines (rest
   day, activity day, Claude recommends rest), relay the reason and stop — only retry with
@@ -232,9 +235,10 @@ CHAT_TOOLS = [
         "description": "Re-run the programming engine for the athlete NOW: syncs their latest "
                        "Hevy workouts and bodyweight, rebuilds context (including this chat, so "
                        "their requests here are factored in), gets a fresh prescription, and "
-                       "replaces today's routine in their Hevy app. Use after profile changes or "
-                       "when they want today's session redone. Takes a minute or two. Only call "
-                       "after the athlete has explicitly confirmed in this conversation. "
+                       "replaces today's routine. Runs in the BACKGROUND — this tool returns "
+                       "immediately and the outcome summary is posted into the chat when the "
+                       "engine finishes (1-2 min); after calling, just say it's generating. Only "
+                       "call after the athlete has explicitly confirmed in this conversation. "
                        "IMPORTANT: when the athlete asked for a specific session type (\"give me "
                        "push\"), you MUST pass session_type — without it the engine picks its own "
                        "type from the data and may override their request.",
@@ -806,15 +810,15 @@ def _regenerate_routine(user: str, force: bool, session_type: str = "") -> tuple
                               timeout=REGEN_TIMEOUT_S, cwd=ROOT)
     except subprocess.TimeoutExpired:
         print(f"[chat] {user}: regenerate timed out after {REGEN_TIMEOUT_S}s")
-        return ("NO ROUTINE POSTED — the engine timed out; tell the athlete to "
-                "try again in a few minutes"), True
+        return "⚠ The engine timed out — please try again in a few minutes.", True
 
+    delivered = "your Hevy app and the Workout tab" if _user_uses_hevy(user) else "the Workout tab"
     workout_file = USERS_ROOT / user / "logs" / f"{date.today().isoformat()}_workout.json"
-    posted = (proc.returncode == 0 and workout_file.exists()
-              and workout_file.stat().st_mtime >= started)
-    if posted:
+    generated = workout_file.exists() and workout_file.stat().st_mtime >= started
+
+    if generated:
         w = _json.loads(workout_file.read_text())
-        lines = [f"Routine posted to their Hevy app: {w.get('title')}"]
+        lines = [f"✓ New session live in {delivered}: {w.get('title')}"]
         for ex in w.get("exercises", []):
             working = [s for s in ex.get("sets", []) if not s.get("is_warmup")]
             if working:
@@ -823,19 +827,72 @@ def _regenerate_routine(user: str, force: bool, session_type: str = "") -> tuple
                 lines.append(f"  {ex['exercise_name']}: {len(working)}x{working[0].get('reps')}{load}")
             else:
                 lines.append(f"  {ex['exercise_name']}")
+        if proc.returncode != 0:
+            # Split-brain case: session generated + visible in the app, but the
+            # Hevy push crashed. Say so honestly instead of a blanket failure.
+            err_tail = "\n".join(((proc.stdout or "") + "\n" + (proc.stderr or ""))
+                                 .strip().splitlines()[-10:])
+            print(f"[chat] {user}: regen generated but engine exited rc={proc.returncode}:\n{err_tail}")
+            lines[0] = (f"⚠ New session generated — it's live on the Workout tab — but pushing "
+                        f"it to Hevy failed. Train it from the app, or ask me to regenerate. "
+                        f"({w.get('title')})")
+            return "\n".join(lines), True
         if w.get("reasoning"):
             lines.append(f"Engine reasoning: {w['reasoning']}")
         return "\n".join(lines), False
 
     if proc.returncode != 0:
-        err_tail = "\n".join((proc.stderr or proc.stdout or "").strip().splitlines()[-8:])
+        # Include stdout as well — the Hevy API error body prints there.
+        err_tail = "\n".join(((proc.stdout or "") + "\n" + (proc.stderr or ""))
+                             .strip().splitlines()[-10:])
         print(f"[chat] {user}: regenerate failed rc={proc.returncode}:\n{err_tail}")
-        return "NO ROUTINE POSTED — the engine hit an error; tell the athlete it didn't work", True
+        return "⚠ The engine hit an error and no session was generated — please try again.", True
 
     tail = "\n".join((proc.stdout or "").strip().splitlines()[-12:])
-    return ("NO ROUTINE POSTED — the engine declined to program a session. Its output is "
-            "below; explain the reason to the athlete in plain words. Only retry with "
-            "force=true if they explicitly insist.\n" + tail), False
+    return ("The engine declined to program a session — reason below. (Coach: explain this "
+            "in plain words; only retry with force=true if the athlete insists.)\n" + tail), False
+
+
+# Regeneration runs in the background: a full engine run takes 60-120s, which
+# outlives mobile fetches (tab switches kill them) and proxy timeouts — athletes
+# saw endless typing dots on successful regens. The tool now returns instantly
+# and the outcome is posted into the chat when the engine finishes.
+_REGEN_ACTIVE: set = set()
+_REGEN_STATE_LOCK = threading.Lock()
+
+
+def _start_regen(user: str, force: bool, session_type: str = "") -> tuple[str, bool]:
+    with _REGEN_STATE_LOCK:
+        if user in _REGEN_ACTIVE:
+            return ("ALREADY RUNNING — a regeneration for this athlete is still in "
+                    "progress; tell them it's on the way (a minute or two).", True)
+        _REGEN_ACTIVE.add(user)
+    threading.Thread(target=_regen_worker, args=(user, force, session_type),
+                     daemon=True).start()
+    return ("STARTED — the engine is regenerating in the background (takes 1-2 minutes). "
+            "Tell the athlete briefly that the new session is being generated and will "
+            "appear in the Workout tab shortly, and that the summary will be posted in "
+            "this chat when it lands. Do NOT claim it has succeeded or failed yet.", False)
+
+
+def _regen_worker(user: str, force: bool, session_type: str) -> None:
+    try:
+        msg, is_err = _regenerate_routine(user, force, session_type)
+    except Exception as e:
+        print(f"[chat] {user}: background regen crashed: {e}")
+        msg, is_err = "⚠ Regeneration failed unexpectedly — please try again.", True
+    finally:
+        with _REGEN_STATE_LOCK:
+            _REGEN_ACTIVE.discard(user)
+    try:
+        con = _db(user)
+        try:
+            _store(con, "assistant", msg)
+        finally:
+            con.close()
+        print(f"[chat] {user}: background regen finished (error={is_err})")
+    except Exception as e:
+        print(f"[chat] {user}: couldn't store regen outcome: {e}")
 
 
 def _review_block(user: str) -> str:
@@ -902,7 +959,7 @@ def _run_tool(user: str, name: str, args: dict) -> tuple[str, bool]:
             # The engine subprocess's real token usage isn't visible here — meter
             # it as a flat estimate so budget caps still bite on the priciest path.
             _record_spend(user, "engine (est.)", [], flat_cost=_REGEN_EST_COST)
-            return _regenerate_routine(user, bool(args.get("force")), stype)
+            return _start_regen(user, bool(args.get("force")), stype)
         if name == "set_rest_timer":
             return _set_rest_timer(user, args.get("exercise", ""), args.get("seconds"))
         if name == "get_weekly_review":
