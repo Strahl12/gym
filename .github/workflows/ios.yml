@@ -28,6 +28,9 @@ concurrency:
   group: ios-build
   cancel-in-progress: false
 
+permissions:
+  contents: write   # lets the failure step publish build logs to the ci-logs branch
+
 jobs:
   build:
     runs-on: macos-15
@@ -76,7 +79,7 @@ jobs:
             -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
             CODE_SIGN_STYLE=Automatic \
             DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
-            | $PRETTY
+            | tee "$RUNNER_TEMP/xcodebuild-archive.log" | $PRETTY
 
       - name: Write export options
         run: |
@@ -96,15 +99,36 @@ jobs:
 
       - name: Export + upload to TestFlight
         run: |
+          set -o pipefail
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
             -exportOptionsPlist "$RUNNER_TEMP/export.plist" \
             -exportPath "$RUNNER_TEMP/export" \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey.p8" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
             -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
-            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
+            2>&1 | tee "$RUNNER_TEMP/xcodebuild-export.log"
 
       - name: Clean up key
         if: always()
         run: rm -rf "$RUNNER_TEMP/keys"
+
+      # Secrets are never echoed by xcodebuild, and Actions masks them anyway;
+      # publishing the tail lets the build loop be debugged without repo admin.
+      - name: Publish failure log to ci-logs branch
+        if: failure()
+        working-directory: ${{ runner.temp }}
+        run: |
+          d=$(mktemp -d)
+          for f in xcodebuild-archive.log xcodebuild-export.log; do
+            [ -f "$f" ] && tail -c 60000 "$f" > "$d/$f.tail.txt"
+          done
+          grep -hE "error:|Error |fatal|Requires|Provisioning|Signing|IDEProvisioning|DVTService|Upload failed|invalid" \
+            xcodebuild-*.log 2>/dev/null | tail -60 > "$d/errors.txt" || true
+          cd "$d"
+          git init -q && git add -A
+          git -c user.name=ci -c user.email=ci@local commit -qm "ios build log $(date -u +%FT%TZ)"
+          git push -qf "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/ci-logs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
