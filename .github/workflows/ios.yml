@@ -22,7 +22,7 @@ on:
     branches: [main]
     paths: ["ios-app/**", ".github/workflows/ios.yml"]
   schedule:
-    - cron: "17 6 1 * *"   # monthly — keeps TestFlight builds fresh
+    - cron: "17 6 1 * *"   # monthly — keeps TestFlight builds fresh (90-day expiry)
 
 concurrency:
   group: ios-build
