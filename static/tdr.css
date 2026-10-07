@@ -173,3 +173,44 @@ a:hover { color: #fff; text-shadow: 0 0 8px rgba(0,229,255,.6); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; }
 }
+
+/* ── iOS app skin ─────────────────────────────────────────────────────────
+   Applied only inside the native shell (theme.js adds html.native from the
+   GymCoachNative user-agent). Softens the tDR hard edges toward native iOS:
+   system font for prose, rounded corners on surfaces/controls, bigger touch
+   targets. Zero effect on the web app. */
+html.native body { font-family: -apple-system, "SF Pro Text", var(--sans); }
+
+/* surfaces */
+html.native .panel, html.native .ex, html.native .banner, html.native .coming,
+html.native .empty, html.native .card, html.native .chart, html.native .pie-wrap,
+html.native .modal, html.native details.why, html.native .week,
+html.native .hud__menu-panel { border-radius: 12px; }
+html.native .msg { border-radius: 14px; }
+html.native .msg.user { border-bottom-right-radius: 4px; }
+html.native .msg.assistant { border-bottom-left-radius: 4px; }
+html.native .sheet { border-radius: 16px 16px 0 0; }
+html.native .rtimer { border-radius: 14px; }
+
+/* controls */
+html.native button, html.native .qr, html.native .pchip, html.native .seg button,
+html.native .logbtn, html.native .addset, html.native .addex, html.native .alt-btn,
+html.native .hist-btn, html.native .ex__ctl, html.native .rtimer__btn,
+html.native .sheet__done, html.native .sheet__clear, html.native .rpe-opt,
+html.native .rest--btn, html.native .modal-close, html.native .rm,
+html.native .hud__menu > summary, html.native .hud__nav a { border-radius: 9px; }
+html.native .st-badge { border-radius: 7px; }
+html.native .set { border-radius: 8px; }
+html.native .ready { border-radius: 999px; }
+html.native .tag, html.native .pill { border-radius: 6px; }
+
+/* inputs */
+html.native input, html.native textarea, html.native .rpe-cell,
+html.native .exnote, html.native .picker__search, html.native .howto__inp,
+html.native .ex__pick { border-radius: 10px; }
+html.native .setrow .done { border-radius: 6px; }
+
+/* touch comfort */
+html.native .hud__menu > summary { padding: .42rem .75rem; }
+html.native .setrow { margin: .45rem 0; }
+html.native button { -webkit-tap-highlight-color: transparent; }

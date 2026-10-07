@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Today's Workout — {{ user }}</title>
 <script src="/static/theme.js?v=2"></script>
-<link rel="stylesheet" href="/static/tdr.css?v=11">
+<link rel="stylesheet" href="/static/tdr.css?v=12">
+<script src="/static/alarm.js?v=1"></script>
 <style>
   body { margin: 0; }
   main { padding: 1rem; max-width: 720px; margin: 0 auto;
@@ -295,10 +296,10 @@
             transform: translate3d(-50%, 0, 0);   /* 3d transform → own compositor layer,
                                                      so it never repaints/lags on scroll */
             will-change: transform; -webkit-backface-visibility: hidden; backface-visibility: hidden;
-            z-index: 60; display: flex; align-items: center; gap: .6rem;
-            max-width: calc(100vw - 1rem);
+            z-index: 60; display: flex; align-items: center; gap: .5rem;
+            max-width: calc(100vw - .8rem);
             background: var(--panel); border: 1px solid var(--cyan);
-            box-shadow: 0 0 16px rgba(0,229,255,.35); padding: .4rem .6rem; }
+            box-shadow: 0 0 16px rgba(0,229,255,.35); padding: .4rem .55rem; }
   body.logging-active .rtimer { bottom: calc(4.4rem + env(safe-area-inset-bottom)); }
   body.logging-active main { padding-bottom: calc(7.5rem + env(safe-area-inset-bottom)); }
   .rtimer[hidden] { display: none; }
@@ -326,6 +327,15 @@
                  text-transform: uppercase; color: var(--dim); }
   .rtimer__total { font-family: var(--mono); font-size: .95rem; font-weight: 700; color: var(--ink);
                  text-shadow: 0 0 6px rgba(255,255,255,.35); text-align: center; }
+  /* Phone widths: drop the exercise-name label and tighten up so the whole
+     bar (countdown + 4 controls + total) always fits on screen. */
+  @media (max-width: 520px) {
+    .rtimer { gap: .4rem; padding: .35rem .45rem; }
+    .rtimer__label { display: none; }
+    .rtimer__ctl { gap: .25rem; }
+    .rtimer__btn { min-width: 1.9rem; padding: .3rem .3rem; }
+    .rtimer__time { font-size: 1.05rem; min-width: 2.5rem; }
+  }
 
   /* Live total-session time in the logging banner */
   .banner__clock { font-family: var(--mono); font-size: .74rem; font-weight: 700; letter-spacing: .06em;
@@ -490,77 +500,15 @@ function groupSets(sets, ex) {
 // ── Rest timer ──────────────────────────────────────────────────────────────
 // One floating countdown, shared across view + logging. Auto-armed when a set is
 // ticked done in the logger; also startable by tapping any exercise's rest line.
-// Beeps + vibrates at zero. Pure client-side — no server state.
-let _ac = null;
-function _audio() {                    // lazily create + unlock (needs a user gesture)
-  try {
-    _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
-    if (_ac.state === "suspended") _ac.resume();
-    return _ac;
-  } catch (e) { return null; }
-}
-const SOUNDS = ["beep", "screamo", "off"];        // cycle order
-const SOUND_ICON = { beep: "🔊", screamo: "🔥", off: "🔇" };
-function soundMode() { try { return localStorage.getItem("rt:sound") || "beep"; } catch (e) { return "beep"; } }
-function setSoundMode(m) { try { localStorage.setItem("rt:sound", m); } catch (e) {} }
-
-// Timer alarm. "beep" = rising sine blips; "screamo" = harsh detuned + noise burst.
-// iOS suspends the AudioContext between reps / when the screen dims, so resume it
-// first and emit only once it's actually running (resume is async).
-function playAlarm(mode) {
-  mode = mode || soundMode();
-  if (mode === "off") return;
-  const ac = _audio();
-  if (!ac) return;
-  if (ac.state === "suspended") { ac.resume().then(() => _emit(mode, ac)).catch(() => {}); }
-  else _emit(mode, ac);
-}
-function _emit(mode, ac) {
-  const t0 = ac.currentTime;
-  if (mode === "screamo") {
-    const dur = 1.1;
-    const master = ac.createGain();
-    master.gain.setValueAtTime(0.0001, t0);
-    master.gain.exponentialRampToValueAtTime(0.5, t0 + 0.03);
-    master.gain.setValueAtTime(0.5, t0 + dur - 0.15);
-    master.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    master.connect(ac.destination);
-    const dist = ac.createWaveShaper();
-    const curve = new Float32Array(256);
-    for (let i = 0; i < 256; i++) { const x = i / 128 - 1; curve[i] = Math.tanh(x * 4); }
-    dist.curve = curve; dist.connect(master);
-    [110, 138, 220, 277].forEach(f => {
-      const o = ac.createOscillator(); o.type = "sawtooth";
-      o.frequency.setValueAtTime(f, t0);
-      o.frequency.exponentialRampToValueAtTime(f * 1.5, t0 + dur);
-      const g = ac.createGain(); g.gain.value = 0.25;
-      o.connect(g); g.connect(dist); o.start(t0); o.stop(t0 + dur);
-    });
-    const nb = ac.createBuffer(1, Math.floor(ac.sampleRate * dur), ac.sampleRate);
-    const nd = nb.getChannelData(0);
-    for (let i = 0; i < nd.length; i++) nd[i] = (Math.random() * 2 - 1) * 0.4;
-    const ns = ac.createBufferSource(); ns.buffer = nb;
-    const ng = ac.createGain(); ng.gain.value = 0.15;
-    ns.connect(ng); ng.connect(dist); ns.start(t0); ns.stop(t0 + dur);
-  } else {
-    [660, 880, 1180].forEach((f, i) => {
-      const o = ac.createOscillator(), g = ac.createGain();
-      o.type = "sine"; o.frequency.value = f;
-      const s = t0 + i * 0.16;
-      g.gain.setValueAtTime(0.0001, s);
-      g.gain.exponentialRampToValueAtTime(0.3, s + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, s + 0.15);
-      o.connect(g); g.connect(ac.destination); o.start(s); o.stop(s + 0.16);
-    });
-  }
-}
+// Beeps + vibrates at zero (sounds from /static/alarm.js; choice lives in
+// Settings). Pure client-side — no server state.
 
 // Fixed neon bar pinned to the right-hand centre. Always shown while logging
 // (with a white TOTAL session clock under the controls); the rest countdown
 // appears above it when armed. Countdown is driven by an absolute end-time, so
 // the alarm fires exactly when the display hits 0 (no drift between them).
 const RT = {
-  el: null, rest: null, disp: null, label: null, pauseBtn: null, soundBtn: null, totalEl: null,
+  el: null, rest: null, disp: null, label: null, pauseBtn: null, totalEl: null,
   endAt: 0, remain: 0, total: 0, timer: null, running: false, resting: false,
   ensure() {
     if (this.el) return;
@@ -571,9 +519,6 @@ const RT = {
     const ctl  = el("div", "rtimer__ctl");
     const mk = (t, fn) => { const b = el("button", "rtimer__btn", t); b.type = "button";
                             b.addEventListener("click", fn); return b; };
-    this.soundBtn = mk(SOUND_ICON[soundMode()] || "🔊", () => this.cycleSound());
-    this.soundBtn.title = "Alarm sound: " + soundMode() + " (tap to change)";
-    ctl.appendChild(this.soundBtn);
     ctl.appendChild(mk("＋15", () => this.bump(15)));
     ctl.appendChild(mk("−15", () => this.bump(-15)));
     this.pauseBtn = mk("❚❚", () => this.toggle());
@@ -626,13 +571,6 @@ const RT = {
     this.disp.textContent = this.fmt(this.remain);
     this.rest.classList.toggle("done", this.remain <= 0);
     this.pauseBtn.textContent = this.running ? "❚❚" : "▶";
-  },
-  cycleSound() {
-    const next = SOUNDS[(SOUNDS.indexOf(soundMode()) + 1) % SOUNDS.length];
-    setSoundMode(next);
-    this.soundBtn.textContent = SOUND_ICON[next];
-    this.soundBtn.title = "Alarm sound: " + next + " (tap to change)";
-    playAlarm(next);                 // preview + unlocks audio on this gesture
   },
   start(seconds, name) {
     this.ensure();

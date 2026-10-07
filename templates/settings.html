@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Settings — {{ user }}</title>
 <script src="/static/theme.js?v=2"></script>
-<link rel="stylesheet" href="/static/tdr.css?v=11">
+<link rel="stylesheet" href="/static/tdr.css?v=12">
+<script src="/static/alarm.js?v=1"></script>
 <style>
   body { margin: 0; }
   main { padding: 1rem; max-width: 720px; margin: 0 auto;
@@ -85,6 +86,16 @@
   </div>
 
   <div class="panel">
+    <h2>Rest timer alarm</h2>
+    <p class="sub">Sound when the rest timer hits zero (this device). Tap to preview.</p>
+    <div class="seg" id="soundseg">
+      <button type="button" data-v="beep">🔊 Beep</button>
+      <button type="button" data-v="screamo">🔥 Screamo</button>
+      <button type="button" data-v="off">🔇 Off</button>
+    </div>
+  </div>
+
+  <div class="panel">
     <h2>Programming variety</h2>
     <p class="sub">How adventurous your coach is with exercise selection. Saved to your
       profile — the next generated session uses it. You can also just tell your coach.</p>
@@ -111,6 +122,16 @@ function paintSeg() {
 seg.querySelectorAll("button").forEach(b =>
   b.addEventListener("click", () => { window.__gymTheme.set(b.dataset.v); paintSeg(); }));
 paintSeg();
+
+// ── Rest timer alarm (shared with the Workout tab via /static/alarm.js) ─────
+const sseg = document.getElementById("soundseg");
+function paintSound() {
+  const cur = soundMode();
+  sseg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.v === cur));
+}
+sseg.querySelectorAll("button").forEach(b =>
+  b.addEventListener("click", () => { setSoundMode(b.dataset.v); paintSound(); playAlarm(b.dataset.v); }));
+paintSound();
 
 // ── Variety slider ──────────────────────────────────────────────────────────
 const NOV = {
