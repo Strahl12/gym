@@ -314,10 +314,13 @@
   .rtimer__rest.done .rtimer__time { color: var(--lime); text-shadow: 0 0 12px rgba(182,255,0,.7); }
   .rtimer__rest.done ~ .rtimer__totalbox .rtimer__total { color: var(--lime); }
   @keyframes rtflash { 50% { opacity: .5; } }
-  .rtimer__ctl { display: flex; gap: .3rem; }
-  .rtimer__btn { font-family: var(--mono); font-size: .62rem; color: var(--ink);
-                 background: transparent; border: 1px solid var(--line); border-radius: 0;
-                 padding: .3rem .4rem; cursor: pointer; min-width: 2.2rem; }
+  .rtimer__ctl { display: flex; gap: .35rem; }
+  /* Equal-size controls: fixed width + centred text so +15/-15/pause/✕ line
+     up as a uniform row of comfortably tappable buttons. */
+  .rtimer__btn { font-family: var(--mono); font-size: .78rem; font-weight: 700;
+                 color: var(--ink); background: transparent; border: 1px solid var(--line);
+                 border-radius: 0; padding: .5rem 0; width: 2.9rem; text-align: center;
+                 cursor: pointer; }
   .rtimer__btn:hover { border-color: var(--cyan); color: var(--cyan); }
   /* White TOTAL session clock, beside the rest controls */
   .rtimer__totalbox { display: flex; flex-direction: column; align-items: center; gap: .05rem; }
@@ -332,8 +335,8 @@
   @media (max-width: 520px) {
     .rtimer { gap: .4rem; padding: .35rem .45rem; }
     .rtimer__label { display: none; }
-    .rtimer__ctl { gap: .25rem; }
-    .rtimer__btn { min-width: 1.9rem; padding: .3rem .3rem; }
+    .rtimer__ctl { gap: .3rem; }
+    .rtimer__btn { width: 2.6rem; padding: .45rem 0; font-size: .74rem; }
     .rtimer__time { font-size: 1.05rem; min-width: 2.5rem; }
   }
 
@@ -533,8 +536,8 @@ const RT = {
     const ctl  = el("div", "rtimer__ctl");
     const mk = (t, fn) => { const b = el("button", "rtimer__btn", t); b.type = "button";
                             b.addEventListener("click", fn); return b; };
-    ctl.appendChild(mk("＋15", () => this.bump(15)));
-    ctl.appendChild(mk("−15", () => this.bump(-15)));
+    ctl.appendChild(mk("+15", () => this.bump(15)));
+    ctl.appendChild(mk("-15", () => this.bump(-15)));
     this.pauseBtn = mk("❚❚", () => this.toggle());
     ctl.appendChild(this.pauseBtn);
     ctl.appendChild(mk("✕", () => this.stopRest()));
@@ -607,7 +610,13 @@ const RT = {
     // alarm when the athlete comes back to a long-expired timer.
     const late = Date.now() - this.endAt > 3000;
     if (late) return;
-    if (NT) NT.fireAlarm({ duration: 2.5 }).catch(() => {});   // audio focus + haptic
+    if (NT) {
+      // focus=true interrupts playback: video apps stay paused, music apps
+      // auto-resume after release. Toggleable in Settings ("rt:pausevideo").
+      let focus = true;
+      try { focus = localStorage.getItem("rt:pausevideo") !== "off"; } catch (e) {}
+      NT.fireAlarm({ duration: 2.5, focus }).catch(() => {});
+    }
     try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {}
     playAlarm();
   },

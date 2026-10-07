@@ -95,6 +95,19 @@
     </div>
   </div>
 
+  {% if is_native %}
+  <div class="panel">
+    <h2>Pause video at rest end</h2>
+    <p class="sub">When the timer hits zero, pause whatever you're watching (YouTube,
+      anime). Music keeps playing — it resumes by itself after the alarm; video stays
+      paused so you lift instead of watch.</p>
+    <div class="seg" id="focusseg">
+      <button type="button" data-v="on">⏸ Pause video</button>
+      <button type="button" data-v="off">Don't touch playback</button>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="panel">
     <h2>Programming variety</h2>
     <p class="sub">How adventurous your coach is with exercise selection. Saved to your
@@ -132,6 +145,20 @@ function paintSound() {
 sseg.querySelectorAll("button").forEach(b =>
   b.addEventListener("click", () => { setSoundMode(b.dataset.v); paintSound(); playAlarm(b.dataset.v); }));
 paintSound();
+
+// ── Pause-video-at-zero toggle (iOS app only; read by the Workout timer) ────
+const fseg = document.getElementById("focusseg");
+if (fseg) {
+  const getF = () => { try { return localStorage.getItem("rt:pausevideo") || "on"; } catch (e) { return "on"; } };
+  const paintF = () =>
+    fseg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.v === getF()));
+  fseg.querySelectorAll("button").forEach(b =>
+    b.addEventListener("click", () => {
+      try { localStorage.setItem("rt:pausevideo", b.dataset.v); } catch (e) {}
+      paintF();
+    }));
+  paintF();
+}
 
 // ── Variety slider ──────────────────────────────────────────────────────────
 const NOV = {

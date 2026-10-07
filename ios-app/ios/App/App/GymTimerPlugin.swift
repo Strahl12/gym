@@ -67,22 +67,26 @@ public class GymTimerPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func fireAlarm(_ call: CAPPluginCall) {
         let duration = call.getDouble("duration") ?? 2.5
+        let focus = call.getBool("focus") ?? true
         DispatchQueue.main.async {
             let gen = UINotificationFeedbackGenerator()
             gen.notificationOccurred(.success)
         }
-        let session = AVAudioSession.sharedInstance()
-        do {
-            // Non-mixable playback session: other apps' audio (YouTube, music)
-            // receives an interruption and pauses.
-            try session.setCategory(.playback, mode: .default, options: [])
-            try session.setActive(true)
-        } catch {
-            // Focus failed — the page still plays its alarm; nothing to do.
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-            // Release with "resume others" so the paused app picks back up.
-            try? session.setActive(false, options: .notifyOthersOnDeactivation)
+        if focus {
+            // Non-mixable playback session: everything playing gets an
+            // interruption. On release with notifyOthersOnDeactivation, music
+            // apps resume automatically; video apps (YouTube etc.) stay
+            // paused — which is the intended "stop watching, keep listening".
+            let session = AVAudioSession.sharedInstance()
+            do {
+                try session.setCategory(.playback, mode: .default, options: [])
+                try session.setActive(true)
+            } catch {
+                // Focus failed — the page still plays its alarm; nothing to do.
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+                try? session.setActive(false, options: .notifyOthersOnDeactivation)
+            }
         }
         call.resolve()
     }
