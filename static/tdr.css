@@ -192,17 +192,20 @@ html.native .msg.assistant { border-bottom-left-radius: 4px; }
 html.native .sheet { border-radius: 16px 16px 0 0; }
 html.native .rtimer { border-radius: 14px; }
 
-/* controls */
+/* controls — one radius for every button-like element */
 html.native button, html.native .qr, html.native .pchip, html.native .seg button,
 html.native .logbtn, html.native .addset, html.native .addex, html.native .alt-btn,
 html.native .hist-btn, html.native .ex__ctl, html.native .rtimer__btn,
 html.native .sheet__done, html.native .sheet__clear, html.native .rpe-opt,
 html.native .rest--btn, html.native .modal-close, html.native .rm,
-html.native .hud__menu > summary, html.native .hud__nav a { border-radius: 9px; }
-html.native .st-badge { border-radius: 7px; }
-html.native .set { border-radius: 8px; }
-html.native .ready { border-radius: 999px; }
-html.native .tag, html.native .pill { border-radius: 6px; }
+html.native .hud__menu > summary, html.native .hud__nav a { border-radius: 10px; }
+/* chips & badges — fully rounded, no exceptions (tags, flags, readiness,
+   set chips, session-type labels, forecast strip, day chips, HUD tags) */
+html.native .ready, html.native .ex__meta > *, html.native .ex__tag,
+html.native .set, html.native .coming__chip, html.native .banner__type,
+html.native .day-chip, html.native .tag, html.native .pill,
+html.native .warmtag, html.native .draftflag { border-radius: 999px; }
+html.native .st-badge { border-radius: 50%; }
 
 /* inputs */
 html.native input, html.native textarea, html.native .rpe-cell,

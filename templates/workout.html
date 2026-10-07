@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Today's Workout — {{ user }}</title>
 <script src="/static/theme.js?v=2"></script>
-<link rel="stylesheet" href="/static/tdr.css?v=12">
+<link rel="stylesheet" href="/static/tdr.css?v=13">
 <script src="/static/alarm.js?v=1"></script>
 <style>
   body { margin: 0; }
@@ -52,20 +52,23 @@
         border-left: 2px solid var(--cyan); box-shadow: -3px 0 12px rgba(0,229,255,.12);
         margin-bottom: .9rem; padding: .8rem .9rem; }
   .ex.main { border-left-color: var(--lime); box-shadow: -3px 0 12px rgba(182,255,0,.15); }
-  .ex__head { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
-  .ex__name { font-family: var(--mono); font-size: .9rem; font-weight: 700;
+  /* Card header: name left, actions pinned right — never interleaved. */
+  .ex__head { display: flex; align-items: center; gap: .6rem; }
+  .ex__name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere;
+              font-family: var(--mono); font-size: .9rem; font-weight: 700;
               letter-spacing: .03em; text-transform: uppercase; color: var(--cyan);
               text-shadow: 0 0 9px rgba(0,229,255,.55); }
   .ex.main .ex__name { color: var(--lime); text-shadow: 0 0 9px rgba(182,255,0,.6); }
-  .ex__tag { font-family: var(--mono); font-size: .56rem; letter-spacing: .1em;
-             text-transform: uppercase; color: var(--dim);
-             border: 1px solid var(--line); padding: .08rem .4rem; }
-  .ex__flag { font-family: var(--mono); font-size: .56rem;
-              letter-spacing: .12em; text-transform: uppercase; color: var(--lime);
-              text-shadow: 0 0 8px rgba(182,255,0,.5); }
-  .ready { display: inline-flex; align-items: center; gap: .3rem; font-family: var(--mono);
-           font-size: .55rem; letter-spacing: .08em; text-transform: uppercase;
-           padding: .1rem .42rem; border: 1px solid; white-space: nowrap; }
+  .ex__actions { display: flex; gap: .35rem; flex: none; align-self: flex-start; }
+  /* Meta row: uniform chips, fixed order, identical size/weight. */
+  .ex__meta { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem;
+              margin-top: .5rem; }
+  .ex__meta > * { font-family: var(--mono); font-size: .56rem; letter-spacing: .08em;
+                  text-transform: uppercase; line-height: 1; padding: .22rem .5rem;
+                  border: 1px solid var(--line); color: var(--dim); white-space: nowrap; }
+  .ex__tag--main { color: var(--lime); border-color: rgba(182,255,0,.55);
+                   text-shadow: 0 0 8px rgba(182,255,0,.5); }
+  .ready { display: inline-flex; align-items: center; gap: .3rem; }
   .rag-dot { width: .5rem; height: .5rem; border-radius: 50%; background: currentColor;
              box-shadow: 0 0 6px currentColor; flex: none; }
   .rag-green { color: var(--lime); border-color: var(--lime); text-shadow: 0 0 7px rgba(182,255,0,.5); }
@@ -73,10 +76,10 @@
   .rag-red   { color: var(--danger); border-color: var(--danger); text-shadow: 0 0 7px rgba(255,45,85,.5); }
   .readnote { font-family: var(--mono); font-size: .6rem; letter-spacing: .03em;
               color: var(--dim); margin-top: .45rem; line-height: 1.4; }
-  .hist-btn { margin-left: auto; font-family: var(--mono); font-size: .56rem;
+  .hist-btn { font-family: var(--mono); font-size: .56rem;
               letter-spacing: .1em; text-transform: uppercase; color: var(--ink);
               background: transparent; border: 1px solid var(--line); border-radius: 0;
-              padding: .16rem .5rem; cursor: pointer; white-space: nowrap; }
+              padding: .3rem .55rem; cursor: pointer; white-space: nowrap; }
   .hist-btn:hover, .hist-btn[aria-expanded="true"] { color: var(--cyan); border-color: var(--cyan);
               box-shadow: inset 0 0 0 1px rgba(0,229,255,.3), 0 0 8px rgba(0,229,255,.35);
               text-shadow: 0 0 8px rgba(0,229,255,.7); }
@@ -236,10 +239,9 @@
               font-weight: 700; text-shadow: 0 0 7px rgba(179,136,255,.5); }
 
   /* Add / swap exercise controls in the logger */
-  .ex__ctl { font-family: var(--mono); font-size: .68rem; line-height: 1; color: var(--ink);
+  .ex__ctl { font-family: var(--mono); font-size: .72rem; line-height: 1; color: var(--ink);
              background: transparent; border: 1px solid var(--line); border-radius: 0;
-             padding: .2rem .45rem; cursor: pointer; }
-  .ex__ctl.first { margin-left: auto; }
+             width: 2.2rem; padding: .3rem 0; text-align: center; cursor: pointer; }
   .ex__ctl:hover { border-color: var(--cyan); color: var(--cyan); }
   .ex__ctl.del:hover { border-color: var(--danger); color: var(--danger); }
   /* Floating exercise picker (Hevy-style, rides the bottom-sheet machinery) */
@@ -795,29 +797,34 @@ function openExercisePicker(opts, onPick) {
 function exerciseCard(ex, idx) {
   const card = el("div", "ex" + (ex.is_main_lift ? " main" : ""));
 
+  // Row 1: name (truncating) + actions pinned right. Row 2: meta chips in a
+  // fixed order (muscle · equipment · main · readiness) — no more free-for-all.
   const head = el("div", "ex__head");
   head.appendChild(el("span", "ex__name", ex.exercise_name));
-  if (ex.muscle_group) head.appendChild(el("span", "ex__tag", ex.muscle_group.replace(/_/g, " ")));
-  if (ex.equipment_category) head.appendChild(el("span", "ex__tag", ex.equipment_category));
-  if (ex.is_main_lift) head.appendChild(el("span", "ex__flag", "★ Main lift"));
+  const actions = el("div", "ex__actions");
+  const infoBtn = el("button", "hist-btn", "ⓘ");
+  infoBtn.type = "button"; infoBtn.title = "How to perform this movement";
+  infoBtn.addEventListener("click", () => openHowTo(ex.exercise_name));
+  actions.appendChild(infoBtn);
+  const histBtn = el("button", "hist-btn", "◷ History");
+  histBtn.type = "button";
+  histBtn.setAttribute("aria-expanded", "false");
+  actions.appendChild(histBtn);
+  head.appendChild(actions);
+  card.appendChild(head);
+
+  const meta = el("div", "ex__meta");
+  if (ex.muscle_group) meta.appendChild(el("span", "ex__tag", ex.muscle_group.replace(/_/g, " ")));
+  if (ex.equipment_category) meta.appendChild(el("span", "ex__tag", ex.equipment_category));
+  if (ex.is_main_lift) meta.appendChild(el("span", "ex__tag ex__tag--main", "★ main lift"));
   if (ex.readiness && ex.readiness.rag && ex.readiness.rag !== "none") {
     const chip = el("span", "ready rag-" + ex.readiness.rag);
     chip.appendChild(el("span", "rag-dot"));
     chip.appendChild(document.createTextNode(ex.readiness.label));
     chip.title = ex.readiness.detail || "";
-    head.appendChild(chip);
+    meta.appendChild(chip);
   }
-
-  const histBtn = el("button", "hist-btn", "◷ History");
-  histBtn.type = "button";
-  histBtn.setAttribute("aria-expanded", "false");
-  head.appendChild(histBtn);
-  const infoBtn = el("button", "hist-btn", "ⓘ");
-  infoBtn.type = "button"; infoBtn.title = "How to perform this movement";
-  infoBtn.style.marginLeft = "0";          // sit beside History, not pushed right
-  infoBtn.addEventListener("click", () => openHowTo(ex.exercise_name));
-  head.appendChild(infoBtn);
-  card.appendChild(head);
+  if (meta.children.length) card.appendChild(meta);
 
   const sets = el("div", "sets");
   for (const g of groupSets(ex.sets, ex)) {
@@ -1436,11 +1443,12 @@ function loggerCard(mex, rerender) {
   const head = el("div", "ex__head");
 
   head.appendChild(el("span", "ex__name", mex.exercise_name));
+  const actions = el("div", "ex__actions");
   const info = el("button", "ex__ctl", "ⓘ"); info.type = "button";
   info.title = "How to perform this movement";
   info.addEventListener("click", () => openHowTo(mex.exercise_name));
-  head.appendChild(info);
-  const swap = el("button", "ex__ctl first", "⇄"); swap.type = "button";
+  actions.appendChild(info);
+  const swap = el("button", "ex__ctl", "⇄"); swap.type = "button";
   swap.title = "Swap this exercise";
   swap.addEventListener("click", async () => {
     await loadCatalog();
@@ -1459,7 +1467,8 @@ function loggerCard(mex, rerender) {
         !confirm("Remove " + mex.exercise_name + " and its logged sets?")) return;
     MODEL.splice(MODEL.indexOf(mex), 1); saveDraft(); rerender();
   });
-  head.appendChild(swap); head.appendChild(del);
+  actions.appendChild(swap); actions.appendChild(del);
+  head.appendChild(actions);
   card.appendChild(head);
 
   mex.sets.forEach(mset => card.appendChild(setRow(mset, mex, rerender)));
