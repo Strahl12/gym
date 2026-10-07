@@ -1,0 +1,110 @@
+# iOS build → TestFlight.
+#
+# Builds the Capacitor shell (ios-app/) on a macOS runner, signs it with
+# Xcode cloud-managed signing (no certificates stored anywhere — Xcode
+# creates/manages them via the App Store Connect API key at build time),
+# and uploads straight to TestFlight.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   ASC_KEY_ID      App Store Connect API key ID        (e.g. 2X9R4HXF34)
+#   ASC_ISSUER_ID   API key issuer ID                   (a UUID)
+#   ASC_API_KEY_P8  Full contents of the AuthKey_*.p8 file
+#   APPLE_TEAM_ID   Developer team ID                   (e.g. ABCDE12345)
+#
+# Triggers: manual, pushes touching ios-app/, and a monthly rebuild so
+# TestFlight's 90-day build expiry never strands users.
+
+name: ios
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["ios-app/**", ".github/workflows/ios.yml"]
+  schedule:
+    - cron: "17 6 1 * *"   # monthly — keeps TestFlight builds fresh
+
+concurrency:
+  group: ios-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: ios-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install JS deps
+        run: npm ci --no-fund --no-audit
+
+      - name: Generate icons + splash from source assets
+        run: npx capacitor-assets generate --ios
+
+      - name: Capacitor sync (copies config, runs pod install)
+        run: npx cap sync ios
+
+      - name: Write App Store Connect API key
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s' "$ASC_API_KEY_P8" > "$RUNNER_TEMP/keys/AuthKey.p8"
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+
+      - name: Archive (cloud-managed signing)
+        run: |
+          set -o pipefail
+          PRETTY=cat
+          command -v xcbeautify >/dev/null && PRETTY="xcbeautify --renderer github-actions"
+          xcodebuild archive \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -allowProvisioningUpdates \
+            -allowProvisioningDeviceRegistration \
+            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey.p8" \
+            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
+            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
+            | $PRETTY
+
+      - name: Write export options
+        run: |
+          cat > "$RUNNER_TEMP/export.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${{ secrets.APPLE_TEAM_ID }}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><true/>
+          </dict>
+          </plist>
+          PLIST
+
+      - name: Export + upload to TestFlight
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/export.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey.p8" \
+            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
+
+      - name: Clean up key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/keys"

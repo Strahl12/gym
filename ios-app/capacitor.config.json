@@ -1,0 +1,14 @@
+{
+  "appId": "com.amanoiwato.gym",
+  "appName": "Gym Coach",
+  "webDir": "www",
+  "backgroundColor": "#0a0a0c",
+  "server": {
+    "url": "https://gym.amanoiwato.com",
+    "allowNavigation": ["gym.amanoiwato.com"]
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0a0a0c"
+  }
+}
