@@ -61,7 +61,10 @@ jobs:
         env:
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
 
-      - name: Archive (cloud-managed signing)
+      - name: Archive (unsigned — signing happens at export)
+        # Archiving signed would use a DEVELOPMENT profile, which needs at least
+        # one registered device on the team; a fresh account has none. Distribution
+        # signing (export step) needs no devices, so archive unsigned instead.
         run: |
           set -o pipefail
           PRETTY=cat
@@ -72,12 +75,9 @@ jobs:
             -configuration Release \
             -destination "generic/platform=iOS" \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
-            -allowProvisioningUpdates \
-            -allowProvisioningDeviceRegistration \
-            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey.p8" \
-            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
-            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
-            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
             | tee "$RUNNER_TEMP/xcodebuild-archive.log" | $PRETTY
 
