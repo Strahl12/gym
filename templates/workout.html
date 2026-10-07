@@ -208,6 +208,32 @@
   .classify-q { font-size: .8rem; color: var(--ink); text-align: center; line-height: 1.4;
                 margin: .6rem 0 .5rem; }
 
+  /* How-to sheet (ⓘ): breakdown + mini floating chat for follow-ups */
+  .sheet--howto { height: 80vh; display: flex; flex-direction: column; }
+  .howto__thread { flex: 1; overflow-y: auto; display: flex; flex-direction: column;
+                   gap: .55rem; padding: .4rem 0 .6rem; border-top: 1px solid var(--line); }
+  .howto__a { font-size: .86rem; line-height: 1.55; color: var(--ink); white-space: pre-wrap;
+              background: var(--panel-2); border-left: 2px solid var(--cyan);
+              padding: .55rem .7rem; }
+  .howto__q { align-self: flex-end; max-width: 85%; font-size: .84rem; line-height: 1.4;
+              color: #05050a; background: var(--magenta); font-weight: 500;
+              padding: .4rem .6rem; box-shadow: 0 0 10px rgba(255,0,102,.35); }
+  .howto__ask { display: flex; gap: .4rem; padding-top: .6rem; }
+  .howto__inp { flex: 1; font-family: var(--mono); font-size: 16px; color: var(--ink);
+                background: var(--panel-2); border: 1px solid var(--line); border-radius: 0;
+                padding: .45rem .6rem; }
+  .howto__inp:focus { outline: none; border-color: var(--cyan);
+                      box-shadow: inset 0 0 0 1px rgba(0,229,255,.3); }
+  .howto__send { font-family: var(--mono); font-size: .7rem; font-weight: 700;
+                 letter-spacing: .1em; text-transform: uppercase; color: #05050a;
+                 background: var(--cyan); border: 0; border-radius: 0; padding: 0 1rem;
+                 cursor: pointer; box-shadow: 0 0 10px rgba(0,229,255,.4); }
+  .howto__send:disabled { opacity: .5; }
+
+  /* Expected-RPE chip on the prescription card */
+  .set.pred { color: var(--violet); border-color: var(--violet); border-style: dotted;
+              font-weight: 700; text-shadow: 0 0 7px rgba(179,136,255,.5); }
+
   /* Add / swap exercise controls in the logger */
   .ex__ctl { font-family: var(--mono); font-size: .68rem; line-height: 1; color: var(--ink);
              background: transparent; border: 1px solid var(--line); border-radius: 0;
@@ -408,6 +434,7 @@ const LOGGED_URL = CHAT_URL + "/workout/logged";
 const EXLIST_URL = CHAT_URL + "/workout/exercises";
 const SETUP_URL  = CHAT_URL + "/workout/setup";
 const CLASSIFY_URL = CHAT_URL + "/workout/classify";
+const HOWTO_URL  = CHAT_URL + "/workout/howto";
 const CYAN = "#00e5ff", LIME = "#b6ff00";
 let swapping = false;   // one swap (Hevy PUT) at a time, across all cards
 let LOGGING = false;    // editable logging mode on the Workout tab
@@ -793,6 +820,11 @@ function exerciseCard(ex, idx) {
   histBtn.type = "button";
   histBtn.setAttribute("aria-expanded", "false");
   head.appendChild(histBtn);
+  const infoBtn = el("button", "hist-btn", "ⓘ");
+  infoBtn.type = "button"; infoBtn.title = "How to perform this movement";
+  infoBtn.style.marginLeft = "0";          // sit beside History, not pushed right
+  infoBtn.addEventListener("click", () => openHowTo(ex.exercise_name));
+  head.appendChild(infoBtn);
   card.appendChild(head);
 
   const sets = el("div", "sets");
@@ -801,6 +833,11 @@ function exerciseCard(ex, idx) {
     const n = g.count > 1 ? g.count + " × " : "";
     chip.innerHTML = (g.warm ? "warm-up · " : "") + n + "<b>" + g.reps + "</b> reps @ " + g.label;
     sets.appendChild(chip);
+  }
+  if (ex.predicted_rpe) {
+    const p = el("div", "set pred", "~RPE " + ex.predicted_rpe);
+    p.title = "Expected effort on the top set, from your e1RM";
+    sets.appendChild(p);
   }
   card.appendChild(sets);
 
@@ -1137,10 +1174,11 @@ const RPE_DESC = {
   9.5: "could maybe do 1 more",
   10:  "couldn't do any more",
 };
-function openRpe(mset, rerender) {
+function openRpe(mset, rerender, predicted) {
   openSheet((sheet, close) => {
     sheet.appendChild(el("div", "sheet__title", "Log Set RPE"));
-    const sub = (mset.weight ? mset.weight + "kg × " : "") + (mset.reps || 0) + " reps";
+    const sub = (mset.weight ? mset.weight + "kg × " : "") + (mset.reps || 0) + " reps"
+      + (predicted ? " · expected ~" + predicted : "");
     sheet.appendChild(el("div", "sheet__sub", sub));
     const has = mset.rpe !== "" && mset.rpe != null;
     const big = el("div", "rpe-big", has ? String(mset.rpe) : "—");
@@ -1166,6 +1204,58 @@ function openRpe(mset, rerender) {
     const clr = el("button", "sheet__clear", "Clear"); clr.type = "button";
     clr.addEventListener("click", () => { mset.rpe = ""; saveDraft(); close(); rerender(); });
     sheet.appendChild(clr);
+  });
+}
+
+// ── How-to sheet (ⓘ): Claude-generated movement breakdown + follow-up chat ──
+// First open generates via Haiku and caches to the Log tab; afterwards it's
+// instant. Follow-up questions are one-shot, answered in the sheet only.
+function openHowTo(name) {
+  openSheet((sheet, close) => {
+    sheet.classList.add("sheet--howto");
+    sheet.appendChild(el("div", "sheet__title", name));
+    const thread = el("div", "howto__thread");
+    sheet.appendChild(thread);
+    const ask = el("div", "howto__ask");
+    const inp = el("input", "howto__inp"); inp.type = "text";
+    inp.placeholder = "Ask a follow-up (grip, depth, pain…)";
+    const btn = el("button", "howto__send", "Ask"); btn.type = "button";
+    ask.appendChild(inp); ask.appendChild(btn);
+    sheet.appendChild(ask);
+
+    const query = async (payload, bubble) => {
+      try {
+        const r = await fetch(HOWTO_URL, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const d = await r.json();
+        if (!r.ok || d.error) throw new Error(d.error || r.statusText);
+        bubble.textContent = d.text;
+      } catch (e) {
+        bubble.textContent = "⚠ " + e.message;
+      }
+      thread.scrollTop = thread.scrollHeight;
+    };
+
+    const intro = el("div", "howto__a", "Getting the breakdown from your coach…");
+    thread.appendChild(intro);
+    query({ name }, intro);
+
+    const send = async () => {
+      const q = inp.value.trim();
+      if (!q || btn.disabled) return;
+      inp.value = "";
+      thread.appendChild(el("div", "howto__q", q));
+      const a = el("div", "howto__a", "…");
+      thread.appendChild(a);
+      thread.scrollTop = thread.scrollHeight;
+      btn.disabled = true;
+      await query({ name, question: q }, a);
+      btn.disabled = false;
+    };
+    btn.addEventListener("click", send);
+    inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); send(); } });
   });
 }
 
@@ -1276,6 +1366,7 @@ function modelFromPrescription(w) {
     is_bodyweight: isBodyweight(ex),
     rest_seconds: ex.rest_seconds || 90,
     alternates: (ex.alternates || []).slice(),
+    predicted_rpe: ex.predicted_rpe,
     setup: SETUPS[ex.exercise_name] || "",
     sets: (ex.sets || []).map(s => ({
       weight: s.weight_kg || 0, reps: s.reps || 0, rpe: "",
@@ -1332,9 +1423,11 @@ function setRow(mset, mex, rerender) {
   row.appendChild(reps);
 
   const has = mset.rpe !== "" && mset.rpe != null;
-  const rpeCell = el("button", "rpe-cell" + (has ? "" : " empty"), has ? String(mset.rpe) : "RPE");
-  rpeCell.type = "button"; rpeCell.title = "Log RPE";
-  rpeCell.addEventListener("click", () => openRpe(mset, rerender));
+  const rpeCell = el("button", "rpe-cell" + (has ? "" : " empty"),
+    has ? String(mset.rpe) : (mex.predicted_rpe && !isWarm(mset) ? "~" + mex.predicted_rpe : "RPE"));
+  rpeCell.type = "button";
+  rpeCell.title = mex.predicted_rpe ? "Log RPE (expected ~" + mex.predicted_rpe + ")" : "Log RPE";
+  rpeCell.addEventListener("click", () => openRpe(mset, rerender, mex.predicted_rpe));
   row.appendChild(rpeCell);
 
   const rm = el("button", "rm", "×"); rm.type = "button"; rm.title = "Remove set";
@@ -1351,6 +1444,10 @@ function loggerCard(mex, rerender) {
   const head = el("div", "ex__head");
 
   head.appendChild(el("span", "ex__name", mex.exercise_name));
+  const info = el("button", "ex__ctl", "ⓘ"); info.type = "button";
+  info.title = "How to perform this movement";
+  info.addEventListener("click", () => openHowTo(mex.exercise_name));
+  head.appendChild(info);
   const swap = el("button", "ex__ctl first", "⇄"); swap.type = "button";
   swap.title = "Swap this exercise";
   swap.addEventListener("click", async () => {
