@@ -68,6 +68,13 @@
 <main>
 
   <div class="panel">
+    <h2>About</h2>
+    <p class="sub" style="margin:0">
+      Running in: <b style="color:var(--cyan)">{{ 'iOS app' if is_native else 'web browser' }}</b>
+    </p>
+  </div>
+
+  <div class="panel">
     <h2>Appearance</h2>
     <p class="sub">Follow your phone's setting, or force a mode on this device.</p>
     <div class="seg" id="themeseg">

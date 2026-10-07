@@ -1878,6 +1878,26 @@ def _chat_response(user: str):
         con.close()
 
 
+# ---------------------------------------------- native-app template overlay
+
+# The iOS shell (ios-app/) appends "GymCoachNative" to its WebView user-agent.
+# _render serves templates/native/<name> to the app when that file exists and
+# the shared template otherwise — so the app experience can diverge page by
+# page while the web app stays exactly where it is. To fork a page for the
+# app: copy templates/<name> to templates/native/<name> and edit the copy.
+
+
+def _is_native() -> bool:
+    return "GymCoachNative" in (request.headers.get("User-Agent") or "")
+
+
+def _render(template: str, **ctx):
+    native = _is_native()
+    if native and (Path(app.template_folder or "templates") / "native" / template).is_file():
+        return render_template(f"native/{template}", is_native=True, **ctx)
+    return render_template(template, is_native=native, **ctx)
+
+
 # ------------------------------------------------------- legacy token urls
 
 
@@ -1886,7 +1906,7 @@ def chat_page(token: str):
     user = _user_for(token)
     if user is None:
         abort(404)
-    return render_template("chat.html", user=user.title(), dev=(user == DEV_USER))
+    return _render("chat.html", user=user.title(), dev=(user == DEV_USER))
 
 
 @app.get("/u/<token>/history")
@@ -1910,7 +1930,7 @@ def chat_stats_page(token: str):
     user = _user_for(token)
     if user is None:
         abort(404)
-    return render_template("stats.html", user=user.title(),
+    return _render("stats.html", user=user.title(),
                            data_url=f"/u/{token}/stats/data", chat_url=f"/u/{token}")
 
 
@@ -1935,7 +1955,7 @@ def chat_review_page(token: str):
     user = _user_for(token)
     if user is None:
         abort(404)
-    return render_template("review.html", user=user.title(),
+    return _render("review.html", user=user.title(),
                            data_url=f"/u/{token}/review/data", chat_url=f"/u/{token}")
 
 
@@ -1952,7 +1972,7 @@ def chat_log_page(token: str):
     user = _user_for(token)
     if user is None:
         abort(404)
-    return render_template("log.html", user=user.title(),
+    return _render("log.html", user=user.title(),
                            data_url=f"/u/{token}/log/data",
                            del_url=f"/u/{token}/log/delete", chat_url=f"/u/{token}")
 
@@ -1978,7 +1998,7 @@ def chat_workout_page(token: str):
     user = _user_for(token)
     if user is None:
         abort(404)
-    return render_template("workout.html", user=user.title(),
+    return _render("workout.html", user=user.title(),
                            data_url=f"/u/{token}/workout/data", chat_url=f"/u/{token}")
 
 
@@ -2059,7 +2079,7 @@ def chat_settings_page(token: str):
     user = _user_for(token)
     if user is None:
         abort(404)
-    return render_template("settings.html", user=user.title(),
+    return _render("settings.html", user=user.title(),
                            data_url=f"/u/{token}/settings/data",
                            save_url=f"/u/{token}/settings/novelty",
                            chat_url=f"/u/{token}")
@@ -2174,7 +2194,7 @@ def app_page():
     user = _session_user()
     if user is None:
         return redirect("/login", code=302)
-    return render_template("chat.html", user=user.title(), dev=(user == DEV_USER))
+    return _render("chat.html", user=user.title(), dev=(user == DEV_USER))
 
 
 @app.get("/app/history")
@@ -2198,7 +2218,7 @@ def app_stats_page():
     user = _session_user()
     if user is None:
         return redirect("/login", code=302)
-    return render_template("stats.html", user=user.title(),
+    return _render("stats.html", user=user.title(),
                            data_url="/app/stats/data", chat_url="/app")
 
 
@@ -2223,7 +2243,7 @@ def app_review_page():
     user = _session_user()
     if user is None:
         return redirect("/login", code=302)
-    return render_template("review.html", user=user.title(),
+    return _render("review.html", user=user.title(),
                            data_url="/app/review/data", chat_url="/app")
 
 
@@ -2240,7 +2260,7 @@ def app_log_page():
     user = _session_user()
     if user is None:
         return redirect("/login", code=302)
-    return render_template("log.html", user=user.title(),
+    return _render("log.html", user=user.title(),
                            data_url="/app/log/data", del_url="/app/log/delete", chat_url="/app")
 
 
@@ -2265,7 +2285,7 @@ def app_workout_page():
     user = _session_user()
     if user is None:
         return redirect("/login", code=302)
-    return render_template("workout.html", user=user.title(),
+    return _render("workout.html", user=user.title(),
                            data_url="/app/workout/data", chat_url="/app")
 
 
@@ -2346,7 +2366,7 @@ def app_settings_page():
     user = _session_user()
     if user is None:
         return redirect("/login", code=302)
-    return render_template("settings.html", user=user.title(),
+    return _render("settings.html", user=user.title(),
                            data_url="/app/settings/data",
                            save_url="/app/settings/novelty",
                            chat_url="/app")
