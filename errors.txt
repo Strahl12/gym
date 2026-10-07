@@ -1,0 +1,3 @@
+GatherProvisioningInputs
+2026-10-07 12:21:55.725 xcodebuild[5832:21265] Progress 0%: Upload failed.
+error: exportArchive Validation failed. SDK version issue. This app was built with the iOS 18.5 SDK. All iOS and iPadOS apps must be built with the iOS 26 SDK or later, included in Xcode 26 or later, in order to be uploaded to App Store Connect or submitted for distribution. (ID: 79749a59-91e6-496f-9a2a-a80c6d61bc12).
