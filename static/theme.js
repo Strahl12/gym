@@ -27,4 +27,18 @@
     try { matchMedia("(prefers-color-scheme: light)").addEventListener("change", apply); } catch (e) {}
   }
   apply();
+
+  // iOS app (Capacitor shell appends GymCoachNative to the UA): tag the
+  // document so CSS can diverge, and lock the viewport — no pinch zoom and,
+  // critically, no auto-zoom when focusing inputs under 16px.
+  if (navigator.userAgent.indexOf("GymCoachNative") !== -1) {
+    document.documentElement.classList.add("native");
+    var vp = document.querySelector('meta[name="viewport"]');
+    if (vp) {
+      var c = vp.getAttribute("content") || "width=device-width, initial-scale=1";
+      if (c.indexOf("maximum-scale") === -1) {
+        vp.setAttribute("content", c + ", maximum-scale=1, user-scalable=no");
+      }
+    }
+  }
 })();
