@@ -501,7 +501,21 @@ function groupSets(sets, ex) {
 // One floating countdown, shared across view + logging. Auto-armed when a set is
 // ticked done in the logger; also startable by tapping any exercise's rest line.
 // Beeps + vibrates at zero (sounds from /static/alarm.js; choice lives in
-// Settings). Pure client-side — no server state.
+// Settings).
+//
+// In the iOS app the GymTimer native plugin upgrades this: a local
+// notification mirrors the countdown (alarm fires even with the phone locked
+// or the app backgrounded), and at a foreground zero-cross the app takes
+// audio focus — pausing whatever's playing — fires a haptic, then releases
+// focus so the other app's audio resumes. On the web these are no-ops.
+const NT = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.GymTimer) || null;
+function ntArm(seconds, name) {
+  if (!NT || seconds < 1) return;
+  NT.armAlarm({ seconds: Math.round(seconds),
+                label: name ? name + " — next set." : "Back to it — next set." })
+    .catch(() => {});
+}
+function ntDisarm() { if (NT) NT.disarmAlarm().catch(() => {}); }
 
 // Fixed neon bar pinned to the right-hand centre. Always shown while logging
 // (with a white TOTAL session clock under the controls); the rest countdown
@@ -556,7 +570,8 @@ const RT = {
   // Show the bar + drive the total clock (called on entering/rendering logging).
   showBar() { this.ensure(); this.el.hidden = false; this.loop(); },
   hideBar() { if (this.timer) clearInterval(this.timer); this.timer = null;
-              this.resting = false; if (this.rest) this.rest.hidden = true;
+              this.resting = false; ntDisarm();
+              if (this.rest) this.rest.hidden = true;
               if (this.el) this.el.hidden = true; },
   loop() {
     clearInterval(this.timer);
@@ -582,22 +597,33 @@ const RT = {
     this.running = true; this.resting = true;
     this.label.textContent = name ? "Rest · " + name : "Rest";
     this.rest.hidden = false; this.rest.classList.remove("done");
+    ntArm(this.total, name);
     this.loop();
   },
-  fire() { this.running = false;
-           try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {}
-           playAlarm(); },
+  fire() {
+    this.running = false;
+    // If the zero-cross happened while the app was backgrounded (web timers
+    // suspended), the native notification already alerted — don't replay the
+    // alarm when the athlete comes back to a long-expired timer.
+    const late = Date.now() - this.endAt > 3000;
+    if (late) return;
+    if (NT) NT.fireAlarm({ duration: 2.5 }).catch(() => {});   // audio focus + haptic
+    try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {}
+    playAlarm();
+  },
   toggle() {
     if (!this.resting) return;
     if (this.remain <= 0) { this.start(this.total, this.label.textContent.replace(/^Rest · /, "")); return; }
-    if (this.running) { this.running = false; }                 // pause: freeze remain
-    else { this.running = true; this.endAt = Date.now() + this.remain * 1000; }
+    if (this.running) { this.running = false; ntDisarm(); }     // pause: freeze remain
+    else { this.running = true; this.endAt = Date.now() + this.remain * 1000;
+           ntArm(this.remain, this.label.textContent.replace(/^Rest · /, "")); }
     this.paint();
   },
   bump(d) { this.remain = Math.max(0, this.remain + d);
             this.endAt = Date.now() + this.remain * 1000;
+            if (this.running) ntArm(this.remain, this.label.textContent.replace(/^Rest · /, ""));
             if (d > 0) this.rest.classList.remove("done"); this.paint(); },
-  stopRest() { this.resting = false; this.running = false;
+  stopRest() { this.resting = false; this.running = false; ntDisarm();
                if (this.rest) this.rest.hidden = true; this.paint(); },
 };
 
