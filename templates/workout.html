@@ -288,39 +288,43 @@
                cursor: pointer; padding: .22rem .5rem; }
   .rest--btn:hover { color: var(--cyan); border-color: var(--cyan); }
 
-  /* Rest timer — fixed neon bar pinned to the right edge, so the number keyboard
-     (which covers the bottom) never hides it. */
-  .rtimer { position: fixed; right: .4rem; top: 50%;
-            transform: translate3d(0, -50%, 0);   /* 3d transform → own compositor layer,
+  /* Rest timer — fixed horizontal bar at the bottom of the screen (it was a
+     right-edge rail, but that covered each set row's ✕ delete button). While
+     logging it sits above the sticky Cancel/Save bar. */
+  .rtimer { position: fixed; left: 50%; bottom: calc(.6rem + env(safe-area-inset-bottom));
+            transform: translate3d(-50%, 0, 0);   /* 3d transform → own compositor layer,
                                                      so it never repaints/lags on scroll */
             will-change: transform; -webkit-backface-visibility: hidden; backface-visibility: hidden;
-            z-index: 60; display: flex; flex-direction: column; align-items: center; gap: .3rem;
+            z-index: 60; display: flex; align-items: center; gap: .6rem;
+            max-width: calc(100vw - 1rem);
             background: var(--panel); border: 1px solid var(--cyan);
-            box-shadow: 0 0 16px rgba(0,229,255,.35); padding: .5rem .35rem; }
+            box-shadow: 0 0 16px rgba(0,229,255,.35); padding: .4rem .6rem; }
+  body.logging-active .rtimer { bottom: calc(4.4rem + env(safe-area-inset-bottom)); }
+  body.logging-active main { padding-bottom: calc(7.5rem + env(safe-area-inset-bottom)); }
   .rtimer[hidden] { display: none; }
-  .rtimer__rest { display: flex; flex-direction: column; align-items: center; gap: .3rem; }
+  .rtimer__rest { display: flex; align-items: center; gap: .5rem; }
   .rtimer__rest[hidden] { display: none; }
   .rtimer__label { font-family: var(--mono); font-size: .5rem; letter-spacing: .06em;
-                   text-transform: uppercase; color: var(--dim); max-width: 3.4rem;
-                   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
+                   text-transform: uppercase; color: var(--dim); max-width: 5.5rem;
+                   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rtimer__time { font-family: var(--mono); font-size: 1.15rem; font-weight: 700; color: var(--cyan);
                   text-shadow: 0 0 9px rgba(0,229,255,.55); min-width: 2.8rem; text-align: center; }
   .rtimer__rest.done { animation: rtflash .6s steps(1) infinite; }
   .rtimer__rest.done .rtimer__time { color: var(--lime); text-shadow: 0 0 12px rgba(182,255,0,.7); }
   .rtimer__rest.done ~ .rtimer__totalbox .rtimer__total { color: var(--lime); }
   @keyframes rtflash { 50% { opacity: .5; } }
-  .rtimer__ctl { display: flex; flex-direction: column; gap: .28rem; }
+  .rtimer__ctl { display: flex; gap: .3rem; }
   .rtimer__btn { font-family: var(--mono); font-size: .62rem; color: var(--ink);
                  background: transparent; border: 1px solid var(--line); border-radius: 0;
-                 padding: .2rem .35rem; cursor: pointer; min-width: 2.2rem; }
+                 padding: .3rem .4rem; cursor: pointer; min-width: 2.2rem; }
   .rtimer__btn:hover { border-color: var(--cyan); color: var(--cyan); }
-  /* White TOTAL session clock, under the rest controls */
+  /* White TOTAL session clock, beside the rest controls */
   .rtimer__totalbox { display: flex; flex-direction: column; align-items: center; gap: .05rem; }
-  .rtimer__rest:not([hidden]) ~ .rtimer__totalbox { margin-top: .4rem; padding-top: .4rem;
-                 border-top: 1px solid rgba(255,255,255,.14); }
+  .rtimer__rest:not([hidden]) ~ .rtimer__totalbox { margin-left: .2rem; padding-left: .6rem;
+                 border-left: 1px solid var(--line); }
   .rtimer__totallabel { font-family: var(--mono); font-size: .48rem; letter-spacing: .12em;
                  text-transform: uppercase; color: var(--dim); }
-  .rtimer__total { font-family: var(--mono); font-size: .95rem; font-weight: 700; color: #fff;
+  .rtimer__total { font-family: var(--mono); font-size: .95rem; font-weight: 700; color: var(--ink);
                  text-shadow: 0 0 6px rgba(255,255,255,.35); text-align: center; }
 
   /* Live total-session time in the logging banner */
@@ -570,8 +574,8 @@ const RT = {
     this.soundBtn = mk(SOUND_ICON[soundMode()] || "🔊", () => this.cycleSound());
     this.soundBtn.title = "Alarm sound: " + soundMode() + " (tap to change)";
     ctl.appendChild(this.soundBtn);
-    ctl.appendChild(mk("−15", () => this.bump(-15)));
     ctl.appendChild(mk("＋15", () => this.bump(15)));
+    ctl.appendChild(mk("−15", () => this.bump(-15)));
     this.pauseBtn = mk("❚❚", () => this.toggle());
     ctl.appendChild(this.pauseBtn);
     ctl.appendChild(mk("✕", () => this.stopRest()));
@@ -586,6 +590,21 @@ const RT = {
     bar.appendChild(rest); bar.appendChild(tot);
     document.body.appendChild(bar);
     this.el = bar;
+
+    // Dodge the on-screen keyboard: position:fixed is anchored to the LAYOUT
+    // viewport, so when the keyboard opens (visual viewport shrinks) a bottom
+    // bar gets buried under it. Track the visual viewport and lift the bar by
+    // the covered amount so it rides just above the keyboard while typing.
+    if (window.visualViewport) {
+      const place = () => {
+        const vv = window.visualViewport;
+        const covered = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+        bar.style.transform = `translate3d(-50%, ${-covered}px, 0)`;
+      };
+      window.visualViewport.addEventListener("resize", place);
+      window.visualViewport.addEventListener("scroll", place);
+      place();
+    }
   },
   fmt(s) { s = Math.max(0, Math.round(s));
            return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); },
