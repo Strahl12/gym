@@ -3,20 +3,30 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Gym Coach</title>
+<title>Sortie</title>
 <style>
+  /* Offline fallback — the app normally loads the server directly, so this
+     page cannot fetch the shared stylesheets. Sortie hangar tokens inlined. */
+  :root { --bg-100: #0c1016; --panel: #1a2433cc; --line: #2f3c4e;
+          --ink: #e1e6ec; --ink-muted: #8f9aa9; --lamp: #e0392e; }
   body { margin: 0; min-height: 100dvh; display: grid; place-items: center;
-         background: #0a0a0c; color: #e9e9ee;
-         font-family: ui-monospace, Menlo, monospace; text-align: center; }
-  b { color: #ff0066; }
+         background: var(--bg-100); color: var(--ink);
+         font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+  .panel { background: var(--panel); border-top: 1px solid var(--line);
+           border-bottom: 1px solid var(--line); padding: 20px; max-width: 320px; }
+  .eyebrow { display: flex; align-items: center; gap: 8px; margin: 0 0 12px;
+             font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+             color: var(--ink-muted); }
+  .eyebrow::before { content: ""; width: 6px; height: 6px; background: var(--lamp); }
+  p { margin: 0; font-size: 15px; line-height: 22px; }
 </style>
 </head>
 <body>
 <!-- Fallback only: the app loads gym.amanoiwato.com directly (server.url).
      This page shows if the server is unreachable. -->
-<div>
-  <p><b>■</b> GYM.COACH</p>
-  <p>Can't reach the server.<br>Check your connection and reopen the app.</p>
+<div class="panel">
+  <p class="eyebrow">Sortie — no link</p>
+  <p>Can't reach the server. Check your connection and reopen the app.</p>
 </div>
 </body>
 </html>
