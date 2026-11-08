@@ -1205,10 +1205,68 @@ def _workout_response(user: str):
     except Exception as e:
         print(f"[chat] {user}: session projection failed: {e}")
 
+    # Last logged session per exercise — the logger's PREVIOUS column.
+    import stats
+    for ex in w.get("exercises") or []:
+        try:
+            ex["previous"] = stats.last_session_sets(user, ex.get("exercise_name") or "")
+        except Exception:
+            ex["previous"] = None
+
+    _attach_stretches(w)
+
     return jsonify({"workout": w, "date": day,
                     "is_today": is_today,
                     "upcoming": upcoming,
                     "uses_hevy": _user_uses_hevy(user)})
+
+
+# Optional stretch routines, derived from the session's muscles: a dynamic
+# move to ready each muscle pre-workout, a static hold to finish. The coach
+# engine may ship its own `stretches` with a prescription; this fills the
+# gap deterministically when it doesn't.
+_STRETCH_LIB = {           # muscle_group -> (pre / dynamic, post / static)
+    "quadriceps": ("Leg swings", "Standing quad stretch"),
+    "hamstrings": ("Walking toe touches", "Standing hamstring stretch"),
+    "glutes": ("Bodyweight glute bridges", "Pigeon stretch"),
+    "chest": ("Arm circles", "Doorway pec stretch"),
+    "shoulders": ("Band pull-aparts", "Cross-body shoulder stretch"),
+    "lats": ("Scapular pull-ups", "Overhead lat stretch"),
+    "upper_back": ("Cat-cow", "Thread the needle"),
+    "lower_back": ("Cat-cow", "Child's pose"),
+    "traps": ("Shoulder shrug rolls", "Upper trap stretch"),
+    "neck": ("Neck rolls", "Upper trap stretch"),
+    "biceps": ("Arm swings", "Wall biceps stretch"),
+    "triceps": ("Arm circles", "Overhead triceps stretch"),
+    "forearms": ("Wrist circles", "Wrist flexor stretch"),
+    "abdominals": ("Torso twists", "Cobra stretch"),
+    "calves": ("Ankle circles", "Wall calf stretch"),
+    "adductors": ("Side lunges", "Butterfly stretch"),
+    "abductors": ("Lateral leg swings", "Figure-4 stretch"),
+}
+
+
+def _attach_stretches(w: dict) -> None:
+    """Give the prescription optional pre/post stretch lists for its muscles
+    (max 4 each, in exercise order). Mutates the in-memory workout only."""
+    if w.get("stretches"):
+        return
+    muscles: list[str] = []
+    for ex in w.get("exercises") or []:
+        mg = ex.get("muscle_group")
+        if mg and mg not in muscles:
+            muscles.append(mg)
+    pre: list[str] = []
+    post: list[str] = []
+    for m in muscles:
+        pair = _STRETCH_LIB.get(m)
+        if not pair:
+            continue
+        if pair[0] not in pre:
+            pre.append(pair[0])
+        if pair[1] not in post:
+            post.append(pair[1])
+    w["stretches"] = {"pre": pre[:4], "post": post[:4]}
 
 
 def _attach_readiness(user: str, w: dict) -> None:
@@ -1262,7 +1320,12 @@ def _exercise_history_response(user: str):
         config.activate(user)
         _sync_recent(user)
     try:
-        return jsonify(stats.exercise_history(user, exercise))
+        d = stats.exercise_history(user, exercise)
+        try:                       # PREVIOUS column for exercises added mid-session
+            d["previous"] = stats.last_session_sets(user, exercise)
+        except Exception:
+            d["previous"] = None
+        return jsonify(d)
     except Exception as e:
         print(f"[chat] {user}: exercise history failed: {e}")
         return jsonify({"error": "history unavailable"}), 500
@@ -1511,6 +1574,16 @@ def _applog_response(user: str):
         return jsonify({"error": "couldn't save your workout — try again"}), 500
     print(f"[chat] {user}: logged {result['sets_written']} sets "
           f"({result['session_type']}) to {result['session_id']}")
+
+    # Record whether the optional stretch routines were done (binary only).
+    st = body.get("stretches")
+    if isinstance(st, dict):
+        try:
+            applog.save_stretch_log(db_path, result.get("date") or body.get("date") or "",
+                                    result["session_type"],
+                                    bool(st.get("pre_done")), bool(st.get("post_done")))
+        except Exception as e:
+            print(f"[chat] {user}: stretch log failed: {e}")
 
     # Persist per-exercise setup notes (seat/pin/pad) so they pre-fill next time.
     setups = body.get("setups")
@@ -1950,6 +2023,26 @@ def chat_stats_day(token: str):
     return _session_detail_response(user)
 
 
+def _muscles_response(user: str):
+    """Per-muscle training totals (?since=YYYY-MM-DD limits the window) —
+    powers the weekly map on Review and the all-time heat-map on Stats."""
+    import stats
+    since = (request.args.get("since") or "").strip() or None
+    try:
+        return jsonify({"muscles": stats.muscle_usage(user, since=since)})
+    except Exception as e:
+        print(f"[chat] {user}: muscle usage failed: {e}")
+        return jsonify({"error": "muscle usage unavailable"}), 500
+
+
+@app.get("/u/<token>/muscles")
+def chat_muscles(token: str):
+    user = _user_for(token)
+    if user is None:
+        abort(404)
+    return _muscles_response(user)
+
+
 @app.get("/u/<token>/review")
 def chat_review_page(token: str):
     user = _user_for(token)
@@ -2236,6 +2329,14 @@ def app_stats_day():
     if user is None:
         abort(401)
     return _session_detail_response(user)
+
+
+@app.get("/app/muscles")
+def app_muscles():
+    user = _session_user()
+    if user is None:
+        abort(401)
+    return _muscles_response(user)
 
 
 @app.get("/app/review")

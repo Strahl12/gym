@@ -21,12 +21,13 @@ SESSION_TYPES = ("push", "pull", "legs", "arms")
 
 # Palette shared with the frontend legend/calendar (kept here so the API is the
 # single source of truth for colours).
-# WipEout/tDR neon palette — vivid and distinct on the dark HUD background.
+# Sortie UI hangar tokens used as a categorical data palette — four distinct
+# hues (corp / ok / accent / target) that read on both themes.
 SESSION_COLOURS = {
-    "push": "#00e5ff",   # cyan
-    "pull": "#b6ff00",   # lime
-    "legs": "#ff6a00",   # orange
-    "arms": "#ff0066",   # magenta
+    "push": "#4a97de",   # corp blue
+    "pull": "#7ccb79",   # ok green
+    "legs": "#e3932f",   # accent amber
+    "arms": "#d6619f",   # target magenta
 }
 
 
@@ -141,6 +142,90 @@ def exercise_history(user: str, exercise: str) -> dict:
         "latest_e1rm": latest,
         "best_e1rm": best,
     }
+
+
+def last_session_sets(user: str, exercise: str) -> dict | None:
+    """Full set list from the most recent session containing `exercise`, in
+    logged order — powers the logger's PREVIOUS column. None if never trained."""
+    con = _con(user)
+    try:
+        last = con.execute("SELECT MAX(date) FROM sets WHERE exercise = ?",
+                           (exercise,)).fetchone()[0]
+        if not last:
+            return None
+        rows = con.execute("""
+            SELECT weight_kg, reps, rpe, is_warmup, set_type
+            FROM sets
+            WHERE exercise = ? AND date = ?
+            ORDER BY set_number, id
+        """, (exercise, last)).fetchall()
+    finally:
+        con.close()
+    return {
+        "date": last,
+        "sets": [{
+            "weight_kg": round(r["weight_kg"], 1) if r["weight_kg"] is not None else 0,
+            "reps": r["reps"] or 0,
+            "rpe": r["rpe"],
+            "is_warmup": bool(r["is_warmup"]),
+            "set_type": r["set_type"] or ("warmup" if r["is_warmup"] else "normal"),
+        } for r in rows],
+    }
+
+
+def muscle_usage(user: str, since: str | None = None) -> dict:
+    """Per-muscle training totals from logged working sets — powers the body
+    heat-maps. Primary muscle counts each set at 1.0, catalog secondaries at
+    0.5. Per muscle: a relative score plus the exercises that hit it, grouped
+    and ordered chronologically (first time each exercise appeared).
+    """
+    import json as _json
+    catalog = _json.loads((Path(__file__).parent / "exercises.json").read_text())
+    lookup = {}                       # any known name -> (muscle, secondaries)
+    for e in catalog.values():
+        entry = (e.get("muscle") or "", e.get("secondary_muscles") or [])
+        for n in [e.get("canonical") or "", e.get("hevy_title") or "",
+                  *(e.get("aliases") or [])]:
+            if n:
+                lookup.setdefault(n, entry)
+
+    con = _con(user)
+    try:
+        q = """SELECT exercise, date, MAX(muscle_group) mg, COUNT(*) n
+               FROM sets WHERE is_warmup = 0 AND reps > 0"""
+        args: tuple = ()
+        if since:
+            q += " AND date >= ?"
+            args = (since,)
+        rows = con.execute(q + " GROUP BY exercise, date ORDER BY date", args).fetchall()
+    finally:
+        con.close()
+
+    muscles: dict[str, dict] = {}
+
+    def bump(muscle, r, weight, role):
+        if not muscle:
+            return
+        m = muscles.setdefault(muscle, {"score": 0.0, "exercises": {}})
+        m["score"] += weight * r["n"]
+        ex = m["exercises"].setdefault(r["exercise"], {
+            "exercise": r["exercise"], "role": role,
+            "first": r["date"], "last": r["date"], "sets": 0,
+        })
+        ex["last"] = r["date"]
+        ex["sets"] += r["n"]
+
+    for r in rows:
+        prim, secs = lookup.get(r["exercise"], (r["mg"] or "", []))
+        bump(prim, r, 1.0, "primary")
+        for s2 in secs:
+            bump(s2, r, 0.5, "secondary")
+
+    out = {}
+    for m, d in muscles.items():
+        exs = sorted(d["exercises"].values(), key=lambda e: e["first"])
+        out[m] = {"score": round(d["score"], 1), "exercises": exs}
+    return out
 
 
 def exercise_readiness(user: str, exercise: str, top_reps: int | None = None,

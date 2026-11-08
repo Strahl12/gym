@@ -3,45 +3,47 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Set password — Gym Coach</title>
+<title>Set password — Sortie</title>
+<script src="/static/theme.js?v=5"></script>
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/saira-memjYa2wxmKQyPMrZX79wwYZQMhsyuSLiIvS.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/chakrapetch-cIflMapbsEk7TDLdtEz1BwkebIl1R5_F.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/chakrapetch-cIflMapbsEk7TDLdtEz1BwkeQI51R5_F.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/chakrapetch-cIf6MapbsEk7TDLdtEz1BwkWn6pg.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/michroma-PN_zRfy9qWD8fEagAPg9pTk.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/sharetechmono-J7aHnp1uDWRBEqV98dVQztYldFcLowEF.woff2">
+<link rel="stylesheet" href="/static/fonts.css?v=1">
+<link rel="stylesheet" href="/static/sortie/tokens.css?v=1">
+<link rel="stylesheet" href="/static/sortie/sortie.css?v=1">
+<link rel="stylesheet" href="/static/gym.css?v=6">
 <style>
-  :root { color-scheme: light dark; }
-  * { box-sizing: border-box; }
-  body { margin: 0; min-height: 100dvh; display: grid; place-items: center;
-         font-family: -apple-system, system-ui, sans-serif;
-         background: Canvas; color: CanvasText; }
-  .card { width: min(90vw, 22rem); padding: 2rem 1.5rem; }
-  h1 { font-size: 1.6rem; margin: 0 0 1.25rem; }
-  label { display: block; font-size: .85rem; opacity: .75; margin: 0 0 1rem; }
-  input { display: block; width: 100%; margin-top: .35rem; padding: .6rem .8rem;
-          font: inherit; font-size: 1rem; color: inherit; background: transparent;
-          border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
-          border-radius: .6rem; }
-  input:read-only { opacity: .6; }
-  button { width: 100%; padding: .65rem; margin-top: .25rem; font: inherit;
-           font-weight: 600; font-size: 1rem; background: #2563eb; color: #fff;
-           border: 0; border-radius: .6rem; }
-  .err { color: #dc2626; font-size: .85rem; margin: 0 0 1rem; }
-  .hint { opacity: .6; font-size: .8rem; line-height: 1.45; margin-top: 1.25rem; }
+  body { min-height: 100dvh; display: grid; place-items: center; padding: var(--space-6); }
+  .setup { width: min(92vw, 400px); }
+  .setup form { display: grid; gap: var(--space-4); margin-top: var(--space-4); }
+  .setup .srt-btn { width: 100%; justify-content: center; margin-top: var(--space-2); }
+  .setup .srt-input:read-only { color: var(--ink-muted); }
+  .hint { margin: var(--space-5) 0 0; font-size: 13px; line-height: 18px; color: var(--ink-muted); }
 </style>
 </head>
-<body>
-<div class="card">
-  <h1>Hi {{ name }}</h1>
-  {% if error %}<p class="err">{{ error }}</p>{% endif %}
+<body class="srt srt-ground">
+<main class="setup srt-panel">
+  <p class="srt-eyebrow">Sortie</p>
+  <h1 class="srt-panel-title">Hi {{ name }}</h1>
+  {% if error %}<p class="srt-error">{{ error }}</p>{% endif %}
   <form method="post" action="/setup">
     <input type="hidden" name="t" value="{{ token }}">
-    <label>Username
-      <input name="username" value="{{ username }}" readonly autocomplete="username">
+    <label class="srt-field">
+      <span class="srt-eyebrow is-plain">Username</span>
+      <input class="srt-input" name="username" value="{{ username }}" readonly autocomplete="username">
     </label>
-    <label>New password
-      <input type="password" name="password" autocomplete="new-password"
+    <label class="srt-field">
+      <span class="srt-eyebrow is-plain">New password</span>
+      <input class="srt-input" type="password" name="password" autocomplete="new-password"
              minlength="{{ min_len }}" required>
     </label>
-    <button type="submit">Save password</button>
+    <button class="srt-btn is-primary" type="submit"><span class="srt-btn-chev"></span>Save password</button>
   </form>
   <p class="hint">Your phone will offer to create a strong password and remember
   it for you — accept, and you'll never have to see or type it.</p>
-</div>
+</main>
 </body>
 </html>

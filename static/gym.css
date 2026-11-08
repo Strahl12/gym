@@ -1,0 +1,113 @@
+/* gym.css — Gym Coach app chrome in the Sortie UI idiom. Load AFTER
+   sortie/tokens.css and sortie/sortie.css. Extends the system (same rules:
+   tokens only, hairlines, no radius, srt- prefix) with the app bar and menu,
+   which Sortie does not ship. Every page shares this file. */
+
+/* Hangar only — the app does not offer Sortie's daylight theme. */
+:root { color-scheme: dark; }
+
+/* Stretch the ground texture to the viewport even when content is short. */
+html { min-height: 100%; }
+body { min-height: 100dvh; }
+
+/* ---------- App bar ----------
+   A compact screen-title bar: display face on a hairline, sticky, with the
+   athlete tag and a details-based menu. Replaces the old .hud. */
+.srt-appbar { position: sticky; top: 0; z-index: 5; background: var(--bg-000);
+  border-bottom: var(--hairline) solid var(--line);
+  padding-top: env(safe-area-inset-top); }
+.srt-appbar-bar { display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-4); }
+.srt-appbar-title { margin: 0; font-family: var(--font-display); font-size: 18px;
+  line-height: 24px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink); display: flex; align-items: center; gap: var(--space-2); white-space: nowrap; }
+.srt-appbar-title::before { content: ""; width: 6px; height: 6px; background: var(--accent); flex: none; }
+.srt-appbar-spacer { margin-left: auto; }
+
+/* ---------- Menu (details dropdown) ---------- */
+.srt-menu { position: relative; }
+.srt-menu > summary { list-style: none; cursor: pointer; user-select: none;
+  display: inline-flex; align-items: center; gap: var(--space-2); height: 32px;
+  padding: 0 var(--space-3); font-family: var(--font-label); font-size: 10px;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--ink-muted);
+  background: var(--panel-raised); border: var(--hairline) solid var(--line); }
+.srt-menu > summary::-webkit-details-marker { display: none; }
+.srt-menu > summary::after { content: "▾"; color: var(--ink-faint); }
+.srt-menu[open] > summary { color: var(--ink); border-color: var(--line-strong); }
+.srt-menu[open] > summary::after { content: "▴"; }
+.srt-menu-panel { position: absolute; right: 0; top: calc(100% + var(--space-2)); z-index: 20;
+  display: flex; flex-direction: column; min-width: 180px;
+  background: var(--panel-solid); border: var(--hairline) solid var(--line-strong); }
+.srt-menu[open] .srt-menu-panel { animation: srt-reveal .14s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .srt-menu[open] .srt-menu-panel { animation: none; }
+}
+.srt-menu-panel a { font-family: var(--font-body); font-size: 15px; line-height: 20px;
+  letter-spacing: .02em; color: var(--ink); text-decoration: none;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--hairline) solid var(--line); }
+.srt-menu-panel a:last-child { border-bottom: 0; }
+.srt-menu-panel a:hover { background: var(--panel-raised); }
+.srt-menu-panel a[aria-current] { background: var(--panel-selected); cursor: default;
+  border-left: 2px solid var(--accent); padding-left: calc(var(--space-4) - 2px); }
+
+/* ---------- Shared bits ---------- */
+/* Error line: lamp red text with a fault dot, never a fill. */
+.srt-error { display: flex; align-items: center; gap: var(--space-2); margin: 0;
+  color: var(--lamp); font-size: 13px; line-height: 18px; }
+.srt-error::before { content: ""; width: 6px; height: 6px; border-radius: var(--radius-lamp);
+  background: var(--lamp); flex: none; }
+
+/* Quiet scrollbars from tokens. */
+.srt * { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.srt ::-webkit-scrollbar { width: 8px; height: 8px; }
+.srt ::-webkit-scrollbar-thumb { background: var(--line); }
+.srt ::-webkit-scrollbar-track { background: transparent; }
+
+.srt ::selection { background: var(--accent); color: var(--on-accent); }
+.srt a { color: var(--corp); }
+
+/* Rapid taps on controls are taps — never iOS double-tap zoom/navigation. */
+.srt button, .srt a, .srt summary, .srt label,
+.srt input, .srt select, .srt textarea { touch-action: manipulation; }
+
+/* ---------- Boot loader ----------
+   Instrument-style loading readout: eyebrow + an indeterminate accent sweep
+   on a hairline track + a line of microtext. Drop-in for "Loading…". */
+.srt-boot { display: grid; gap: var(--space-2); max-width: 280px;
+            margin: var(--space-7) auto; }
+.srt-boot-label { display: flex; justify-content: space-between; align-items: baseline;
+            font-family: var(--font-label); font-size: 10px; line-height: 14px;
+            letter-spacing: .18em; text-transform: uppercase; color: var(--ink-muted); }
+.srt-boot-label .srt-boot-sys { font-family: var(--font-mono); font-size: 11px;
+            letter-spacing: .04em; text-transform: none; color: var(--ink-faint); }
+.srt-boot-track { position: relative; height: 4px; background: var(--line); overflow: hidden; }
+.srt-boot-track::before { content: ""; position: absolute; top: 0; bottom: 0; width: 40%;
+            background: var(--accent); animation: srt-sweep 1.1s ease-in-out infinite; }
+@keyframes srt-sweep { from { left: -40%; } to { left: 100%; } }
+.srt-boot-micro { font-family: var(--font-mono); font-size: 10px; line-height: 14px;
+            color: var(--ink-faint); }
+
+/* ---------- Content entrance ----------
+   Panels rise onto the screen with a short stagger — used on page load and
+   when a screen swaps views. Put the class on the container; direct children
+   animate. Remove the class after the entrance so later re-renders are
+   instant. */
+.srt-reveal > * { animation: srt-reveal .22s ease-out both; }
+.srt-reveal > :nth-child(2) { animation-delay: .05s; }
+.srt-reveal > :nth-child(3) { animation-delay: .10s; }
+.srt-reveal > :nth-child(4) { animation-delay: .15s; }
+.srt-reveal > :nth-child(5) { animation-delay: .20s; }
+.srt-reveal > :nth-child(n+6) { animation-delay: .25s; }
+@keyframes srt-reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .srt-boot-track::before { animation: none; width: 100%; left: 0; opacity: .4; }
+  .srt-reveal > * { animation: none; }
+}
+
+/* ---------- Native shell (Capacitor) ----------
+   Keep the Sortie geometry (square, hairlines) in the app; only adapt for
+   touch: bigger targets and safe-area padding. */
+html.native .srt-menu > summary { height: 40px; }
+html.native .srt-btn { min-height: 44px; }

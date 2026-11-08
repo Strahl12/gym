@@ -2,114 +2,116 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Settings — {{ user }}</title>
-<script src="/static/theme.js?v=2"></script>
-<link rel="stylesheet" href="/static/tdr.css?v=13">
+<script src="/static/theme.js?v=5"></script>
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/saira-memjYa2wxmKQyPMrZX79wwYZQMhsyuSLiIvS.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/chakrapetch-cIflMapbsEk7TDLdtEz1BwkebIl1R5_F.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/chakrapetch-cIflMapbsEk7TDLdtEz1BwkeQI51R5_F.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/chakrapetch-cIf6MapbsEk7TDLdtEz1BwkWn6pg.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/michroma-PN_zRfy9qWD8fEagAPg9pTk.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/sharetechmono-J7aHnp1uDWRBEqV98dVQztYldFcLowEF.woff2">
+<link rel="stylesheet" href="/static/fonts.css?v=1">
+<link rel="stylesheet" href="/static/sortie/tokens.css?v=1">
+<link rel="stylesheet" href="/static/sortie/sortie.css?v=1">
+<link rel="stylesheet" href="/static/gym.css?v=6">
 <script src="/static/alarm.js?v=1"></script>
 <style>
-  body { margin: 0; }
-  main { padding: 1rem; max-width: 720px; margin: 0 auto;
-         padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
-  .panel { background: var(--panel); border: 1px solid var(--line);
-           border-left: 2px solid var(--cyan); box-shadow: -3px 0 12px rgba(0,229,255,.12);
-           padding: .9rem 1rem; margin-bottom: 1rem; }
-  .panel h2 { font-family: var(--mono); font-size: .72rem; letter-spacing: .16em;
-              text-transform: uppercase; color: var(--cyan);
-              text-shadow: 0 0 9px rgba(0,229,255,.5); margin: 0 0 .35rem; }
-  .panel .sub { font-size: .8rem; color: var(--dim); line-height: 1.5; margin: 0 0 .8rem; }
+  main { padding: var(--space-5); max-width: 720px; margin: 0 auto;
+         padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom)); }
+  main .srt-panel { margin-bottom: var(--space-6); }
+  .sub { font-size: 13px; line-height: 18px; color: var(--ink-muted);
+         margin: 0 0 var(--space-3); max-width: 62ch; }
+  .env-val { font-family: var(--font-mono); color: var(--ink); }
 
-  /* Theme segmented control */
-  .seg { display: flex; gap: .4rem; }
-  .seg button { flex: 1; font-family: var(--mono); font-size: .68rem; font-weight: 700;
-                letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
-                background: var(--panel-2); border: 1px solid var(--line); border-radius: 0;
-                padding: .6rem 0; cursor: pointer; }
-  .seg button.on { color: #05050a; background: var(--cyan); border-color: var(--cyan);
-                   box-shadow: 0 0 12px rgba(0,229,255,.5); }
+  /* Segmented picker: a row of srt-btn, the selected one on panel-selected. */
+  .seg { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+  .seg .srt-btn { flex: 1; justify-content: center; white-space: nowrap; }
+  .seg .srt-btn.on { background: var(--panel-selected); border-color: var(--line-strong);
+                     color: var(--ink); }
 
   /* Variety slider */
-  .slider-row { display: flex; align-items: center; gap: .8rem; margin: .4rem 0 .2rem; }
-  input[type=range] { flex: 1; accent-color: var(--magenta); height: 2rem; }
-  .slider-labels { display: flex; justify-content: space-between; font-family: var(--mono);
-                   font-size: .58rem; letter-spacing: .08em; text-transform: uppercase;
-                   color: var(--dim); margin-bottom: .6rem; }
-  .nov-name { font-family: var(--mono); font-size: .8rem; font-weight: 700;
-              letter-spacing: .06em; text-transform: uppercase; color: var(--magenta);
-              text-shadow: 0 0 8px rgba(255,0,102,.5); }
-  .nov-desc { font-size: .82rem; color: var(--ink); line-height: 1.5; margin-top: .35rem;
-              min-height: 3.2em; }
-  .status { font-family: var(--mono); font-size: .62rem; letter-spacing: .06em;
-            color: var(--dim); margin-top: .5rem; min-height: 1em; }
-  .status.ok { color: var(--lime); }
-  .status.err { color: var(--danger); }
+  .slider-row { display: flex; align-items: center; gap: var(--space-3);
+                margin: var(--space-2) 0 var(--space-1); }
+  input[type=range] { flex: 1; height: 32px; margin: 0; background: transparent;
+                      appearance: none; -webkit-appearance: none; }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; background: var(--line); }
+  input[type=range]::-webkit-slider-thumb { appearance: none; -webkit-appearance: none;
+    width: 14px; height: 20px; margin-top: -8px; background: var(--accent); border: 0; }
+  input[type=range]::-moz-range-track { height: 4px; background: var(--line); }
+  input[type=range]::-moz-range-progress { height: 4px; background: var(--accent); }
+  input[type=range]::-moz-range-thumb { width: 14px; height: 20px; border: 0;
+    border-radius: 0; background: var(--accent); }
+  .slider-labels { display: flex; justify-content: space-between; gap: var(--space-2);
+                   font-family: var(--font-label); font-size: 9px; line-height: 13px;
+                   letter-spacing: .12em; text-transform: uppercase; white-space: nowrap;
+                   color: var(--ink-muted); margin-bottom: var(--space-3); }
+  .slider-labels span:nth-child(2) { text-align: center; }
+  .slider-labels span:last-child { text-align: right; }
+  .nov-name { font-family: var(--font-display); font-size: 16px; line-height: 20px;
+              font-weight: 500; letter-spacing: .04em; text-transform: uppercase;
+              color: var(--ink); }
+  .nov-desc { font-size: 13px; line-height: 18px; color: var(--ink-muted);
+              margin-top: var(--space-2); min-height: 3.2em; }
+  .status { font-family: var(--font-mono); font-size: 12px; line-height: 16px;
+            color: var(--ink-muted); margin-top: var(--space-2); min-height: 16px; }
+  .status.ok { color: var(--ok); }
+  .status.err { color: var(--lamp); }
 </style>
 </head>
-<body>
-<header class="hud">
-  <div class="hud__bar">
-    <span class="hud__brand"><b>■</b>SETTINGS</span>
-    <span class="hud__jp">設定</span>
-    <span class="tag">{{ user }}</span>
-    <span class="hud__spacer"></span>
-    <details class="hud__menu">
+<body class="srt srt-ground">
+<header class="srt-appbar">
+  <div class="srt-appbar-bar">
+    <h1 class="srt-appbar-title">Settings</h1>
+    <span class="srt-tag is-chapter">//{{ user }}</span>
+    <span class="srt-appbar-spacer"></span>
+    <details class="srt-menu">
       <summary>Menu</summary>
-      <div class="hud__menu-panel">
-        <a href="{{ chat_url }}">▸ Chat</a>
-        <a href="{{ chat_url }}/workout">▸ Workout</a>
-        <a href="{{ chat_url }}/review">▸ Review</a>
-        <a href="{{ chat_url }}/stats">▸ Stats</a>
-        <a href="{{ chat_url }}/log">▸ Log</a>
-        <a class="current" href="{{ chat_url }}/settings">▸ Settings</a>
-      </div>
+      <nav class="srt-menu-panel">
+        <a href="{{ chat_url }}">Chat</a>
+        <a href="{{ chat_url }}/workout">Workout</a>
+        <a href="{{ chat_url }}/review">Review</a>
+        <a href="{{ chat_url }}/stats">Stats</a>
+        <a href="{{ chat_url }}/log">Log</a>
+        <a aria-current="page" href="{{ chat_url }}/settings">Settings</a>
+      </nav>
     </details>
   </div>
-  <div class="hud__hazard"></div>
 </header>
-<main>
+<main class="srt-reveal">
 
-  <div class="panel">
-    <h2>About</h2>
+  <section class="srt-panel">
+    <p class="srt-eyebrow">About</p>
     <p class="sub" style="margin:0">
-      Running in: <b style="color:var(--cyan)">{{ 'iOS app' if is_native else 'web browser' }}</b>
+      Running in <span class="env-val">{{ 'iOS app' if is_native else 'web browser' }}</span>
     </p>
-  </div>
+  </section>
 
-  <div class="panel">
-    <h2>Appearance</h2>
-    <p class="sub">Follow your phone's setting, or force a mode on this device.</p>
-    <div class="seg" id="themeseg">
-      <button type="button" data-v="system">System</button>
-      <button type="button" data-v="dark">Dark</button>
-      <button type="button" data-v="light">Light</button>
-    </div>
-  </div>
-
-  <div class="panel">
-    <h2>Rest timer alarm</h2>
+  <section class="srt-panel">
+    <p class="srt-eyebrow">Rest timer alarm</p>
     <p class="sub">Sound when the rest timer hits zero (this device). Tap to preview.</p>
     <div class="seg" id="soundseg">
-      <button type="button" data-v="beep">🔊 Beep</button>
-      <button type="button" data-v="screamo">🔥 Screamo</button>
-      <button type="button" data-v="off">🔇 Off</button>
+      <button class="srt-btn" type="button" data-v="beep">Beep</button>
+      <button class="srt-btn" type="button" data-v="screamo">Screamo</button>
+      <button class="srt-btn" type="button" data-v="off">Off</button>
     </div>
-  </div>
+  </section>
 
   {% if is_native %}
-  <div class="panel">
-    <h2>Pause video at rest end</h2>
+  <section class="srt-panel">
+    <p class="srt-eyebrow">Pause video at rest end</p>
     <p class="sub">When the timer hits zero, pause whatever you're watching (YouTube,
       anime). Music keeps playing — it resumes by itself after the alarm; video stays
       paused so you lift instead of watch.</p>
     <div class="seg" id="focusseg">
-      <button type="button" data-v="on">⏸ Pause video</button>
-      <button type="button" data-v="off">Don't touch playback</button>
+      <button class="srt-btn" type="button" data-v="on">Pause video</button>
+      <button class="srt-btn" type="button" data-v="off">Don't touch playback</button>
     </div>
-  </div>
+  </section>
   {% endif %}
 
-  <div class="panel">
-    <h2>Programming variety</h2>
+  <section class="srt-panel">
+    <p class="srt-eyebrow">Programming variety</p>
     <p class="sub">How adventurous your coach is with exercise selection. Saved to your
       profile — the next generated session uses it. You can also just tell your coach.</p>
     <div class="slider-row">
@@ -119,22 +121,13 @@
     <div class="nov-name" id="novname"></div>
     <div class="nov-desc" id="novdesc"></div>
     <div class="status" id="novstatus"></div>
-  </div>
+  </section>
 
 </main>
 <script>
 const DATA_URL = {{ data_url | tojson }};
 const SAVE_URL = {{ save_url | tojson }};
 
-// ── Theme ──────────────────────────────────────────────────────────────────
-const seg = document.getElementById("themeseg");
-function paintSeg() {
-  const cur = window.__gymTheme.get();
-  seg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.v === cur));
-}
-seg.querySelectorAll("button").forEach(b =>
-  b.addEventListener("click", () => { window.__gymTheme.set(b.dataset.v); paintSeg(); }));
-paintSeg();
 
 // ── Rest timer alarm (shared with the Workout tab via /static/alarm.js) ─────
 const sseg = document.getElementById("soundseg");

@@ -15,3 +15,8 @@ users/*
 !users/_template/
 # The _template's secrets.env is a placeholder for new users — track it.
 !users/_template/secrets.env
+
+# Gymvisual exercise media: (c) Gym visual, redistributed to US at 180px by
+# hasaneyldrm/exercises-dataset — not re-published from this (public) repo.
+# Regenerate locally with: .env/bin/python match_gvlib.py --download
+static/gvlib/media/

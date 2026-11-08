@@ -3,97 +3,109 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>{{ user }} — Gym Coach</title>
-<script src="/static/theme.js?v=2"></script>
-<link rel="stylesheet" href="/static/tdr.css?v=13">
+<title>{{ user }} — Sortie</title>
+<script src="/static/theme.js?v=5"></script>
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/saira-memjYa2wxmKQyPMrZX79wwYZQMhsyuSLiIvS.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/chakrapetch-cIflMapbsEk7TDLdtEz1BwkebIl1R5_F.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/chakrapetch-cIflMapbsEk7TDLdtEz1BwkeQI51R5_F.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/chakrapetch-cIf6MapbsEk7TDLdtEz1BwkWn6pg.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/michroma-PN_zRfy9qWD8fEagAPg9pTk.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/sharetechmono-J7aHnp1uDWRBEqV98dVQztYldFcLowEF.woff2">
+<link rel="stylesheet" href="/static/fonts.css?v=1">
+<link rel="stylesheet" href="/static/sortie/tokens.css?v=1">
+<link rel="stylesheet" href="/static/sortie/sortie.css?v=1">
+<link rel="stylesheet" href="/static/gym.css?v=6">
 <style>
-  body { margin: 0; display: flex; flex-direction: column; height: 100dvh; }
-  #msgs { flex: 1; overflow-y: auto; padding: 1rem;
-          display: flex; flex-direction: column; gap: .7rem; }
-  .line { display: flex; flex-direction: column; max-width: 85%; gap: .18rem; }
+  body { display: flex; flex-direction: column; height: 100dvh; }
+  .srt-appbar, #dev, #dev-link, #err, form { flex: none; }
+
+  #msgs { flex: 1; overflow-y: auto; padding: var(--space-4);
+          display: flex; flex-direction: column; gap: var(--space-3); }
+  .line { display: flex; flex-direction: column; max-width: 85%; gap: var(--space-1); }
   .line.user { align-self: flex-end; align-items: flex-end; }
   .line.assistant { align-self: flex-start; align-items: flex-start; }
-  .row { display: flex; align-items: flex-end; gap: .5rem; }
-  .avatar { width: 30px; height: 30px; flex: 0 0 auto; border-radius: 50%;
-            background: #fff url("/static/coach.png?v=2") center/cover no-repeat;
-            border: 1px solid var(--cyan); box-shadow: 0 0 8px rgba(0,229,255,.55); }
-  .msg { max-width: 100%; padding: .55rem .8rem; border-radius: 0; font-size: .95rem;
-         white-space: pre-wrap; overflow-wrap: break-word; line-height: 1.4; }
-  .msg.user { background: var(--magenta); color: #05050a; font-weight: 500;
-              box-shadow: 0 0 14px rgba(255,0,102,.45); }
-  .msg.assistant { background: var(--panel); border: 1px solid var(--line);
-                   border-left: 2px solid var(--cyan); box-shadow: -3px 0 12px rgba(0,229,255,.18); }
-  .ts { font-family: var(--mono); font-size: .6rem; letter-spacing: .08em; color: var(--cyan);
-        text-shadow: 0 0 6px rgba(0,229,255,.9), 0 0 12px rgba(0,229,255,.5); }
-  .quickreply { display: flex; gap: .5rem; margin: .5rem 0 .2rem 38px; }
-  .qr { font-family: var(--mono); font-size: .74rem; font-weight: 700; letter-spacing: .1em;
-        text-transform: uppercase; background: transparent; border-radius: 0;
-        padding: .5rem 1.4rem; cursor: pointer; }
-  .qr.yes { color: var(--lime); border: 1px solid var(--lime);
-            box-shadow: 0 0 10px rgba(182,255,0,.3); }
-  .qr.yes:hover { background: var(--lime); color: #05050a; }
-  .qr.no { color: var(--danger); border: 1px solid var(--danger); }
-  .qr.no:hover { background: var(--danger); color: #05050a; }
-  .line.assistant .ts { margin-left: 38px; }
-  #err { color: var(--danger); font-family: var(--mono); font-size: .72rem;
-         letter-spacing: .05em; padding: 0 1rem .5rem; display: none; }
-  form { display: flex; gap: .5rem; padding: .75rem;
-         padding-bottom: calc(.75rem + env(safe-area-inset-bottom));
-         border-top: 1px solid var(--line); background: var(--bg-2); }
-  textarea { flex: 1; resize: none; border-radius: 0; padding: .55rem .7rem;
-             font: inherit; background: var(--bg); color: var(--ink);
-             border: 1px solid var(--line); }
-  textarea:focus { outline: 0; border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan); }
-  #f button { border: 0; border-radius: 0; padding: 0 1.2rem; font: inherit;
-           font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
-           background: var(--magenta); color: #05050a; cursor: pointer;
-           box-shadow: 0 0 12px rgba(255,0,102,.4); }
-  #f button:hover { box-shadow: 0 0 18px rgba(255,0,102,.7); }
-  #f button:disabled { opacity: .4; box-shadow: none; }
-  #dev { display: flex; align-items: center; gap: .5rem;
-         padding: .38rem .8rem; font: .66rem/1.3 var(--mono);
-         letter-spacing: .05em; text-transform: uppercase;
-         background: var(--panel-2); border-bottom: 1px solid var(--line);
+  .row { display: flex; align-items: flex-end; gap: var(--space-2); }
+
+  /* The coach's mark: a square frame in the Comms idiom, corp identity. */
+  .avatar { width: 32px; height: 32px; flex: none;
+            background: var(--corp-soft) url("/static/coach.png?v=2") center/cover no-repeat;
+            border: var(--hairline) solid var(--line); }
+
+  .msg { max-width: 100%; padding: var(--space-2) var(--space-3);
+         font-size: 15px; line-height: 22px;
+         white-space: pre-wrap; overflow-wrap: break-word; }
+  .msg.user { background: var(--panel-raised); border: var(--hairline) solid var(--line);
+              color: var(--ink); }
+  .msg.assistant { background: var(--panel); border: var(--hairline) solid var(--line);
+                   border-left: 2px solid var(--corp); }
+
+  .ts { font-family: var(--font-mono); font-size: 11px; line-height: 14px;
+        letter-spacing: .04em; color: var(--ink-faint); }
+  .line.assistant .ts { margin-left: 40px; }
+
+  /* Yes/No confirmation buttons under a coach bubble. */
+  .quickreply { display: flex; gap: var(--space-2); margin: var(--space-2) 0 0 40px; }
+  .qr.yes { color: var(--ok); background: transparent; border-color: var(--ok); }
+  .qr.yes:hover { background: var(--panel-raised); }
+
+  #err { display: none; color: var(--lamp); font-size: 13px; line-height: 18px;
+         padding: 0 var(--space-4) var(--space-2); }
+
+  form { display: flex; gap: var(--space-2); padding: var(--space-3);
+         padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom));
+         border-top: var(--hairline) solid var(--line); background: var(--bg-000); }
+  #box { flex: 1; resize: none; }
+
+  /* Dev strip (dev user only): API / credit health as a mono readout. */
+  #dev { display: flex; align-items: center; gap: var(--space-2);
+         padding: var(--space-1) var(--space-3);
+         font-family: var(--font-mono); font-size: 11px; line-height: 16px;
+         letter-spacing: .05em; color: var(--ink-muted);
+         background: var(--bg-200); border-bottom: var(--hairline) solid var(--line);
          overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   #dev::-webkit-scrollbar { display: none; }
   #dev > * { flex: 0 0 auto; }          /* keep natural width; overflow scrolls instead of clipping */
-  #dev.bad { background: var(--danger); color: #fff; }
+  #dev.bad { color: var(--lamp); border-bottom-color: var(--lamp); }
   #dev-status { white-space: nowrap; }
-  #dev button, #dev a { padding: .14rem .5rem; font: inherit; letter-spacing: .06em;
-                text-transform: uppercase; border: 1px solid var(--line); border-radius: 0;
-                background: transparent; color: var(--ink); cursor: pointer; }
-  #dev button:hover, #dev a:hover { border-color: var(--cyan); color: var(--cyan); }
-  #dev-link { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
-              padding: .4rem .8rem; font: .68rem/1.3 var(--mono);
-              background: var(--panel); border-bottom: 1px solid var(--line); }
-  #dev-link .note { width: 100%; color: var(--dim); }
-  #dev-link input { flex: 1; min-width: 11rem; font: inherit; padding: .25rem .45rem;
-                    border-radius: 0; color: var(--ink); background: var(--bg);
-                    border: 1px solid var(--line); }
-  #dev-link button { padding: .2rem .55rem; font: inherit; font-weight: 700; border: 0;
-                     border-radius: 0; background: var(--cyan); color: #05050a; cursor: pointer; }
+  #dev button, #dev a { padding: 1px var(--space-2); font: inherit; color: var(--ink-muted);
+                border: var(--hairline) solid var(--line); background: transparent;
+                cursor: pointer; text-decoration: none; }
+  #dev button:hover, #dev a:hover { border-color: var(--line-strong); color: var(--ink); }
+  #dev button:disabled { opacity: var(--opacity-disabled); cursor: not-allowed; }
+  #dev-link { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
+              padding: var(--space-2) var(--space-3);
+              font-family: var(--font-mono); font-size: 12px; line-height: 16px;
+              background: var(--panel); border-bottom: var(--hairline) solid var(--line); }
+  #dev-link .note { width: 100%; color: var(--ink-muted); }
+  #dev-link input { flex: 1; min-width: 11rem; font: inherit; color: var(--ink);
+                    padding: var(--space-1) var(--space-2);
+                    background: var(--bg-200); border: var(--hairline) solid var(--line); }
+  #dev-link input:focus { border-color: var(--line-strong);
+                          outline: var(--hairline) solid var(--focus); outline-offset: 2px; }
+  #dev-link button { padding: var(--space-1) var(--space-2); font: inherit; cursor: pointer;
+                     color: var(--ink); background: var(--panel-raised);
+                     border: var(--hairline) solid var(--line); }
+  #dev-link button:hover { background: var(--panel-selected); }
 </style>
 </head>
-<body>
-<header class="hud">
-  <div class="hud__bar">
-    <span class="hud__brand"><b>■</b>GYM.COACH</span>
-    <span class="hud__jp">ジム</span>
-    <span class="tag">{{ user }}</span>
-    <span class="hud__spacer"></span>
-    <details class="hud__menu">
+<body class="srt srt-ground">
+<header class="srt-appbar">
+  <div class="srt-appbar-bar">
+    <h1 class="srt-appbar-title">Chat</h1>
+    <span class="srt-tag is-chapter">//{{ user }}</span>
+    <span class="srt-appbar-spacer"></span>
+    <details class="srt-menu">
       <summary>Menu</summary>
-      <div class="hud__menu-panel">
-        <a id="chat-link" class="current" href="#">▸ Chat</a>
-        <a id="workout-link" href="#">▸ Workout</a>
-        <a id="review-link" href="#">▸ Review</a>
-        <a id="stats-link" href="#">▸ Stats</a>
-        <a id="log-link" href="#">▸ Log</a>
-        <a id="settings-link" href="#">▸ Settings</a>
-      </div>
+      <nav class="srt-menu-panel">
+        <a id="chat-link" aria-current="page" href="#">Chat</a>
+        <a id="workout-link" href="#">Workout</a>
+        <a id="review-link" href="#">Review</a>
+        <a id="stats-link" href="#">Stats</a>
+        <a id="log-link" href="#">Log</a>
+        <a id="settings-link" href="#">Settings</a>
+      </nav>
     </details>
   </div>
-  <div class="hud__hazard"></div>
 </header>
 {% if dev %}
 <div id="dev">
@@ -107,8 +119,8 @@
 <div id="msgs"></div>
 <div id="err"></div>
 <form id="f">
-  <textarea id="box" rows="1" placeholder="Ask your coach…" autocomplete="off"></textarea>
-  <button id="send" type="submit">Send</button>
+  <textarea id="box" class="srt-textarea" rows="1" placeholder="Ask your coach…" autocomplete="off"></textarea>
+  <button id="send" class="srt-btn is-primary" type="submit">Send</button>
 </form>
 <script>
 const base = location.pathname.replace(/\/$/, "");
@@ -133,7 +145,7 @@ if (devBar) {
         + " · " + d.model;
     } else {
       devBar.classList.add("bad");
-      devStatus.textContent = "dev: ⚠ CLAUDE OUT OF CREDIT"
+      devStatus.textContent = "dev: Claude out of credit"
         + (d.last_error_ts ? " · since " + d.last_error_ts.slice(5, 16).replace("T", " ") : "");
     }
     devStatus.title = d.last_error || "";
@@ -228,11 +240,11 @@ function maybeQuickReplies(bubble, text) {
   if (!(/confirm/i.test(t) && t.endsWith("?"))) return;
   const qr = document.createElement("div");
   qr.className = "quickreply";
-  for (const [label, msg] of [["✓ Yes", "Yes"], ["✕ No", "No"]]) {
+  for (const msg of ["Yes", "No"]) {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "qr " + (msg === "Yes" ? "yes" : "no");
-    b.textContent = label;
+    b.className = "srt-btn qr " + (msg === "Yes" ? "yes" : "no");
+    b.textContent = msg;
     b.addEventListener("click", () => { qr.remove(); sendText(msg); });
     qr.appendChild(b);
   }

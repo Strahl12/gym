@@ -4,445 +4,639 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Today's Workout — {{ user }}</title>
-<script src="/static/theme.js?v=2"></script>
-<link rel="stylesheet" href="/static/tdr.css?v=13">
+<script src="/static/theme.js?v=5"></script>
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/saira-memjYa2wxmKQyPMrZX79wwYZQMhsyuSLiIvS.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/chakrapetch-cIflMapbsEk7TDLdtEz1BwkebIl1R5_F.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/chakrapetch-cIflMapbsEk7TDLdtEz1BwkeQI51R5_F.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/chakrapetch-cIf6MapbsEk7TDLdtEz1BwkWn6pg.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/michroma-PN_zRfy9qWD8fEagAPg9pTk.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/sharetechmono-J7aHnp1uDWRBEqV98dVQztYldFcLowEF.woff2">
+<link rel="stylesheet" href="/static/fonts.css?v=1">
+<link rel="stylesheet" href="/static/sortie/tokens.css?v=1">
+<link rel="stylesheet" href="/static/sortie/sortie.css?v=1">
+<link rel="stylesheet" href="/static/gym.css?v=6">
 <script src="/static/alarm.js?v=1"></script>
+<script src="/static/muscles.js?v=1"></script>
 <style>
-  body { margin: 0; }
-  main { padding: 1rem; max-width: 720px; margin: 0 auto;
-         padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
-  .muted { color: var(--dim); }
-  .empty { background: var(--panel); border: 1px solid var(--line); padding: 1.1rem 1rem;
-           font-size: .88rem; color: var(--dim); line-height: 1.55; }
-  .empty b { color: var(--cyan); }
-  .empty a { color: var(--cyan); }
+  /* Workout screen in the Sortie idiom. Colours, faces and surfaces come from
+     tokens; depth is hairlines and translucency — no radius, no shadows. */
+  main { padding: var(--space-5) var(--space-4); max-width: 720px; margin: 0 auto;
+         padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom)); }
+  .muted { color: var(--ink-muted); }
+  .empty { background: var(--panel); border: var(--hairline) solid var(--line);
+           padding: var(--space-4); font-size: 13px; line-height: 18px; color: var(--ink-muted); }
+  .empty a { color: var(--corp); }
 
-  /* Session banner */
-  .banner { background: var(--panel); border: 1px solid var(--line);
-            border-left: 2px solid var(--magenta); box-shadow: -3px 0 12px rgba(255,0,102,.14);
-            padding: .9rem 1rem; margin-bottom: 1rem; }
-  .banner__type { display: inline-block; font-family: var(--mono); font-size: .62rem;
-                  letter-spacing: .16em; text-transform: uppercase; color: #05050a;
-                  background: var(--magenta); padding: .16rem .55rem; margin-bottom: .5rem;
-                  box-shadow: 0 0 12px rgba(255,0,102,.5); }
-  .banner__title { font-family: var(--mono); font-size: .96rem; font-weight: 700;
-                   letter-spacing: .02em; color: var(--ink); line-height: 1.35; }
-  .banner__when { font-family: var(--mono); font-size: .64rem; letter-spacing: .08em;
-                  text-transform: uppercase; margin-top: .5rem; }
-  .banner__when.today { color: var(--lime); text-shadow: 0 0 8px rgba(182,255,0,.6); }
-  .banner__when.stale { color: var(--dim); }
-  .banner__meta { font-family: var(--mono); font-size: .6rem; letter-spacing: .1em;
-                  text-transform: uppercase; color: var(--dim); margin-top: .3rem; }
+  /* Session banner — a panel slab whose hairlines overrun the sides */
+  .banner { position: relative; background: var(--panel);
+            border-top: var(--hairline) solid var(--line);
+            border-bottom: var(--hairline) solid var(--line);
+            padding: var(--space-4); margin-bottom: var(--space-4); }
+  .banner::before, .banner::after { content: ""; position: absolute;
+            left: calc(-1 * var(--bracket-len)); right: calc(-1 * var(--bracket-len));
+            height: var(--hairline); background: var(--line); pointer-events: none; }
+  .banner::before { top: -1px; } .banner::after { bottom: -1px; }
+  .banner__type { display: inline-flex; align-items: center; gap: var(--space-1);
+                  font-family: var(--font-mono); font-size: 12px; line-height: 16px;
+                  letter-spacing: .06em; text-transform: uppercase; color: var(--ink);
+                  background: var(--panel-raised); padding: 2px var(--space-2);
+                  margin-bottom: var(--space-2); }
+  .banner__type::before { content: "//"; color: var(--ink-muted); }
+  .banner__title { font-family: var(--font-display); font-size: 18px; line-height: 24px;
+                   font-weight: 500; letter-spacing: .04em; text-transform: uppercase;
+                   color: var(--ink); }
+  .banner__when { font-family: var(--font-label); font-size: 10px; line-height: 14px;
+                  letter-spacing: .18em; text-transform: uppercase; margin-top: var(--space-2); }
+  .banner__when.today { color: var(--ok); }
+  .banner__when.stale { color: var(--ink-muted); }
+  /* Session target muscles: a small front/back pair pinned top-right. */
+  .banner__figs { position: absolute; top: var(--space-4); right: var(--space-4);
+                  display: flex; gap: var(--space-2); }
+  .banner__figs .mfig { height: 92px; width: 42px; }
+  .banner--figs { padding-right: 118px; }
+  .banner__meta { font-family: var(--font-mono); font-size: 12px; line-height: 16px;
+                  color: var(--ink-muted); margin-top: var(--space-1); }
+  body.logging-active .banner { border-left: 2px solid var(--accent); }
 
   /* Adaptive "coming up" forecast strip */
-  .coming { margin: 0 0 1rem; padding: .7rem .8rem; background: var(--panel);
-            border: 1px solid var(--line); }
-  .coming__label { font-family: var(--mono); font-size: .58rem; letter-spacing: .14em;
-                   text-transform: uppercase; color: var(--dim); margin-bottom: .5rem; }
-  .coming__row { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
-  .coming__chip { font-family: var(--mono); font-size: .68rem; font-weight: 700;
-                  letter-spacing: .06em; text-transform: uppercase; padding: .2rem .5rem;
-                  border: 1px solid var(--line); opacity: .6; }
-  .coming__chip.now { opacity: 1; }
-  .coming__arrow { color: var(--dim); font-size: .8rem; }
-  .coming__note { font-size: .7rem; color: var(--dim); line-height: 1.45; margin-top: .55rem; }
+  .coming { margin: 0 0 var(--space-4); padding: var(--space-3); background: var(--panel);
+            border: var(--hairline) solid var(--line); }
+  .coming__label { display: flex; align-items: center; gap: var(--space-2);
+                   font-family: var(--font-label); font-size: 10px; line-height: 14px;
+                   letter-spacing: .18em; text-transform: uppercase; color: var(--ink-muted);
+                   margin-bottom: var(--space-2); }
+  .coming__label::before { content: ""; width: 6px; height: 6px; background: currentColor; flex: none; }
+  .coming__row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+  .coming__chip { font-family: var(--font-mono); font-size: 12px; line-height: 16px;
+                  letter-spacing: .06em; text-transform: uppercase; color: var(--ink-muted);
+                  background: var(--bg-200); border: var(--hairline) solid var(--line);
+                  padding: 2px var(--space-2); }
+  .coming__chip.now { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+  .coming__arrow { color: var(--ink-faint); font-family: var(--font-mono); font-size: 12px; }
+  .coming__note { font-size: 12px; color: var(--ink-muted); line-height: 17px; margin-top: var(--space-2); }
 
-  /* One card per exercise */
-  .ex { background: var(--panel); border: 1px solid var(--line);
-        border-left: 2px solid var(--cyan); box-shadow: -3px 0 12px rgba(0,229,255,.12);
-        margin-bottom: .9rem; padding: .8rem .9rem; }
-  .ex.main { border-left-color: var(--lime); box-shadow: -3px 0 12px rgba(182,255,0,.15); }
-  /* Card header: name + ⓘ grouped left, remaining actions pinned right. */
-  .ex__head { display: flex; align-items: center; gap: .6rem; }
-  .ex__title { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: .45rem; }
+  /* One panel slab per exercise */
+  .ex { position: relative; background: var(--panel);
+        border-top: var(--hairline) solid var(--line);
+        border-bottom: var(--hairline) solid var(--line);
+        padding: var(--space-4); margin-bottom: var(--space-5); }
+  .ex::before, .ex::after { content: ""; position: absolute;
+        left: calc(-1 * var(--bracket-len)); right: calc(-1 * var(--bracket-len));
+        height: var(--hairline); background: var(--line); pointer-events: none; }
+  .ex::before { top: -1px; } .ex::after { bottom: -1px; }
+  .ex.main { border-left: 2px solid var(--gold); }
+  .ex.logging { background: var(--panel); }
+  /* Card header: name + info grouped left, remaining actions pinned right. */
+  .ex__head { display: flex; align-items: center; gap: var(--space-3); }
+  .ex__title { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--space-2); }
   .ex__name { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere;
-              font-family: var(--mono); font-size: .9rem; font-weight: 700;
-              letter-spacing: .03em; text-transform: uppercase; color: var(--cyan);
-              text-shadow: 0 0 9px rgba(0,229,255,.55); }
-  .ex.main .ex__name { color: var(--lime); text-shadow: 0 0 9px rgba(182,255,0,.6); }
-  .ex__actions { display: flex; gap: .35rem; flex: none; align-self: flex-start; }
-  /* Meta row: uniform chips, fixed order, identical size/weight. */
-  .ex__meta { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem;
-              margin-top: .5rem; }
-  .ex__meta > * { font-family: var(--mono); font-size: .56rem; letter-spacing: .08em;
-                  text-transform: uppercase; line-height: 1; padding: .22rem .5rem;
-                  border: 1px solid var(--line); color: var(--dim); white-space: nowrap; }
-  .ex__tag--main { color: var(--lime); border-color: rgba(182,255,0,.55);
-                   text-shadow: 0 0 8px rgba(182,255,0,.5); }
-  .ready { display: inline-flex; align-items: center; gap: .3rem; }
-  .rag-dot { width: .5rem; height: .5rem; border-radius: 50%; background: currentColor;
-             box-shadow: 0 0 6px currentColor; flex: none; }
-  .rag-green { color: var(--lime); border-color: var(--lime); text-shadow: 0 0 7px rgba(182,255,0,.5); }
-  .rag-amber { color: #ffb300; border-color: #ffb300; text-shadow: 0 0 7px rgba(255,179,0,.5); }
-  .rag-red   { color: var(--danger); border-color: var(--danger); text-shadow: 0 0 7px rgba(255,45,85,.5); }
-  .readnote { font-family: var(--mono); font-size: .6rem; letter-spacing: .03em;
-              color: var(--dim); margin-top: .45rem; line-height: 1.4; }
-  .hist-btn { font-family: var(--mono); font-size: .56rem;
-              letter-spacing: .1em; text-transform: uppercase; color: var(--ink);
-              background: transparent; border: 1px solid var(--line); border-radius: 0;
-              padding: .3rem .55rem; cursor: pointer; white-space: nowrap; }
-  .hist-btn:hover, .hist-btn[aria-expanded="true"] { color: var(--cyan); border-color: var(--cyan);
-              box-shadow: inset 0 0 0 1px rgba(0,229,255,.3), 0 0 8px rgba(0,229,255,.35);
-              text-shadow: 0 0 8px rgba(0,229,255,.7); }
+              font-family: var(--font-display); font-size: 16px; line-height: 20px;
+              font-weight: 500; letter-spacing: .04em; text-transform: uppercase;
+              color: var(--ink); }
+  .ex__actions { display: flex; gap: var(--space-2); flex: none; align-self: flex-start; }
+  /* Meta row: uniform square tags, fixed order, identical size/weight. */
+  .ex__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2);
+              margin-top: var(--space-2); }
+  .ex__meta > *, .ex__tag { font-family: var(--font-mono); font-size: 11px; line-height: 16px;
+                  letter-spacing: .06em; text-transform: uppercase; padding: 2px var(--space-2);
+                  background: var(--bg-200); border: var(--hairline) solid var(--line);
+                  color: var(--ink-muted); white-space: nowrap; }
+  .ex__tag--main { color: var(--gold); border-color: var(--gold); background: transparent; }
+  .ready { display: inline-flex; align-items: center; gap: var(--space-2); }
+  .rag-dot { width: 6px; height: 6px; background: currentColor; flex: none; }
+  .rag-green { color: var(--ok); border-color: var(--ok); background: transparent; }
+  .rag-amber { color: var(--gold); border-color: var(--gold); background: transparent; }
+  .rag-red   { color: var(--lamp); border-color: var(--lamp); background: transparent; }
+  .readnote { font-family: var(--font-mono); font-size: 11px; line-height: 16px;
+              color: var(--ink-muted); margin-top: var(--space-2); }
+  .hist-btn { font-family: var(--font-label); font-size: 10px; line-height: 14px;
+              letter-spacing: .14em; text-transform: uppercase; color: var(--ink-muted);
+              background: transparent; border: var(--hairline) solid var(--line);
+              padding: var(--space-2) var(--space-3); min-height: 32px; cursor: pointer;
+              white-space: nowrap; }
+  .hist-btn:hover, .hist-btn[aria-expanded="true"] { color: var(--ink);
+              border-color: var(--line-strong); }
 
   /* Per-exercise history panel (revealed under the card) */
-  .hist { margin-top: .7rem; border-top: 1px solid rgba(255,255,255,.07); padding-top: .7rem;
-          animation: fadeIn .3s ease both; }
-  .hist__summary { display: flex; flex-wrap: wrap; gap: .3rem .9rem; margin-bottom: .5rem;
-                   font-family: var(--mono); font-size: .62rem; letter-spacing: .05em; }
-  .hist__summary .k { color: var(--dim); text-transform: uppercase; letter-spacing: .1em; }
-  .hist__summary .v { color: var(--cyan); font-weight: 700; }
-  .hist__summary .v.up { color: var(--lime); } .hist__summary .v.down { color: var(--danger); }
-  .hist__note { font-size: .8rem; color: var(--dim); line-height: 1.5; }
+  .hist { margin-top: var(--space-3); border-top: var(--hairline) solid var(--line);
+          padding-top: var(--space-3); animation: fadeIn .3s ease both; }
+  .hist__summary { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4);
+                   margin-bottom: var(--space-2); font-family: var(--font-mono); font-size: 12px; }
+  .hist__summary .k { color: var(--ink-muted); text-transform: uppercase; letter-spacing: .1em; }
+  .hist__summary .v { color: var(--ink); font-family: var(--font-display); font-weight: 600;
+                      font-variant-numeric: tabular-nums; }
+  .hist__summary .v.up { color: var(--ok); } .hist__summary .v.down { color: var(--lamp); }
+  .hist__note { font-size: 13px; color: var(--ink-muted); line-height: 18px; }
   .chart svg { width: 100%; height: 120px; display: block; overflow: visible;
                color: var(--ink); }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-  .sets { display: flex; flex-wrap: wrap; gap: .4rem; margin: .6rem 0 .1rem; }
-  .set { font-family: var(--mono); font-size: .74rem; font-weight: 700; letter-spacing: .03em;
-         color: var(--ink); background: var(--panel-2); border: 1px solid var(--line);
-         padding: .22rem .55rem; }
-  .set.warm { color: var(--dim); font-weight: 500; border-style: dashed; }
-  .set b { color: var(--cyan); font-weight: 700; }
-  .ex.main .set b { color: var(--lime); }
-  .rest { font-family: var(--mono); font-size: .58rem; letter-spacing: .08em;
-          text-transform: uppercase; color: var(--dim); margin-top: .5rem; }
-  .notes { font-size: .86rem; line-height: 1.5; color: var(--ink); margin-top: .55rem;
+  .sets { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-3) 0 0; }
+  .set { font-family: var(--font-mono); font-size: 12px; line-height: 16px; color: var(--ink);
+         background: var(--bg-200); border: var(--hairline) solid var(--line);
+         padding: 2px var(--space-2); }
+  .set.warm { color: var(--ink-muted); border-style: dashed; }
+  .set b { font-family: var(--font-display); font-weight: 600; color: var(--ink);
+           font-variant-numeric: tabular-nums; }
+  /* Expected-RPE tag on the prescription card: informational, corp blue. */
+  .set.pred { color: var(--corp); border-color: var(--corp); border-style: dotted;
+              background: transparent; }
+  .rest { font-family: var(--font-label); font-size: 10px; line-height: 14px;
+          letter-spacing: .14em; text-transform: uppercase; color: var(--ink-muted);
+          margin-top: var(--space-3); }
+  .rest--btn { background: transparent; border: var(--hairline) solid var(--line);
+               cursor: pointer; padding: var(--space-2) var(--space-3); min-height: 32px; }
+  .rest--btn:hover { color: var(--ink); border-color: var(--line-strong); }
+  .notes { font-size: 14px; line-height: 20px; color: var(--ink); margin-top: var(--space-3);
            white-space: pre-wrap; overflow-wrap: break-word; }
-  .alts { font-family: var(--mono); font-size: .62rem; letter-spacing: .04em; color: var(--dim);
-          margin-top: .55rem; line-height: 1.8; }
-  .alts b { color: var(--cyan); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-  .alt-btn { font-family: var(--mono); font-size: .62rem; letter-spacing: .03em; color: var(--cyan);
-             background: transparent; border: 1px solid var(--line); border-radius: 0;
-             padding: .12rem .5rem; margin: 0 .3rem .1rem 0; cursor: pointer; white-space: nowrap; }
-  .alt-btn:hover { border-color: var(--cyan);
-             box-shadow: inset 0 0 0 1px rgba(0,229,255,.3), 0 0 8px rgba(0,229,255,.35);
-             text-shadow: 0 0 8px rgba(0,229,255,.7); }
-  .alt-btn:disabled { opacity: .4; cursor: default; box-shadow: none; }
-  .alts__status { font-family: var(--mono); font-size: .58rem; letter-spacing: .06em;
-                  color: var(--dim); margin-left: .3rem; }
-  .alts__status.err { color: var(--danger); }
+  .alts { font-family: var(--font-mono); font-size: 12px; color: var(--ink-muted);
+          margin-top: var(--space-3); line-height: 2; }
+  .alts b { color: var(--ink-muted); font-family: var(--font-label); font-size: 10px;
+            font-weight: 400; letter-spacing: .14em; text-transform: uppercase; }
+  .alt-btn { font-family: var(--font-mono); font-size: 12px; color: var(--ink);
+             background: transparent; border: var(--hairline) solid var(--line);
+             padding: 2px var(--space-2); margin: 0 var(--space-2) 2px 0; cursor: pointer;
+             white-space: nowrap; }
+  .alt-btn:hover { border-color: var(--line-strong); }
+  .alt-btn:disabled { opacity: var(--opacity-disabled); cursor: default; }
+  .alts__status { font-family: var(--font-mono); font-size: 11px;
+                  color: var(--ink-muted); margin-left: var(--space-2); }
+  .alts__status.err { color: var(--lamp); }
 
   /* ── Logging mode ─────────────────────────────────────────── */
-  .logbtn { font-family: var(--mono); font-size: .62rem; letter-spacing: .1em;
-            text-transform: uppercase; color: var(--magenta); background: transparent;
-            border: 1px solid var(--magenta); border-radius: 0; padding: .28rem .7rem;
-            margin-top: .7rem; cursor: pointer; }
-  .logbtn:hover { box-shadow: 0 0 10px rgba(255,0,102,.4); text-shadow: 0 0 8px rgba(255,0,102,.6); }
-  .logbtn.on { color: #05050a; background: var(--magenta); }
-  .ex.logging { border-left-color: var(--magenta); box-shadow: -3px 0 12px rgba(255,0,102,.14); }
-  .setrow { display: flex; align-items: center; gap: .4rem; margin: .35rem 0;
-            font-family: var(--mono); font-size: .74rem; }
+  /* The one amber action on the view screen: enter (or resume) logging. */
+  .logbtn { display: inline-flex; align-items: center; justify-content: center;
+            min-height: 44px; padding: 0 var(--space-5); font-family: var(--font-body);
+            font-size: 15px; line-height: 20px; letter-spacing: .02em;
+            color: var(--on-accent); background: var(--accent);
+            border: var(--hairline) solid var(--accent); margin-top: var(--space-3);
+            cursor: pointer; }
+  .logbtn:hover { filter: brightness(1.08); }
+  .logbtn.on { background: var(--accent); }
+  /* Hevy-style set table: SET | PREVIOUS | KG | REPS | RPE | ✓.
+     Tap the badge for set type / remove; tap PREVIOUS to copy it in;
+     tick on the right completes the set and arms the rest timer. */
+  .sett { display: grid; grid-template-columns: 30px minmax(0, 1fr) 54px 46px 42px 38px;
+          gap: var(--space-2); align-items: center; margin: var(--space-2) 0;
+          padding: 2px 0; }
+  .sett-head { margin: var(--space-3) 0 var(--space-1); padding: 0;
+          font-family: var(--font-label); font-size: 9px; line-height: 13px;
+          letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); }
+  .sett-head span { text-align: center; overflow: hidden; }
+  .sett-head .h-prev { text-align: left; }
   /* 16px min font on inputs stops iOS Safari auto-zooming on focus. */
-  .setrow input[type=number] { width: 3.4rem; font-family: var(--mono); font-size: 16px;
-            text-align: center; color: var(--ink); background: var(--panel-2);
-            border: 1px solid var(--line); border-radius: 0; padding: .22rem .2rem; }
-  .setrow input.rpe { width: 3rem; }
-  .setrow input[type=number]:focus { outline: none; border-color: var(--cyan);
-            box-shadow: inset 0 0 0 1px rgba(0,229,255,.3); }
-  .setrow .x { color: var(--dim); }
-  .setrow .warmtag { font-size: .55rem; letter-spacing: .08em; text-transform: uppercase;
-            color: var(--dim); border: 1px solid var(--line); padding: .05rem .3rem; cursor: pointer; }
-  .setrow .warmtag.on { color: #05050a; background: var(--dim); border-color: var(--dim); }
-  .setrow .done { width: 1.15rem; height: 1.15rem; accent-color: var(--lime); cursor: pointer; }
-  .setrow.is-done { opacity: .55; }
-  .setrow .rm { margin-left: auto; color: var(--danger); background: transparent; border: none;
-            font-size: 1rem; line-height: 1; cursor: pointer; padding: 0 .2rem; }
-  .addset { font-family: var(--mono); font-size: .58rem; letter-spacing: .08em;
-            text-transform: uppercase; color: var(--cyan); background: transparent;
-            border: 1px dashed var(--line); border-radius: 0; padding: .2rem .55rem;
-            margin-top: .35rem; cursor: pointer; }
-  .addset:hover { border-color: var(--cyan); }
+  .sett input[type=number] { width: 100%; font-family: var(--font-display); font-size: 16px;
+            font-variant-numeric: tabular-nums; text-align: center; color: var(--ink);
+            background: var(--bg-200); border: var(--hairline) solid var(--line);
+            padding: var(--space-2) 2px; min-height: 36px;
+            appearance: textfield; -moz-appearance: textfield; }
+  .sett input[type=number]::-webkit-inner-spin-button,
+  .sett input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .sett input[type=number]:focus { border-color: var(--line-strong);
+            outline: var(--hairline) solid var(--focus); outline-offset: 2px; }
+  .prevcell { font-family: var(--font-mono); font-size: 11px; line-height: 14px;
+            color: var(--ink-muted); background: transparent; border: 0; text-align: left;
+            padding: 0; min-height: 36px; cursor: pointer; overflow: hidden;
+            white-space: nowrap; text-overflow: ellipsis; }
+  .prevcell:hover { color: var(--ink); }
+  .prevcell:disabled { color: var(--ink-faint); cursor: default; }
+  .donebtn { width: 100%; min-height: 36px; font-size: 15px; line-height: 1;
+            color: var(--ink-muted); background: var(--bg-200);
+            border: var(--hairline) solid var(--line); cursor: pointer; }
+  .donebtn:hover { border-color: var(--line-strong); }
+  /* Done: the row carries an ok tint and the tick goes solid — success in
+     green with the ✓ as its word. */
+  .sett.is-done { background: color-mix(in srgb, var(--ok) 10%, transparent); }
+  .sett.is-done input[type=number], .sett.is-done .rpe-cell {
+            color: var(--ok); background: transparent;
+            border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+  .sett.is-done .prevcell { color: var(--ink-faint); }
+  .sett.is-done .donebtn { color: var(--bg-100); background: var(--ok); border-color: var(--ok); }
+  /* Optional stretch routines: accent-tinted card, single done toggle. */
+  .stretchcard { background: var(--accent-soft); border: var(--hairline) solid var(--accent);
+                 padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); }
+  .stretchcard__head { display: flex; align-items: center; gap: var(--space-3); }
+  .stretchcard__eyebrow { color: var(--accent); flex: 1; min-width: 0; }
+  .stretchcard__btn { flex: none; min-height: 36px; padding: 0 var(--space-3);
+                 font-family: var(--font-body); font-size: 14px; color: var(--ink);
+                 background: var(--panel-raised); border: var(--hairline) solid var(--line);
+                 cursor: pointer; }
+  .stretchcard.is-done { background: transparent; border-color: var(--line); }
+  .stretchcard.is-done .stretchcard__eyebrow { color: var(--ink-muted); }
+  .stretchcard.is-done .stretchcard__btn { color: var(--ok); border-color: var(--ok);
+                 background: transparent; }
+  .stretchcard__list { display: flex; flex-wrap: wrap; gap: var(--space-2);
+                 margin-top: var(--space-2); }
+  .stretchcard__item { font-family: var(--font-mono); font-size: 12px; line-height: 16px;
+                 color: var(--ink); background: var(--bg-200);
+                 border: var(--hairline) solid var(--line); padding: 2px var(--space-2); }
+  .stretchcard.is-done .stretchcard__item { color: var(--ink-muted); }
 
-  /* Bottom sheets (set-type + RPE pickers, Hevy-style) */
-  .sheet-overlay { position: fixed; inset: 0; z-index: 80; background: rgba(0,0,0,.55);
-                   display: flex; align-items: flex-end; opacity: 0; transition: opacity .16s ease; }
+  .addset { display: block; width: 100%; font-family: var(--font-label); font-size: 10px;
+            letter-spacing: .14em; text-transform: uppercase; color: var(--ink-muted);
+            background: transparent; border: var(--hairline) dashed var(--line);
+            padding: var(--space-2) var(--space-3);
+            margin-top: var(--space-2); min-height: 36px; cursor: pointer; }
+  .addset:hover { color: var(--ink); border-color: var(--line-strong); }
+
+  /* Bottom sheets (set-type + RPE pickers): square slabs on the scrim. */
+  .sheet-overlay { position: fixed; inset: 0; z-index: 80; background: var(--scrim);
+                   display: flex; align-items: flex-end; opacity: 0; transition: opacity .16s ease;
+                   overscroll-behavior: contain; }
   .sheet-overlay.open { opacity: 1; }
-  .sheet { width: 100%; max-width: 720px; margin: 0 auto; background: var(--panel);
-           border-top: 1px solid var(--cyan); box-shadow: 0 -8px 30px rgba(0,229,255,.2);
-           padding: .8rem 1rem calc(1rem + env(safe-area-inset-bottom));
-           transform: translateY(14px); transition: transform .16s ease; }
+  .sheet-overlay.closing { opacity: 0; }
+  /* While any sheet is open the page behind must not scroll. */
+  body.sheet-open { overflow: hidden; }
+  .sheet { position: relative; width: 100%; max-width: 720px; margin: 0 auto;
+           background: var(--panel-solid);
+           border-top: var(--hairline) solid var(--line-strong);
+           padding: var(--space-4) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom));
+           transform: translateY(100%); transition: transform .24s cubic-bezier(.2,.8,.2,1);
+           overscroll-behavior: contain; }
   .sheet-overlay.open .sheet { transform: none; }
-  .sheet__title { font-family: var(--mono); font-size: .8rem; font-weight: 700; text-align: center;
-                  letter-spacing: .06em; color: var(--ink); padding: .3rem 0 .5rem; }
-  .sheet__sub { font-family: var(--mono); font-size: .66rem; text-align: center; color: var(--dim);
-                margin-bottom: .5rem; }
-  .sheet__opt { display: flex; align-items: center; gap: .8rem; width: 100%; text-align: left;
-                background: transparent; border: 0; border-top: 1px solid var(--line);
-                padding: .85rem .3rem; cursor: pointer; color: var(--ink); font: inherit; }
-  .sheet__opt:hover { background: var(--panel-2); }
-  .sheet__optlabel { font-family: var(--mono); font-size: .82rem; letter-spacing: .02em; }
-  .sheet__opt.danger .sheet__optlabel { color: var(--danger); }
+  .sheet-overlay.closing .sheet { transform: translateY(100%); }
+  .sheet__close { position: absolute; top: var(--space-2); right: var(--space-3);
+           width: 36px; height: 36px; display: grid; place-items: center;
+           font-family: var(--font-mono); font-size: 14px; line-height: 1;
+           color: var(--ink-muted); background: var(--panel-raised);
+           border: var(--hairline) solid var(--line); cursor: pointer; z-index: 2; }
+  .sheet__close:hover { color: var(--ink); border-color: var(--line-strong); }
+  .sheet__title { font-family: var(--font-display); font-size: 16px; line-height: 20px;
+                  font-weight: 500; letter-spacing: .04em; text-transform: uppercase;
+                  text-align: center; color: var(--ink); padding: var(--space-1) 0 var(--space-2); }
+  .sheet__sub { font-family: var(--font-mono); font-size: 12px; text-align: center;
+                color: var(--ink-muted); margin-bottom: var(--space-2); }
+  .sheet__opt { display: flex; align-items: center; gap: var(--space-3); width: 100%;
+                text-align: left; background: transparent; border: 0;
+                border-top: var(--hairline) solid var(--line);
+                padding: var(--space-3) var(--space-1); min-height: 44px; cursor: pointer;
+                color: var(--ink); font: inherit; }
+  .sheet__opt:hover { background: var(--panel-raised); }
+  .sheet__optlabel { font-family: var(--font-body); font-size: 15px; }
+  .sheet__opt.danger .sheet__optlabel { color: var(--target); }
   /* Set-type badge (row + sheet) */
   .st-badge { display: inline-flex; align-items: center; justify-content: center;
-              width: 1.55rem; height: 1.55rem; flex: none; font-family: var(--mono);
-              font-size: .78rem; font-weight: 800; border: 1px solid var(--line);
-              background: var(--panel-2); border-radius: 0; cursor: pointer; }
-  .st-warm   { color: #ffb300; border-color: #ffb300; }
+              width: 28px; height: 28px; flex: none; font-family: var(--font-display);
+              font-size: 13px; font-weight: 600; border: var(--hairline) solid var(--line);
+              background: var(--bg-200); cursor: pointer; }
+  .st-warm   { color: var(--ink-muted); border-style: dashed; }
   .st-normal { color: var(--ink); }
-  .st-fail   { color: var(--danger); border-color: var(--danger); }
-  .st-drop   { color: var(--cyan); border-color: var(--cyan); }
-  .st-remove { color: var(--danger); border-color: transparent; background: transparent; }
+  .st-fail   { color: var(--target); border-color: var(--target); }
+  .st-drop   { color: var(--corp); border-color: var(--corp); }
+  .st-remove { color: var(--target); border-color: transparent; background: transparent; }
   /* RPE cell (row) + picker (sheet) */
-  .rpe-cell { min-width: 2.9rem; font-family: var(--mono); font-size: 16px; text-align: center;
-              color: var(--cyan); background: var(--panel-2); border: 1px solid var(--line);
-              border-radius: 0; padding: .22rem .2rem; cursor: pointer; }
-  .rpe-cell.empty { color: var(--dim); }
-  .rpe-big { font-family: var(--mono); font-size: 2.6rem; font-weight: 800; text-align: center;
-             color: var(--cyan); text-shadow: 0 0 14px rgba(0,229,255,.5); line-height: 1.1; }
-  .rpe-hint { font-family: var(--mono); font-size: .72rem; text-align: center; color: var(--dim);
-              margin: .1rem 0 .7rem; min-height: 1.1rem; line-height: 1.3; }
-  .rpe-row { display: flex; flex-wrap: nowrap; gap: .25rem; justify-content: center; }
-  .rpe-opt { flex: 1 1 0; min-width: 0; font-family: var(--mono); font-size: .82rem; font-weight: 700;
-             color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: 0;
-             padding: .55rem .1rem; cursor: pointer; }
-  .rpe-opt.on { color: #05050a; background: var(--cyan); border-color: var(--cyan);
-                box-shadow: 0 0 12px rgba(0,229,255,.5); }
-  .sheet__done { width: 100%; margin-top: .8rem; font-family: var(--mono); font-size: .8rem; font-weight: 700;
-                 letter-spacing: .08em; text-transform: uppercase; color: #05050a; background: var(--lime);
-                 border: 0; border-radius: 0; padding: .7rem; cursor: pointer; }
-  .sheet__clear { width: 100%; margin-top: .4rem; font-family: var(--mono); font-size: .62rem;
-                  letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
-                  background: transparent; border: 1px solid var(--line); border-radius: 0;
-                  padding: .5rem; cursor: pointer; }
-  .classify-info { border-top: 1px solid var(--line); margin: .2rem 0 .5rem; }
-  .classify-row { display: flex; justify-content: space-between; gap: 1rem; padding: .4rem .2rem;
-                  border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: .74rem; }
-  .classify-k { color: var(--dim); text-transform: uppercase; letter-spacing: .1em; font-size: .6rem;
-                align-self: center; }
-  .classify-v { color: var(--cyan); text-transform: capitalize; }
-  .classify-q { font-size: .8rem; color: var(--ink); text-align: center; line-height: 1.4;
-                margin: .6rem 0 .5rem; }
+  .rpe-cell { min-width: 48px; font-family: var(--font-display); font-size: 16px;
+              font-variant-numeric: tabular-nums; text-align: center; color: var(--ink);
+              background: var(--bg-200); border: var(--hairline) solid var(--line);
+              padding: var(--space-2) 2px; cursor: pointer; }
+  .rpe-cell.empty { color: var(--ink-faint); }
+  .rpe-big { font-family: var(--font-display); font-size: 44px; line-height: 48px;
+             font-weight: 600; font-variant-numeric: tabular-nums; text-align: center;
+             color: var(--ink); }
+  .rpe-hint { font-size: 13px; line-height: 18px; text-align: center; color: var(--ink-muted);
+              margin: var(--space-1) 0 var(--space-3); min-height: 18px; }
+  .rpe-row { display: flex; flex-wrap: nowrap; gap: var(--space-1); justify-content: center; }
+  .rpe-opt { flex: 1 1 0; min-width: 0; font-family: var(--font-display); font-size: 14px;
+             font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink);
+             background: var(--panel-raised); border: var(--hairline) solid var(--line);
+             padding: var(--space-3) 2px; min-height: 44px; cursor: pointer; }
+  .rpe-opt.on { color: var(--ink); background: var(--panel-selected);
+                border-color: var(--line-strong); }
+  /* The sheet's one amber action. */
+  .sheet__done { display: flex; align-items: center; justify-content: center; width: 100%;
+                 margin-top: var(--space-3); min-height: 44px; font-family: var(--font-body);
+                 font-size: 15px; letter-spacing: .02em; color: var(--on-accent);
+                 background: var(--accent); border: var(--hairline) solid var(--accent);
+                 cursor: pointer; }
+  .sheet__done:hover { filter: brightness(1.08); }
+  .sheet__done:disabled { opacity: var(--opacity-disabled); }
+  .sheet__clear { width: 100%; margin-top: var(--space-2); font-family: var(--font-label);
+                  font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+                  color: var(--ink-muted); background: transparent;
+                  border: var(--hairline) solid var(--line); padding: var(--space-3);
+                  min-height: 40px; cursor: pointer; }
+  .sheet__clear:hover { color: var(--ink); border-color: var(--line-strong); }
+  .classify-info { border-top: var(--hairline) solid var(--line); margin: var(--space-1) 0 var(--space-2); }
+  .classify-row { display: flex; justify-content: space-between; gap: var(--space-4);
+                  padding: var(--space-2) var(--space-1);
+                  border-bottom: var(--hairline) solid var(--line);
+                  font-family: var(--font-mono); font-size: 13px; }
+  .classify-k { color: var(--ink-muted); text-transform: uppercase; letter-spacing: .14em;
+                font-family: var(--font-label); font-size: 10px; align-self: center; }
+  .classify-v { color: var(--ink); text-transform: capitalize; }
+  .classify-q { font-size: 14px; color: var(--ink); text-align: center; line-height: 20px;
+                margin: var(--space-3) 0 var(--space-2); }
 
-  /* How-to sheet (ⓘ): breakdown + mini floating chat for follow-ups */
+  /* How-to sheet (info): breakdown + mini floating chat for follow-ups.
+     One scroll region between title and ask bar; overscroll contained so
+     the workout behind never moves. */
   .sheet--howto { height: 80vh; display: flex; flex-direction: column; }
-  .howto__thread { flex: 1; overflow-y: auto; display: flex; flex-direction: column;
-                   gap: .55rem; padding: .4rem 0 .6rem; border-top: 1px solid var(--line); }
-  .howto__a { font-size: .86rem; line-height: 1.55; color: var(--ink); white-space: pre-wrap;
-              background: var(--panel-2); border-left: 2px solid var(--cyan);
-              padding: .55rem .7rem; }
-  .howto__q { align-self: flex-end; max-width: 85%; font-size: .84rem; line-height: 1.4;
-              color: #05050a; background: var(--magenta); font-weight: 500;
-              padding: .4rem .6rem; box-shadow: 0 0 10px rgba(255,0,102,.35); }
-  .howto__ask { display: flex; gap: .4rem; padding-top: .6rem; }
-  .howto__inp { flex: 1; font-family: var(--mono); font-size: 16px; color: var(--ink);
-                background: var(--panel-2); border: 1px solid var(--line); border-radius: 0;
-                padding: .45rem .6rem; }
-  .howto__inp:focus { outline: none; border-color: var(--cyan);
-                      box-shadow: inset 0 0 0 1px rgba(0,229,255,.3); }
-  .howto__send { font-family: var(--mono); font-size: .7rem; font-weight: 700;
-                 letter-spacing: .1em; text-transform: uppercase; color: #05050a;
-                 background: var(--cyan); border: 0; border-radius: 0; padding: 0 1rem;
-                 cursor: pointer; box-shadow: 0 0 10px rgba(0,229,255,.4); }
-  .howto__send:disabled { opacity: .5; }
-
-  /* Expected-RPE chip on the prescription card */
-  .set.pred { color: var(--violet); border-color: var(--violet); border-style: dotted;
-              font-weight: 700; text-shadow: 0 0 7px rgba(179,136,255,.5); }
+  .howto__scroll { flex: 1; min-height: 0; overflow-y: auto;
+                   overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  .howto__thread { display: flex; flex-direction: column;
+                   gap: var(--space-2); padding: var(--space-2) 0 var(--space-3);
+                   border-top: var(--hairline) solid var(--line); }
+  .howto__a { font-size: 14px; line-height: 20px; color: var(--ink); white-space: pre-wrap;
+              background: var(--bg-200); border-left: 2px solid var(--corp);
+              padding: var(--space-2) var(--space-3); }
+  .howto__q { align-self: flex-end; max-width: 85%; font-size: 14px; line-height: 20px;
+              color: var(--ink); background: var(--corp-soft);
+              padding: var(--space-2) var(--space-3); }
+  .howto__ask { display: flex; gap: var(--space-2); padding-top: var(--space-3); }
+  .howto__inp { flex: 1; font-family: var(--font-body); font-size: 16px; color: var(--ink);
+                background: var(--bg-200); border: var(--hairline) solid var(--line);
+                padding: var(--space-2) var(--space-3); min-height: 44px; }
+  .howto__inp:focus { border-color: var(--line-strong);
+                      outline: var(--hairline) solid var(--focus); outline-offset: 2px; }
+  .howto__send { font-family: var(--font-body); font-size: 15px; letter-spacing: .02em;
+                 color: var(--on-accent); background: var(--accent);
+                 border: var(--hairline) solid var(--accent); padding: 0 var(--space-4);
+                 min-height: 44px; cursor: pointer; }
+  .howto__send:disabled { opacity: var(--opacity-disabled); }
 
   /* Add / swap exercise controls in the logger */
-  .ex__ctl { font-family: var(--mono); font-size: .72rem; line-height: 1; color: var(--ink);
-             background: transparent; border: 1px solid var(--line); border-radius: 0;
-             width: 2.2rem; padding: .3rem 0; text-align: center; cursor: pointer; }
-  .ex__ctl:hover { border-color: var(--cyan); color: var(--cyan); }
-  .ex__ctl.del:hover { border-color: var(--danger); color: var(--danger); }
-  /* Floating exercise picker (Hevy-style, rides the bottom-sheet machinery) */
+  .ex__ctl { font-family: var(--font-mono); font-size: 13px; line-height: 1;
+             color: var(--ink-muted); background: transparent;
+             border: var(--hairline) solid var(--line); width: 36px; min-height: 32px;
+             text-align: center; cursor: pointer; }
+  .ex__ctl:hover { border-color: var(--line-strong); color: var(--ink); }
+  .ex__ctl.del:hover { border-color: var(--target); color: var(--target); }
+  /* Floating exercise picker (rides the bottom-sheet machinery) */
   .sheet--picker { height: 86vh; display: flex; flex-direction: column; }
-  .picker__search { width: 100%; box-sizing: border-box; font-family: var(--mono); font-size: 16px;
-                    color: var(--ink); background: var(--panel-2); border: 1px solid var(--cyan);
-                    border-radius: 0; padding: .5rem .6rem; margin-top: .2rem; }
-  .picker__search:focus { outline: none; box-shadow: inset 0 0 0 1px rgba(0,229,255,.35); }
-  .picker__filters { display: flex; gap: .3rem; overflow-x: auto; flex: none;
-                     padding: .55rem 0 .1rem; -webkit-overflow-scrolling: touch; }
-  .picker__filters--sub { padding: .35rem 0 .5rem; }
+  .picker__search { width: 100%; box-sizing: border-box; font-family: var(--font-body);
+                    font-size: 16px; color: var(--ink); background: var(--bg-200);
+                    border: var(--hairline) solid var(--line-strong);
+                    padding: var(--space-2) var(--space-3); margin-top: var(--space-1);
+                    min-height: 44px; }
+  .picker__search:focus { outline: var(--hairline) solid var(--focus); outline-offset: 2px; }
+  .picker__search::placeholder { color: var(--ink-faint); }
+  .picker__filters { display: flex; gap: var(--space-1); overflow-x: auto; flex: none;
+                     padding: var(--space-2) 0 2px; -webkit-overflow-scrolling: touch; }
+  .picker__filters--sub { padding: var(--space-1) 0 var(--space-2); }
   .picker__filters[hidden] { display: none; }
-  .pchip { flex: none; font-family: var(--mono); font-size: .62rem; letter-spacing: .06em;
-           text-transform: capitalize; color: var(--dim); background: var(--panel-2);
-           border: 1px solid var(--line); border-radius: 0; padding: .28rem .55rem; cursor: pointer; }
-  .pchip.on { color: #05050a; background: var(--cyan); border-color: var(--cyan);
-              box-shadow: 0 0 10px rgba(0,229,255,.45); }
+  .pchip { flex: none; display: inline-flex; align-items: center; gap: var(--space-1);
+           font-family: var(--font-mono); font-size: 12px; letter-spacing: .04em;
+           text-transform: capitalize; color: var(--ink-muted); background: var(--bg-200);
+           border: var(--hairline) solid var(--line); padding: var(--space-1) var(--space-2);
+           min-height: 32px; cursor: pointer; }
+  .pchip .mfig { height: 22px; width: 10px; }
+  .pchip.on { color: var(--ink); background: var(--panel-selected);
+              border-color: var(--line-strong); }
   .pchip--region { text-transform: uppercase; letter-spacing: .1em; }
-  .pchip--region.on { background: var(--magenta); border-color: var(--magenta);
-                      box-shadow: 0 0 10px rgba(255,0,102,.5); }
-  .picker__list { flex: 1; overflow-y: auto; border-top: 1px solid var(--line); }
-  .picker__row { display: flex; align-items: center; gap: .6rem; width: 100%; text-align: left;
-                 background: transparent; border: 0; border-bottom: 1px solid var(--line);
-                 padding: .6rem .3rem; cursor: pointer; color: var(--ink); font: inherit; }
-  .picker__row:hover { background: var(--panel-2); }
+  .picker__list { flex: 1; overflow-y: auto; border-top: var(--hairline) solid var(--line);
+                  overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  .picker__row { display: flex; align-items: center; gap: var(--space-3); width: 100%;
+                 text-align: left; background: transparent; border: 0;
+                 border-bottom: var(--hairline) solid var(--line);
+                 padding: var(--space-3) var(--space-1); min-height: 44px; cursor: pointer;
+                 color: var(--ink); font: inherit; }
+  .picker__row:hover { background: var(--panel-raised); }
   .picker__main { min-width: 0; }
-  .picker__name { font-family: var(--mono); font-size: .84rem; overflow: hidden;
+  .picker__name { font-family: var(--font-body); font-size: 15px; overflow: hidden;
                   text-overflow: ellipsis; white-space: nowrap; }
-  .picker__meta { font-family: var(--mono); font-size: .56rem; color: var(--dim);
-                  text-transform: uppercase; letter-spacing: .05em; margin-top: .12rem; }
-  .picker__days { margin-left: auto; flex: none; font-family: var(--mono); font-size: .6rem;
-                  letter-spacing: .04em; color: var(--dim); white-space: nowrap; }
-  .picker__days.recent { color: var(--lime); text-shadow: 0 0 6px rgba(182,255,0,.4); }
-  .picker__hdr { font-family: var(--mono); font-size: .56rem; letter-spacing: .14em;
-                 text-transform: uppercase; color: var(--cyan); padding: .55rem .3rem .25rem;
-                 border-bottom: 1px solid var(--line); }
-  .picker__create { color: var(--cyan); }
-  .picker__create .picker__name { color: var(--cyan); }
-  .picker__empty { font-family: var(--mono); font-size: .7rem; color: var(--dim);
-                   text-align: center; padding: 1.2rem 0; }
-  .addex { display: block; width: 100%; font-family: var(--mono); font-size: .62rem;
-           letter-spacing: .1em; text-transform: uppercase; color: var(--cyan);
-           background: transparent; border: 1px dashed var(--line); border-radius: 0;
-           padding: .55rem; margin: .2rem 0 .3rem; cursor: pointer; }
-  .addex:hover { border-color: var(--cyan); }
-  .rest--btn { background: transparent; border: 1px solid var(--line); border-radius: 0;
-               cursor: pointer; padding: .22rem .5rem; }
-  .rest--btn:hover { color: var(--cyan); border-color: var(--cyan); }
+  .picker__meta { font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted);
+                  text-transform: uppercase; letter-spacing: .05em; margin-top: 2px; }
+  .picker__days { margin-left: auto; flex: none; font-family: var(--font-mono); font-size: 11px;
+                  letter-spacing: .04em; color: var(--ink-muted); white-space: nowrap; }
+  .picker__days.recent { color: var(--ok); }
+  .picker__hdr { font-family: var(--font-label); font-size: 10px; letter-spacing: .18em;
+                 text-transform: uppercase; color: var(--ink-muted);
+                 padding: var(--space-2) var(--space-1) var(--space-1);
+                 border-bottom: var(--hairline) solid var(--line); }
+  .picker__create .picker__name { color: var(--corp); }
+  .picker__empty { font-family: var(--font-mono); font-size: 12px; color: var(--ink-muted);
+                   text-align: center; padding: var(--space-5) 0; }
 
-  /* Rest timer — fixed horizontal bar at the bottom of the screen (it was a
-     right-edge rail, but that covered each set row's ✕ delete button). While
-     logging it sits above the sticky Cancel/Save bar. */
-  .rtimer { position: fixed; left: 50%; bottom: calc(.6rem + env(safe-area-inset-bottom));
-            transform: translate3d(-50%, 0, 0);   /* 3d transform → own compositor layer,
-                                                     so it never repaints/lags on scroll */
+  /* ── Exercise visuals ─────────────────────────────────────────
+     Thumbnails come from the vendored free-exercise-db photos (public
+     domain); when an exercise has none, a muscle figure stands in. The
+     figure is the vendored polygon body (muscles.js): ground-coloured
+     regions, primary muscles in accent, secondary in corp. */
+  /* Explicit width AND height everywhere — Safari sizes auto-width SVGs
+     unreliably in flex/grid, which clipped the figure on device. */
+  .mfig { display: block; height: 128px; width: 58px; }
+  .mfig polygon { fill: var(--bg-200); stroke: var(--line); stroke-width: 3; }
+  .mfig polygon.is-prim { fill: var(--accent); stroke: var(--accent); }
+  .mfig polygon.is-sec { fill: var(--corp-soft); stroke: var(--corp); }
+  .picker__thumb { width: 44px; height: 44px; flex: none; display: inline-flex;
+                   align-items: center; justify-content: center; overflow: hidden;
+                   background: var(--bg-000); border: var(--hairline) solid var(--line); }
+  .picker__thumb .mfig { height: 38px; width: 17px; }
+  .ex__thumb { width: 36px; height: 36px; flex: none; display: inline-flex;
+               align-items: center; justify-content: center; overflow: hidden;
+               background: var(--bg-000); border: var(--hairline) solid var(--line); }
+  .ex__thumb .mfig { height: 30px; width: 14px; }
+  /* Tappable thumbs are buttons — reset chrome, keep the slab look. */
+  button.ex__thumb { padding: 0; cursor: pointer; }
+  button.ex__thumb:hover { border-color: var(--line-strong); }
+  .picker__thumb img, .ex__thumb img { width: 100%; height: 100%;
+               object-fit: cover; display: block; }
+
+  /* How-to sheet: compact movement animation + the spinning muscle figure. */
+  .howto__vis { display: flex; gap: var(--space-5); align-items: center;
+                justify-content: center; margin-bottom: var(--space-3); }
+  /* Gymvisual art keeps its white ground — 180px palette GIFs with motion
+     ghosting can't be segmented cleanly, so the ONE consistent treatment
+     everywhere is: original art, slightly dimmed, in a hairline frame. */
+  .gv-media { filter: brightness(.94) saturate(.9); }
+  .howto__anim { position: relative; width: 148px; flex: none; cursor: pointer;
+                 border: var(--hairline) solid var(--line); background: var(--bg-000); }
+  .howto__anim img { display: block; width: 100%; aspect-ratio: 1 / 1; object-fit: contain; }
+  .howto__credit { font-family: var(--font-mono); font-size: 10px; line-height: 14px;
+                 color: var(--ink-faint); margin: 0 0 var(--space-3); }
+  .howto__anim::after { content: "❚❚"; position: absolute; right: var(--space-1);
+                 bottom: var(--space-1); font-family: var(--font-mono); font-size: 10px;
+                 color: var(--ink-muted); background: var(--scrim);
+                 padding: 1px var(--space-1); }
+  .howto__anim.is-paused::after { content: "▶"; }
+
+  /* The body-part indicator: the polygon figure on a slow turntable about
+     the vertical axis. Front and back views are the outer faces; stacked
+     silhouette layers between them give the body thickness, so edge-on it
+     reads as a solid rather than vanishing paper. */
+  .mfig3d { width: 70px; height: 132px; flex: none; perspective: 700px; }
+  .mfig3d-inner { position: relative; width: 100%; height: 100%;
+                  transform-style: preserve-3d;
+                  animation: mfigspin 9s linear infinite; }
+  .mfig3d .mfig { position: absolute; inset: 0; width: 100%; height: 100%;
+                  backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+  .mfig3d .mfig.is-back { transform: rotateY(180deg) translateZ(9px); }
+  .mfig3d .mfig.is-front { transform: translateZ(9px); }
+  .mfig3d .mfig.is-mid { backface-visibility: visible; -webkit-backface-visibility: visible; }
+  .mfig3d .mfig.is-mid polygon { fill: var(--panel-raised); stroke: var(--line); }
+  @keyframes mfigspin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .mfig3d-inner { animation: none; transform: rotateY(24deg); }
+  }
+  .howto__muscles { font-family: var(--font-mono); font-size: 12px; line-height: 16px;
+                 color: var(--ink-muted); margin: 0 0 var(--space-3); }
+  .howto__muscles b { color: var(--accent); font-weight: 400; }
+  .howto__muscles i { color: var(--corp); font-style: normal; }
+  .howto__steps { margin: 0 0 var(--space-3); padding-left: 1.3em;
+                 font-size: 14px; line-height: 20px; display: grid; gap: var(--space-1); }
+  .howto__steps li::marker { color: var(--ink-faint); font-family: var(--font-mono); }
+  .addex { display: block; width: 100%; font-family: var(--font-label); font-size: 10px;
+           letter-spacing: .14em; text-transform: uppercase; color: var(--ink-muted);
+           background: transparent; border: var(--hairline) dashed var(--line);
+           padding: var(--space-3); margin: var(--space-1) 0 var(--space-2);
+           min-height: 44px; cursor: pointer; }
+  .addex:hover { color: var(--ink); border-color: var(--line-strong); }
+
+  /* Rest timer — Hevy-style accessory bar: full width, flat on the bottom
+     edge, [-15] [time] [+15] [Skip]. Appears only while a rest runs, and
+     rides above the on-screen keyboard (transform slides, no popping). */
+  .rtimer { position: fixed; left: 50%; bottom: 0;
+            transform: translate3d(-50%, 0, 0);
             will-change: transform; -webkit-backface-visibility: hidden; backface-visibility: hidden;
-            z-index: 60; display: flex; align-items: center; gap: .5rem;
-            max-width: calc(100vw - .8rem);
-            background: var(--panel); border: 1px solid var(--cyan);
-            box-shadow: 0 0 16px rgba(0,229,255,.35); padding: .4rem .55rem; }
-  body.logging-active .rtimer { bottom: calc(4.4rem + env(safe-area-inset-bottom)); }
+            transition: transform .18s ease-out;
+            z-index: 70; display: flex; align-items: center; gap: var(--space-2);
+            width: 100%; max-width: 720px;
+            background: var(--panel-solid); border-top: var(--hairline) solid var(--line-strong);
+            touch-action: manipulation; user-select: none; -webkit-user-select: none;
+            padding: var(--space-2) var(--space-3) calc(var(--space-2) + env(safe-area-inset-bottom)); }
   body.logging-active main { padding-bottom: calc(7.5rem + env(safe-area-inset-bottom)); }
   .rtimer[hidden] { display: none; }
-  .rtimer__rest { display: flex; align-items: center; gap: .5rem; }
-  .rtimer__rest[hidden] { display: none; }
-  .rtimer__label { font-family: var(--mono); font-size: .5rem; letter-spacing: .06em;
-                   text-transform: uppercase; color: var(--dim); max-width: 5.5rem;
-                   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .rtimer__time { font-family: var(--mono); font-size: 1.15rem; font-weight: 700; color: var(--cyan);
-                  text-shadow: 0 0 9px rgba(0,229,255,.55); min-width: 2.8rem; text-align: center; }
-  .rtimer__rest.done { animation: rtflash .6s steps(1) infinite; }
-  .rtimer__rest.done .rtimer__time { color: var(--lime); text-shadow: 0 0 12px rgba(182,255,0,.7); }
-  .rtimer__rest.done ~ .rtimer__totalbox .rtimer__total { color: var(--lime); }
+  /* The countdown is the hero numeral: display face, tabular, accent while live. */
+  .rtimer__time { flex: 1; font-family: var(--font-display); font-size: 28px; line-height: 32px;
+                  font-weight: 600; font-variant-numeric: tabular-nums; color: var(--accent);
+                  text-align: center; }
+  .rtimer.done { animation: rtflash .6s steps(1) infinite; }
+  .rtimer.done .rtimer__time { color: var(--ok); }
   @keyframes rtflash { 50% { opacity: .5; } }
-  .rtimer__ctl { display: flex; gap: .35rem; }
-  /* Equal-size controls: fixed width + centred text so +15/-15/pause/✕ line
-     up as a uniform row of comfortably tappable buttons. */
-  .rtimer__btn { font-family: var(--mono); font-size: .78rem; font-weight: 700;
-                 color: var(--ink); background: transparent; border: 1px solid var(--line);
-                 border-radius: 0; padding: .5rem 0; width: 2.9rem; text-align: center;
-                 cursor: pointer; }
-  .rtimer__btn:hover { border-color: var(--cyan); color: var(--cyan); }
-  /* White TOTAL session clock, beside the rest controls */
-  .rtimer__totalbox { display: flex; flex-direction: column; align-items: center; gap: .05rem; }
-  .rtimer__rest:not([hidden]) ~ .rtimer__totalbox { margin-left: .2rem; padding-left: .6rem;
-                 border-left: 1px solid var(--line); }
-  .rtimer__totallabel { font-family: var(--mono); font-size: .48rem; letter-spacing: .12em;
-                 text-transform: uppercase; color: var(--dim); }
-  .rtimer__total { font-family: var(--mono); font-size: .95rem; font-weight: 700; color: var(--ink);
-                 text-shadow: 0 0 6px rgba(255,255,255,.35); text-align: center; }
-  /* Phone widths: drop the exercise-name label and tighten up so the whole
-     bar (countdown + 4 controls + total) always fits on screen. */
-  @media (max-width: 520px) {
-    .rtimer { gap: .4rem; padding: .35rem .45rem; }
-    .rtimer__label { display: none; }
-    .rtimer__ctl { gap: .3rem; }
-    .rtimer__btn { width: 2.6rem; padding: .45rem 0; font-size: .74rem; }
-    .rtimer__time { font-size: 1.05rem; min-width: 2.5rem; }
-  }
-
-  /* Live total-session time in the logging banner */
-  .banner__clock { font-family: var(--mono); font-size: .74rem; font-weight: 700; letter-spacing: .06em;
-                   color: var(--lime); text-shadow: 0 0 8px rgba(182,255,0,.5); margin-top: .4rem; }
-  .banner__clock b { color: var(--dim); font-weight: 400; font-size: .58rem;
-                     letter-spacing: .1em; text-transform: uppercase; }
+  .rtimer__btn { font-family: var(--font-display); font-size: 14px; font-weight: 500;
+                 font-variant-numeric: tabular-nums; color: var(--ink);
+                 background: var(--panel-raised); border: var(--hairline) solid var(--line);
+                 padding: 0 var(--space-3); min-width: 52px; min-height: 44px;
+                 text-align: center; cursor: pointer; flex: none; }
+  .rtimer__btn:hover { background: var(--panel-selected); }
+  .rtimer__skip { color: var(--corp); border-color: var(--corp); background: transparent; }
+  /* Remaining-rest gauge: a thin fill on a hairline track along the top edge. */
+  .rtimer__gauge { position: absolute; left: 0; right: 0; top: -1px; height: 3px;
+                   background: var(--line); pointer-events: none; }
+  .rtimer__gauge-fill { height: 100%; width: 0; background: var(--accent); }
 
   /* Per-exercise workout note in the logger */
-  .exnote { display: block; width: 100%; box-sizing: border-box; font-family: var(--mono);
-            font-size: 16px; color: var(--ink); background: var(--panel-2);
-            border: 1px solid var(--line); border-radius: 0; padding: .28rem .45rem;
-            margin-top: .45rem; }
-  .exnote:focus { outline: none; border-color: var(--cyan); box-shadow: inset 0 0 0 1px rgba(0,229,255,.3); }
-  .exnote::placeholder { color: var(--dim); }
-  .exsetup { color: var(--cyan); }
-  .exsetup:focus { border-color: var(--cyan); }
+  .exnote { display: block; width: 100%; box-sizing: border-box; font-family: var(--font-body);
+            font-size: 16px; color: var(--ink); background: var(--bg-200);
+            border: var(--hairline) solid var(--line); padding: var(--space-2) var(--space-3);
+            margin-top: var(--space-2); }
+  .exnote:focus { border-color: var(--line-strong);
+                  outline: var(--hairline) solid var(--focus); outline-offset: 2px; }
+  .exnote::placeholder { color: var(--ink-faint); }
+  .exsetup { color: var(--corp); }
 
-  /* ── Neon boost while logging ─────────────────────────────────────────── */
-  body.logging-active { background:
-      radial-gradient(circle at 50% -12%, rgba(255,0,102,.10), transparent 55%), var(--bg); }
-  body.logging-active .banner { border-color: var(--magenta);
-      box-shadow: 0 0 18px rgba(255,0,102,.35), inset 0 0 22px rgba(255,0,102,.06); }
-  body.logging-active .banner__title { color: var(--magenta); text-shadow: 0 0 10px rgba(255,0,102,.6); }
-  body.logging-active .ex.logging { border: 1px solid var(--magenta);
-      box-shadow: 0 0 14px rgba(255,0,102,.28), inset 0 0 14px rgba(255,0,102,.05); }
-  body.logging-active .ex.logging .ex__name { color: var(--magenta); text-shadow: 0 0 9px rgba(255,0,102,.6); }
-  body.logging-active .setrow input[type=number] { color: var(--cyan);
-      border-color: rgba(0,229,255,.4); box-shadow: inset 0 0 8px rgba(0,229,255,.09);
-      text-shadow: 0 0 6px rgba(0,229,255,.4); }
-  body.logging-active .setrow input[type=number]:focus { border-color: var(--cyan);
-      box-shadow: inset 0 0 0 1px var(--cyan), 0 0 12px rgba(0,229,255,.5); }
-  /* Completed sets glow lime (positive) instead of fading out. */
-  body.logging-active .setrow.is-done { opacity: 1; }
-  body.logging-active .setrow.is-done input[type=number] { color: var(--lime);
-      border-color: rgba(182,255,0,.5); text-shadow: 0 0 7px rgba(182,255,0,.5);
-      box-shadow: inset 0 0 8px rgba(182,255,0,.12); }
-  body.logging-active .addex, body.logging-active .addset { color: var(--cyan);
-      border-color: rgba(0,229,255,.5); box-shadow: 0 0 8px rgba(0,229,255,.15); }
-  body.logging-active .exnote { border-color: rgba(255,0,102,.4);
-      box-shadow: inset 0 0 8px rgba(255,0,102,.06); }
-  body.logging-active .exnote:focus { border-color: var(--magenta);
-      box-shadow: inset 0 0 0 1px var(--magenta), 0 0 10px rgba(255,0,102,.4); }
-  body.logging-active .logbar .save { box-shadow: 0 0 20px rgba(182,255,0,.6);
-      animation: neonPulse 1.8s ease-in-out infinite; }
-  @keyframes neonPulse { 50% { box-shadow: 0 0 30px rgba(182,255,0,.9); } }
-  .logbar { position: sticky; bottom: 0; display: flex; gap: .6rem; margin-top: 1rem;
-            padding: .8rem 0 calc(.4rem + env(safe-area-inset-bottom));
-            background: linear-gradient(to top, var(--bg) 70%, transparent); }
-  .logbar button { flex: 1; font-family: var(--mono); font-size: .7rem; letter-spacing: .1em;
-            text-transform: uppercase; border-radius: 0; padding: .6rem; cursor: pointer; }
-  .logbar .save { color: #05050a; background: var(--lime); border: 1px solid var(--lime);
-            font-weight: 700; box-shadow: 0 0 14px rgba(182,255,0,.4); }
-  .logbar .save:disabled { opacity: .5; box-shadow: none; cursor: default; }
-  .logbar .cancel { color: var(--dim); background: transparent; border: 1px solid var(--line); }
-  .logstatus { font-family: var(--mono); font-size: .64rem; letter-spacing: .06em;
-               text-align: center; margin-top: .6rem; color: var(--dim); }
-  .logstatus.err { color: var(--danger); } .logstatus.ok { color: var(--lime); }
-  .discardbtn { display: block; margin: .6rem auto 0; font-family: var(--mono); font-size: .6rem;
-                letter-spacing: .1em; text-transform: uppercase; color: var(--danger);
-                background: transparent; border: 1px solid transparent; border-radius: 0;
-                padding: .3rem .6rem; cursor: pointer; opacity: .8; }
-  .discardbtn:hover { opacity: 1; border-color: var(--danger); text-shadow: 0 0 8px rgba(255,45,85,.6); }
-  .discardbtn.inline { display: inline-block; margin: .55rem 0 0 .5rem; }
-  .draftflag { font-family: var(--mono); font-size: .58rem; letter-spacing: .08em;
-               text-transform: uppercase; color: var(--amber, #ffb300); margin-top: .3rem; }
+  /* Sticky logging header (Hevy's Log Workout bar): elapsed clock on the
+     left, Finish — the one amber action while logging — on the right. */
+  .logtop { position: sticky; top: calc(49px + env(safe-area-inset-top)); z-index: 40;
+            display: flex; align-items: baseline; gap: var(--space-3);
+            margin: 0 0 var(--space-4); padding: var(--space-2) 0;
+            background: var(--bg-100); border-bottom: var(--hairline) solid var(--line); }
+  .logtop__label { font-family: var(--font-label); font-size: 9px; line-height: 13px;
+            letter-spacing: .14em; text-transform: uppercase; color: var(--ink-muted);
+            max-width: 230px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .logtop__clock { font-family: var(--font-display); font-size: 20px; line-height: 24px;
+            font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .logtop__finish { margin-left: auto; align-self: center; min-height: 40px;
+            padding: 0 var(--space-5); font-family: var(--font-body); font-size: 15px;
+            letter-spacing: .02em; color: var(--on-accent); background: var(--accent);
+            border: var(--hairline) solid var(--accent); cursor: pointer; }
+  .logtop__finish:hover { filter: brightness(1.08); }
+  .logtop__finish:disabled { opacity: var(--opacity-disabled); cursor: default; }
+
+  /* Bottom bar: just Cancel now (Finish lives in the sticky header). */
+  .logbar { position: sticky; bottom: 0; display: flex; gap: var(--space-3);
+            margin-top: var(--space-4);
+            padding: var(--space-3) 0 calc(var(--space-2) + env(safe-area-inset-bottom));
+            background: linear-gradient(to top, var(--bg-100) 70%, transparent); }
+  /* While the keyboard is up the bottom edge belongs to the timer bar —
+     the Cancel bar would float behind the keyboard accessory row. */
+  body.logging-active:has(input:focus) .logbar { visibility: hidden; }
+  .logbar button { flex: 1; font-family: var(--font-body); font-size: 15px;
+            letter-spacing: .02em; min-height: 44px; cursor: pointer; }
+  .logbar .cancel { color: var(--ink); background: var(--panel-raised);
+            border: var(--hairline) solid var(--line); }
+
+  /* Per-exercise chip row (rest timer, notes toggle) + the coach's note. */
+  .exchips { display: flex; gap: var(--space-2); flex-wrap: wrap; margin: var(--space-2) 0 0; }
+  .chipbtn { display: inline-flex; align-items: center; gap: var(--space-1);
+            font-family: var(--font-mono); font-size: 12px; line-height: 16px;
+            color: var(--ink-muted); background: var(--bg-200);
+            border: var(--hairline) solid var(--line);
+            padding: var(--space-1) var(--space-2); min-height: 32px; cursor: pointer; }
+  .chipbtn:hover { color: var(--ink); border-color: var(--line-strong); }
+  .chipbtn.on { color: var(--ink); background: var(--panel-raised);
+            border-color: var(--line-strong); }
+  .lognote { font-size: 14px; line-height: 20px; color: var(--ink);
+            margin: var(--space-3) 0 0; padding-left: var(--space-3);
+            border-left: 2px solid var(--corp);
+            white-space: pre-wrap; overflow-wrap: break-word; }
+  /* In the logger the name is a button (identity blue, taps to How-to) —
+     inherits the .ex__name face/size, just resets button chrome. */
+  .ex.logging .ex__name { color: var(--corp); background: transparent; border: 0;
+            padding: 0; cursor: pointer; text-align: left; }
+  .logstatus { font-family: var(--font-mono); font-size: 12px; text-align: center;
+               margin-top: var(--space-3); color: var(--ink-muted); }
+  .logstatus.err { color: var(--lamp); } .logstatus.ok { color: var(--ok); }
+  .discardbtn { display: block; margin: var(--space-3) auto 0; font-family: var(--font-label);
+                font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+                color: var(--target); background: transparent;
+                border: var(--hairline) solid transparent;
+                padding: var(--space-2) var(--space-3); min-height: 36px; cursor: pointer; }
+  .discardbtn:hover { border-color: var(--target); }
+  .discardbtn.inline { display: inline-block; margin: var(--space-3) 0 0 var(--space-2); }
+  .draftflag { display: flex; align-items: center; gap: var(--space-2);
+               font-family: var(--font-label); font-size: 10px; letter-spacing: .14em;
+               text-transform: uppercase; color: var(--accent); margin: 0 0 var(--space-3); }
+  .draftflag::before { content: ""; width: 6px; height: 6px; background: currentColor; flex: none; }
 
   /* Reasoning */
-  details.why { background: var(--panel); border: 1px solid var(--line); margin-top: 1.1rem; }
+  details.why { background: var(--panel); border: var(--hairline) solid var(--line);
+                margin-top: var(--space-5); }
   details.why > summary { list-style: none; cursor: pointer; user-select: none;
-      font-family: var(--mono); font-size: .64rem; letter-spacing: .12em; text-transform: uppercase;
-      color: var(--dim); padding: .7rem .9rem; }
+      display: flex; align-items: center; gap: var(--space-2);
+      font-family: var(--font-label); font-size: 10px; letter-spacing: .18em;
+      text-transform: uppercase; color: var(--ink-muted);
+      padding: var(--space-3) var(--space-4); }
   details.why > summary::-webkit-details-marker { display: none; }
-  details.why > summary::after { content: " ▸"; color: var(--cyan); }
-  details.why[open] > summary::after { content: " ▾"; }
-  details.why[open] > summary { color: var(--cyan); }
-  .why__body { font-size: .84rem; line-height: 1.55; color: var(--dim);
-               padding: 0 .9rem .9rem; white-space: pre-wrap; overflow-wrap: break-word; }
+  details.why > summary::after { content: "▾"; color: var(--ink-faint); margin-left: auto; }
+  details.why[open] > summary::after { content: "▴"; }
+  details.why[open] > summary { color: var(--ink); }
+  .why__body { font-size: 14px; line-height: 20px; color: var(--ink-muted);
+               padding: 0 var(--space-4) var(--space-4); white-space: pre-wrap;
+               overflow-wrap: break-word; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hist { animation: none; }
+    .rtimer.done { animation: none; }
+    .sheet-overlay, .sheet { transition: none; }
+  }
 </style>
 </head>
-<body>
-<header class="hud">
-  <div class="hud__bar">
-    <span class="hud__brand"><b>■</b>WORKOUT</span>
-    <span class="hud__jp">ワークアウト</span>
-    <span class="tag">{{ user }}</span>
-    <span class="hud__spacer"></span>
-    <details class="hud__menu">
+<body class="srt srt-ground">
+<header class="srt-appbar">
+  <div class="srt-appbar-bar">
+    <h1 class="srt-appbar-title">Workout</h1>
+    <span class="srt-tag is-chapter">//{{ user }}</span>
+    <span class="srt-appbar-spacer"></span>
+    <details class="srt-menu">
       <summary>Menu</summary>
-      <div class="hud__menu-panel">
-        <a href="{{ chat_url }}">▸ Chat</a>
-        <a class="current" href="{{ chat_url }}/workout">▸ Workout</a>
-        <a href="{{ chat_url }}/review">▸ Review</a>
-        <a href="{{ chat_url }}/stats">▸ Stats</a>
-        <a href="{{ chat_url }}/log">▸ Log</a>
-        <a href="{{ chat_url }}/settings">▸ Settings</a>
-      </div>
+      <nav class="srt-menu-panel">
+        <a href="{{ chat_url }}">Chat</a>
+        <a aria-current="page" href="{{ chat_url }}/workout">Workout</a>
+        <a href="{{ chat_url }}/review">Review</a>
+        <a href="{{ chat_url }}/stats">Stats</a>
+        <a href="{{ chat_url }}/log">Log</a>
+        <a href="{{ chat_url }}/settings">Settings</a>
+      </nav>
     </details>
   </div>
-  <div class="hud__hazard"></div>
 </header>
-<main id="main"><p class="muted">Loading…</p></main>
+<main id="main">
+  <div class="srt-boot">
+    <div class="srt-boot-label"><span>Loading</span><span class="srt-boot-sys">//workout</span></div>
+    <div class="srt-boot-track"></div>
+    <div class="srt-boot-micro">retrieving prescription</div>
+  </div>
+</main>
 <script>
 const DATA_URL = "{{ data_url }}";
 const CHAT_URL = "{{ chat_url }}";
@@ -455,12 +649,16 @@ const EXLIST_URL = CHAT_URL + "/workout/exercises";
 const SETUP_URL  = CHAT_URL + "/workout/setup";
 const CLASSIFY_URL = CHAT_URL + "/workout/classify";
 const HOWTO_URL  = CHAT_URL + "/workout/howto";
-const CYAN = "#00e5ff", LIME = "#b6ff00";
+const TOKENS = getComputedStyle(document.documentElement);
+const token = n => (TOKENS.getPropertyValue(n) || "").trim();
+const INK = token("--ink"), ACCENT = token("--accent");
 let swapping = false;   // one swap (Hevy PUT) at a time, across all cards
-let LOGGING = false;    // editable logging mode on the Workout tab
+let LOGGING = false;      // editable logging mode on the Workout tab
+let REVEAL_LOG = false;   // one-shot entrance animation when logging opens
+let STRETCH = null;       // optional pre/post routines: {pre:{items,done}, post:{items,done}}
 let CURRENT = null;     // last /workout/data payload, for re-rendering on toggle
 const SVGNS = "http://www.w3.org/2000/svg";
-const MONO = "ui-monospace, Menlo, monospace";
+const MONO = token("--font-mono") || "monospace";
 
 function el(tag, cls, text) {
   const e = document.createElement(tag);
@@ -473,6 +671,33 @@ function fmtDate(iso) {
   const d = new Date(iso + "T00:00:00");
   if (isNaN(d)) return iso;
   return d.toLocaleDateString("en", { weekday: "short", day: "2-digit", month: "short" });
+}
+
+// Union of the session's target muscles: each exercise's primaries (library
+// entry first, catalog muscle as fallback) in accent, remaining secondaries
+// in corp — one figure pair summarising what the whole workout hits.
+function sessionMuscleFigs(w) {
+  const prim = new Set(), sec = new Set();
+  (w.exercises || []).forEach(ex => {
+    const le = EXLIB[ex.exercise_name];
+    const p = (le && le.primary && le.primary.length) ? le.primary
+            : (ex.muscle_group ? [ex.muscle_group] : []);
+    p.forEach(m => prim.add(m));
+    ((le && le.secondary) || []).forEach(m => sec.add(m));
+  });
+  const primary = [...prim];
+  const secondary = [...sec].filter(m => !prim.has(m));
+  if (!primary.length) return null;
+  const figs = el("div", "banner__figs");
+  figs.title = "Muscles this session targets";
+  figs.appendChild(muscleSvg("front", primary, secondary));
+  figs.appendChild(muscleSvg("back", primary, secondary));
+  return figs;
+}
+
+// Equipment names for display: the catalog's "none" reads as bodyweight.
+function equipLabel(e) {
+  return e === "none" ? "BW" : e;
 }
 
 function isBodyweight(ex) {
@@ -523,49 +748,48 @@ function ntArm(seconds, name) {
 }
 function ntDisarm() { if (NT) NT.disarmAlarm().catch(() => {}); }
 
-// Fixed neon bar pinned to the right-hand centre. Always shown while logging
+// Fixed bar centred at the bottom of the screen. Always shown while logging
 // (with a white TOTAL session clock under the controls); the rest countdown
 // appears above it when armed. Countdown is driven by an absolute end-time, so
 // the alarm fires exactly when the display hits 0 (no drift between them).
 const RT = {
-  el: null, rest: null, disp: null, label: null, pauseBtn: null, totalEl: null,
+  el: null, disp: null, gfill: null, exname: "",
   endAt: 0, remain: 0, total: 0, timer: null, running: false, resting: false,
+  hideAt: 0,
   ensure() {
     if (this.el) return;
+    // Hevy-style accessory bar: [-15] [time] [+15] [Skip], full width, flat
+    // against the bottom — and it rides above the keyboard while typing.
     const bar = el("div", "rtimer"); bar.hidden = true;
-    const rest = el("div", "rtimer__rest"); rest.hidden = true;
-    this.label = el("div", "rtimer__label", "Rest");
-    this.disp  = el("div", "rtimer__time", "0:00");
-    const ctl  = el("div", "rtimer__ctl");
-    const mk = (t, fn) => { const b = el("button", "rtimer__btn", t); b.type = "button";
-                            b.addEventListener("click", fn); return b; };
-    ctl.appendChild(mk("+15", () => this.bump(15)));
-    ctl.appendChild(mk("-15", () => this.bump(-15)));
-    this.pauseBtn = mk("❚❚", () => this.toggle());
-    ctl.appendChild(this.pauseBtn);
-    ctl.appendChild(mk("✕", () => this.stopRest()));
-    rest.appendChild(this.label); rest.appendChild(this.disp); rest.appendChild(ctl);
-    this.rest = rest;
-
-    const tot = el("div", "rtimer__totalbox");
-    tot.appendChild(el("div", "rtimer__totallabel", "Total"));
-    this.totalEl = el("div", "rtimer__total", "0:00");
-    tot.appendChild(this.totalEl);
-
-    bar.appendChild(rest); bar.appendChild(tot);
+    const gauge = el("div", "rtimer__gauge");
+    this.gfill = el("div", "rtimer__gauge-fill");
+    gauge.appendChild(this.gfill);
+    bar.appendChild(gauge);
+    const mk = (t, cls, fn) => { const b = el("button", cls, t); b.type = "button";
+                                 b.addEventListener("click", fn); return b; };
+    bar.appendChild(mk("-15", "rtimer__btn", () => this.bump(-15)));
+    this.disp = el("div", "rtimer__time", "0:00");
+    bar.appendChild(this.disp);
+    bar.appendChild(mk("+15", "rtimer__btn", () => this.bump(15)));
+    bar.appendChild(mk("Skip", "rtimer__btn rtimer__skip", () => this.stopRest()));
     document.body.appendChild(bar);
     this.el = bar;
 
-    // Dodge the on-screen keyboard: position:fixed is anchored to the LAYOUT
-    // viewport, so when the keyboard opens (visual viewport shrinks) a bottom
-    // bar gets buried under it. Track the visual viewport and lift the bar by
-    // the covered amount so it rides just above the keyboard while typing.
+    // Ride above the on-screen keyboard. Don't ASSUME how much the keyboard
+    // covers — WKWebView sometimes shrinks the layout viewport itself, and a
+    // blind innerHeight-based lift then doubles up (bar lands mid-screen).
+    // Instead measure where the bar actually is and move its bottom edge to
+    // the visual viewport's bottom edge; self-correcting either way.
     if (window.visualViewport) {
       const place = () => {
         const vv = window.visualViewport;
-        const covered = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-        bar.style.transform = `translate3d(-50%, ${-covered}px, 0)`;
+        // Natural bottom of a fixed bottom:0 element = layout viewport
+        // height; move it to the visual viewport's bottom edge.
+        const lift = Math.max(0, Math.round(
+          document.documentElement.clientHeight - (vv.offsetTop + vv.height)));
+        bar.style.transform = `translate3d(-50%, ${-lift}px, 0)`;
       };
+      this._place = place;
       window.visualViewport.addEventListener("resize", place);
       window.visualViewport.addEventListener("scroll", place);
       place();
@@ -573,11 +797,11 @@ const RT = {
   },
   fmt(s) { s = Math.max(0, Math.round(s));
            return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); },
-  // Show the bar + drive the total clock (called on entering/rendering logging).
-  showBar() { this.ensure(); this.el.hidden = false; this.loop(); },
+  // Drive the elapsed clock in the sticky logging header (the countdown bar
+  // itself only appears while a rest is running — Hevy-style).
+  showBar() { this.ensure(); this.loop(); },
   hideBar() { if (this.timer) clearInterval(this.timer); this.timer = null;
               this.resting = false; ntDisarm();
-              if (this.rest) this.rest.hidden = true;
               if (this.el) this.el.hidden = true; },
   loop() {
     clearInterval(this.timer);
@@ -585,34 +809,40 @@ const RT = {
     this.paint();
   },
   paint() {
-    if (this.totalEl) this.totalEl.textContent = fmtClock(Date.now() - sessionStart());
-    if (!this.resting) return;
+    const lc = document.getElementById("logclock");
+    if (lc) lc.textContent = fmtClock(Date.now() - sessionStart());
+    if (!this.resting) { if (this.el && !this.el.hidden) this.el.hidden = true; return; }
     if (this.running) this.remain = (this.endAt - Date.now()) / 1000;
     if (this.running && this.remain <= 0) { this.remain = 0; this.fire(); }
     this.disp.textContent = this.fmt(this.remain);
-    this.rest.classList.toggle("done", this.remain <= 0);
-    this.pauseBtn.textContent = this.running ? "❚❚" : "▶";
+    if (this.gfill) this.gfill.style.width =
+      (this.total ? Math.max(0, this.remain) / this.total * 100 : 0) + "%";
+    this.el.classList.toggle("done", this.remain <= 0);
+    // Done: flash briefly, then put the bar away by itself.
+    if (this.remain <= 0 && this.hideAt && Date.now() >= this.hideAt) this.stopRest();
   },
   start(seconds, name) {
     this.ensure();
     _audio();                        // prime/unlock while we're in the tap that started it
     this.el.hidden = false;
+    if (this._place) this._place();
     this.total  = Math.max(1, seconds || 90);
     this.remain = this.total;
     this.endAt  = Date.now() + this.total * 1000;
-    this.running = true; this.resting = true;
-    this.label.textContent = name ? "Rest · " + name : "Rest";
-    this.rest.hidden = false; this.rest.classList.remove("done");
+    this.running = true; this.resting = true; this.hideAt = 0;
+    this.exname = name || "";
+    this.el.classList.remove("done");
     ntArm(this.total, name);
     this.loop();
   },
   fire() {
     this.running = false;
+    this.hideAt = Date.now() + 2200;
     // If the zero-cross happened while the app was backgrounded (web timers
     // suspended), the native notification already alerted — don't replay the
     // alarm when the athlete comes back to a long-expired timer.
     const late = Date.now() - this.endAt > 3000;
-    if (late) return;
+    if (late) { this.stopRest(); return; }
     if (NT) {
       // focus=true interrupts playback: video apps stay paused, music apps
       // auto-resume after release. Toggleable in Settings ("rt:pausevideo").
@@ -623,21 +853,89 @@ const RT = {
     try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {}
     playAlarm();
   },
-  toggle() {
-    if (!this.resting) return;
-    if (this.remain <= 0) { this.start(this.total, this.label.textContent.replace(/^Rest · /, "")); return; }
-    if (this.running) { this.running = false; ntDisarm(); }     // pause: freeze remain
-    else { this.running = true; this.endAt = Date.now() + this.remain * 1000;
-           ntArm(this.remain, this.label.textContent.replace(/^Rest · /, "")); }
-    this.paint();
-  },
-  bump(d) { this.remain = Math.max(0, this.remain + d);
+  bump(d) { if (!this.resting) return;
+            this.remain = Math.max(0, this.remain + d);
             this.endAt = Date.now() + this.remain * 1000;
-            if (this.running) ntArm(this.remain, this.label.textContent.replace(/^Rest · /, ""));
-            if (d > 0) this.rest.classList.remove("done"); this.paint(); },
+            if (d > 0) { this.running = true; this.hideAt = 0;
+                         this.el.classList.remove("done"); }
+            if (this.running) ntArm(this.remain, this.exname);
+            this.paint(); },
   stopRest() { this.resting = false; this.running = false; ntDisarm();
-               if (this.rest) this.rest.hidden = true; this.paint(); },
-};
+               if (this.gfill) this.gfill.style.width = "0%";
+               if (this.el) { this.el.classList.remove("done"); this.el.hidden = true; } },
+}
+
+// ── Exercise visuals ─────────────────────────────────────────────────────────
+// Index of vendored gymvisual media (static/gvlib/): per exercise a 180px
+// still + animation GIF (media (c) Gym visual — credit shown in the how-to
+// sheet), English instruction steps and muscle lists.
+let EXLIB = {};
+const EXLIB_READY = fetch("/static/gvlib/index.json")
+  .then(r => (r.ok ? r.json() : {}))
+  .then(d => { EXLIB = d || {}; })
+  .catch(() => {});
+function gvStill(name) {
+  const e = EXLIB[name];
+  return e && e.img ? "/static/gvlib/media/" + e.img : null;
+}
+function gvGif(name) {
+  const e = EXLIB[name];
+  return e && e.gif ? "/static/gvlib/media/" + e.gif : null;
+}
+
+// Muscle figure: the vendored polygon body (muscles.js) with the given
+// muscles highlighted — primary in accent, secondary in corp. Accepts both
+// our catalog's muscle names and free-exercise-db's (MUSCLE_MAP folds both).
+function muscleSvg(view, primary, secondary) {
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  // 2210 not 2000: the back view's soleus polygons reach y≈2200 and were
+  // getting their feet cut off. Same box on both views keeps them aligned.
+  svg.setAttribute("viewBox", "0 0 1000 2210");
+  svg.setAttribute("class", "mfig");
+  svg.setAttribute("aria-hidden", "true");
+  const fold = names => {
+    const out = new Set();
+    (names || []).forEach(m => (MUSCLE_MAP[(m || "").replace(/ /g, "_")] ||
+                                MUSCLE_MAP[m] || []).forEach(x => out.add(x)));
+    return out;
+  };
+  const prim = fold(primary), sec = fold(secondary);
+  MUSCLE_SVG[view].forEach(part => part.p.forEach(pts => {
+    const pg = document.createElementNS(NS, "polygon");
+    pg.setAttribute("points", pts);
+    if (prim.has(part.m)) pg.setAttribute("class", "is-prim");
+    else if (sec.has(part.m)) pg.setAttribute("class", "is-sec");
+    svg.appendChild(pg);
+  }));
+  return svg;
+}
+// Which view shows this muscle (front wins when visible in both).
+const FRONT_REGIONS = new Set(MUSCLE_SVG.front.map(p => p.m));
+function figView(muscle) {
+  const regions = MUSCLE_MAP[(muscle || "").replace(/ /g, "_")] || MUSCLE_MAP[muscle] || [];
+  return regions.length && !regions.some(r => FRONT_REGIONS.has(r)) ? "back" : "front";
+}
+// Thumbnail for a list row: the gymvisual still, else a muscle figure. The
+// wrapper carries the slab (border/background) and the img only the dark-
+// treatment filter — a filter on the slab itself would invert its ground
+// colour to a pale flash while the image loads.
+function exThumb(name, muscle, cls, onTap) {
+  // With a tap action it becomes a button (the visible way into the info
+  // sheet); inside the picker rows it stays a plain span (no nested buttons).
+  const wrap = el(onTap ? "button" : "span", cls);
+  if (onTap) { wrap.type = "button"; wrap.title = "Exercise info";
+               wrap.addEventListener("click", onTap); }
+  const url = gvStill(name);
+  if (url) {
+    const im = el("img", "gv-media"); im.src = url; im.loading = "lazy"; im.alt = "";
+    wrap.appendChild(im);
+  } else {
+    wrap.classList.add("is-fig");
+    wrap.appendChild(muscleSvg(figView(muscle), muscle ? [muscle] : [], []));
+  }
+  return wrap;
+}
 
 // Saved per-exercise setup notes (seat height, pin, pad), keyed by exercise name.
 let SETUPS = {};
@@ -681,7 +979,8 @@ function openExercisePicker(opts, onPick) {
   items.forEach(it => { byName[it.name] = it; });
   openSheet((sheet, close) => {
     sheet.classList.add("sheet--picker");
-    sheet.appendChild(el("div", "sheet__title", opts.title || "Add Exercise"));
+    sheet.appendChild(el("div", "sheet__title", opts.title || "Add exercise"));
+    sheetClose(sheet, close);
     const inp = el("input", "picker__search");
     inp.type = "text"; inp.autocomplete = "off"; inp.placeholder = "Search exercises…";
     sheet.appendChild(inp);
@@ -712,9 +1011,10 @@ function openExercisePicker(opts, onPick) {
 
     const row = it => {
       const b = el("button", "picker__row"); b.type = "button";
+      b.appendChild(exThumb(it.name, it.muscle, "picker__thumb"));
       const main = el("div", "picker__main");
       main.appendChild(el("div", "picker__name", it.name));
-      const meta = [it.muscle, it.equipment].filter(Boolean).join(" · ");
+      const meta = [it.muscle, equipLabel(it.equipment)].filter(Boolean).join(" · ");
       if (meta) main.appendChild(el("div", "picker__meta", meta));
       b.appendChild(main);
       const d = el("span", "picker__days" + (it.days_ago != null && it.days_ago <= 7 ? " recent" : ""),
@@ -727,8 +1027,10 @@ function openExercisePicker(opts, onPick) {
     function renderChips() {
       regionRow.textContent = "";
       muscleRow.textContent = "";
-      const mk = (row, label, on, fn, cls) => {
-        const c = el("button", "pchip" + (cls ? " " + cls : "") + (on ? " on" : ""), label);
+      const mk = (row, label, on, fn, cls, muscle) => {
+        const c = el("button", "pchip" + (cls ? " " + cls : "") + (on ? " on" : ""));
+        if (muscle) c.appendChild(muscleSvg(figView(muscle), [muscle], []));
+        c.appendChild(document.createTextNode(label));
         c.type = "button";
         c.addEventListener("click", () => { fn(); renderChips(); renderList(); });
         row.appendChild(c);
@@ -739,7 +1041,7 @@ function openExercisePicker(opts, onPick) {
       if (region) {
         mk(muscleRow, "all " + region, !muscle, () => { muscle = ""; });
         REGIONS[region].filter(m => present.has(m)).forEach(m =>
-          mk(muscleRow, m, muscle === m, () => { muscle = m; }));
+          mk(muscleRow, m, muscle === m, () => { muscle = m; }, "", m));
       }
       muscleRow.hidden = !region;
     }
@@ -798,17 +1100,15 @@ function openExercisePicker(opts, onPick) {
 function exerciseCard(ex, idx) {
   const card = el("div", "ex" + (ex.is_main_lift ? " main" : ""));
 
-  // Row 1: name with ⓘ snug beside it, History pinned far right.
+  // Row 1: tappable thumbnail (opens the info sheet) + name; History far right.
   // Row 2: meta chips in a fixed order (muscle · equipment · main · readiness).
   const head = el("div", "ex__head");
   const title = el("div", "ex__title");
+  title.appendChild(exThumb(ex.exercise_name, ex.muscle_group, "ex__thumb",
+    () => openHowTo(ex.exercise_name)));
   title.appendChild(el("span", "ex__name", ex.exercise_name));
-  const infoBtn = el("button", "hist-btn", "ⓘ");
-  infoBtn.type = "button"; infoBtn.title = "How to perform this movement";
-  infoBtn.addEventListener("click", () => openHowTo(ex.exercise_name));
-  title.appendChild(infoBtn);
   head.appendChild(title);
-  const histBtn = el("button", "hist-btn", "◷ History");
+  const histBtn = el("button", "hist-btn", "History");
   histBtn.type = "button";
   histBtn.setAttribute("aria-expanded", "false");
   head.appendChild(histBtn);
@@ -816,8 +1116,8 @@ function exerciseCard(ex, idx) {
 
   const meta = el("div", "ex__meta");
   if (ex.muscle_group) meta.appendChild(el("span", "ex__tag", ex.muscle_group.replace(/_/g, " ")));
-  if (ex.equipment_category) meta.appendChild(el("span", "ex__tag", ex.equipment_category));
-  if (ex.is_main_lift) meta.appendChild(el("span", "ex__tag ex__tag--main", "★ main lift"));
+  if (ex.equipment_category) meta.appendChild(el("span", "ex__tag", equipLabel(ex.equipment_category)));
+  if (ex.is_main_lift) meta.appendChild(el("span", "ex__tag ex__tag--main", "main lift"));
   if (ex.readiness && ex.readiness.rag && ex.readiness.rag !== "none") {
     const chip = el("span", "ready rag-" + ex.readiness.rag);
     chip.appendChild(el("span", "rag-dot"));
@@ -846,10 +1146,8 @@ function exerciseCard(ex, idx) {
   }
 
   if (ex.rest_seconds) {
-    const rest = el("button", "rest rest--btn", "▸ Rest " + ex.rest_seconds + "s between sets");
-    rest.type = "button"; rest.title = "Start rest timer";
-    rest.addEventListener("click", () => RT.start(ex.rest_seconds, ex.exercise_name));
-    card.appendChild(rest);
+    // Display only — the timer belongs to the logging view.
+    card.appendChild(el("div", "rest", "Rest " + ex.rest_seconds + "s between sets"));
   }
   if (ex.notes) card.appendChild(el("div", "notes", ex.notes));
   if (ex.alternates && ex.alternates.length) {
@@ -871,18 +1169,20 @@ function exerciseCard(ex, idx) {
   // Lazily-loaded e1RM progression graph, toggled by the History button.
   const panel = el("div", "hist");
   panel.hidden = true;
-  const colour = ex.is_main_lift ? LIME : CYAN;
+  const colour = ex.is_main_lift ? ACCENT : INK;
   let loaded = false;
   histBtn.addEventListener("click", async () => {
     if (histBtn.getAttribute("aria-expanded") === "true") {
       panel.hidden = true;
       histBtn.setAttribute("aria-expanded", "false");
-      histBtn.textContent = "◷ History";
+      histBtn.textContent = "History";
       return;
     }
     panel.hidden = false;
+    panel.classList.add("srt-reveal");
+    setTimeout(() => panel.classList.remove("srt-reveal"), 700);
     histBtn.setAttribute("aria-expanded", "true");
-    histBtn.textContent = "◷ Hide";
+    histBtn.textContent = "Hide";
     if (loaded) return;
     loaded = true;
     panel.textContent = "";
@@ -973,7 +1273,6 @@ function lineChart(series, colour) {
   const W = 300, H = 120, padL = 34, padR = 12, padT = 12, padB = 18;
   const gid = "wgrad" + Math.random().toString(36).slice(2, 8);
   const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none" });
-  const glow = c => `filter: drop-shadow(0 0 2px ${c}) drop-shadow(0 0 6px ${c})`;
 
   const vals = series.map(p => p.e1rm);
   let lo = Math.min(...vals), hi = Math.max(...vals);
@@ -1008,13 +1307,12 @@ function lineChart(series, colour) {
   const d = pts.map((p, i) => (i ? "L" : "M") + p[0] + " " + p[1]).join(" ");
   const trace = svgEl("path", { d, fill: "none", stroke: colour, "stroke-width": 2,
     "stroke-linejoin": "round", "stroke-linecap": "round" });
-  trace.setAttribute("style", glow(colour));
   svg.appendChild(trace);
 
   if (series.length <= 40) {
     pts.forEach((p, i) => {
       const m = svgEl("rect", { x: p[0] - 1.5, y: p[1] - 1.5, width: 3, height: 3,
-        fill: colour, style: glow(colour) });
+        fill: colour });
       const pt = series[i];
       const set = (pt.weight ? pt.weight + "kg × " + pt.reps : "BW × " + pt.reps);
       const title = svgEl("title", {});
@@ -1026,8 +1324,7 @@ function lineChart(series, colour) {
   return svg;
 }
 
-const SESSION_COLOURS = { push: "#00e5ff", pull: "#b6ff00", legs: "#ff6a00", arms: "#ff0066" };
-const SESSION_LABEL   = { push: "Push", pull: "Pull", legs: "Legs", arms: "Arms" };
+const SESSION_LABEL = { push: "Push", pull: "Pull", legs: "Legs", arms: "Arms" };
 
 function comingUp(seq) {
   const box = el("div", "coming");
@@ -1035,12 +1332,8 @@ function comingUp(seq) {
   const row = el("div", "coming__row");
   seq.forEach((st, i) => {
     if (i > 0) row.appendChild(el("span", "coming__arrow", "›"));
-    const colour = SESSION_COLOURS[st] || CYAN;
     const chip = el("span", "coming__chip" + (i === 0 ? " now" : ""),
                     SESSION_LABEL[st] || st);
-    chip.style.color = colour;
-    chip.style.borderColor = colour;
-    if (i === 0) chip.style.boxShadow = "0 0 8px " + colour + "66, inset 0 0 12px " + colour + "22";
     row.appendChild(chip);
   });
   box.appendChild(row);
@@ -1065,6 +1358,14 @@ function saveDraft() {
 }
 function clearDraft() {
   try { localStorage.removeItem(draftKey()); } catch (e) {}
+  try { localStorage.removeItem(draftKey() + ":stretch"); } catch (e) {}
+}
+function saveStretchDraft() {
+  try { localStorage.setItem(draftKey() + ":stretch", JSON.stringify(STRETCH)); } catch (e) {}
+}
+function loadStretchDraft() {
+  try { const r = localStorage.getItem(draftKey() + ":stretch"); return r ? JSON.parse(r) : null; }
+  catch (e) { return null; }
 }
 function loadDraft() {
   try { const r = localStorage.getItem(draftKey()); return r ? JSON.parse(r) : null; }
@@ -1101,12 +1402,16 @@ function fmtClock(ms) {
   return h > 0 ? h + ":" + mm + ":" + ss : mm + ":" + ss;
 }
 
-// Prefill a freshly-added/swapped exercise's blank sets from its last logged
-// session (weight + reps), so you're not starting from zero.
+// Prefill a freshly-added/swapped exercise from its last logged session:
+// attach the full set list (PREVIOUS column) and fill blank weight/reps.
 async function seedFromHistory(mex) {
   try {
     const r = await fetch(HIST_URL + "?name=" + encodeURIComponent(mex.exercise_name));
     const d = await r.json();
+    if (d.previous && d.previous.sets && d.previous.sets.length) {
+      mex.previous = d.previous.sets;
+      mex.prev_date = d.previous.date;
+    }
     const s = d.series || [];
     if (!s.length) return;
     const last = s[s.length - 1];
@@ -1122,8 +1427,12 @@ async function seedFromHistory(mex) {
 function openSheet(build) {
   const overlay = el("div", "sheet-overlay");
   const sheet = el("div", "sheet");
-  const close = () => { overlay.classList.remove("open");
-                        setTimeout(() => overlay.remove(), 160); };
+  // Lock the page behind the sheet — without this, inner scrolls chain to
+  // the body on iOS and the workout scrolls under the popup.
+  document.body.classList.add("sheet-open");
+  const close = () => { overlay.classList.add("closing");
+                        document.body.classList.remove("sheet-open");
+                        setTimeout(() => overlay.remove(), 200); };
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
   build(sheet, close);
   overlay.appendChild(sheet);
@@ -1132,11 +1441,20 @@ function openSheet(build) {
   return close;
 }
 
+// Square hairline ✕ in the sheet's top corner — the visible way out
+// (backdrop tap still works).
+function sheetClose(sheet, close) {
+  const b = el("button", "sheet__close", "✕"); b.type = "button";
+  b.title = "Close";
+  b.addEventListener("click", close);
+  sheet.appendChild(b);
+}
+
 const SET_TYPES = [
-  { key: "warmup",  badge: "W", label: "Warm Up Set", cls: "st-warm" },
-  { key: "normal",  badge: "1", label: "Normal Set",  cls: "st-normal" },
-  { key: "failure", badge: "F", label: "Failure Set", cls: "st-fail" },
-  { key: "drop",    badge: "D", label: "Drop Set",    cls: "st-drop" },
+  { key: "warmup",  badge: "W", label: "Warm-up set", cls: "st-warm" },
+  { key: "normal",  badge: "1", label: "Normal set",  cls: "st-normal" },
+  { key: "failure", badge: "F", label: "Failure set", cls: "st-fail" },
+  { key: "drop",    badge: "D", label: "Drop set",    cls: "st-drop" },
 ];
 const SET_TYPE_BY = Object.fromEntries(SET_TYPES.map(t => [t.key, t]));
 function setType(mset) { return mset.type || (mset.warmup ? "warmup" : "normal"); }
@@ -1144,7 +1462,7 @@ function isWarm(mset)  { return setType(mset) === "warmup"; }
 
 function openSetType(mset, mex, rerender) {
   openSheet((sheet, close) => {
-    sheet.appendChild(el("div", "sheet__title", "Select Set Type"));
+    sheet.appendChild(el("div", "sheet__title", "Select set type"));
     SET_TYPES.forEach(t => {
       const row = el("button", "sheet__opt"); row.type = "button";
       row.appendChild(el("span", "st-badge " + t.cls, t.badge));
@@ -1155,7 +1473,7 @@ function openSetType(mset, mex, rerender) {
     });
     const rm = el("button", "sheet__opt danger"); rm.type = "button";
     rm.appendChild(el("span", "st-badge st-remove", "✕"));
-    rm.appendChild(el("span", "sheet__optlabel", "Remove Set"));
+    rm.appendChild(el("span", "sheet__optlabel", "Remove set"));
     rm.addEventListener("click", () => {
       mex.sets.splice(mex.sets.indexOf(mset), 1); saveDraft(); close(); rerender();
     });
@@ -1176,7 +1494,7 @@ const RPE_DESC = {
 };
 function openRpe(mset, rerender, predicted) {
   openSheet((sheet, close) => {
-    sheet.appendChild(el("div", "sheet__title", "Log Set RPE"));
+    sheet.appendChild(el("div", "sheet__title", "Log set RPE"));
     const sub = (mset.weight ? mset.weight + "kg × " : "") + (mset.reps || 0) + " reps"
       + (predicted ? " · expected ~" + predicted : "");
     sheet.appendChild(el("div", "sheet__sub", sub));
@@ -1198,7 +1516,7 @@ function openRpe(mset, rerender, predicted) {
       row.appendChild(b);
     });
     sheet.appendChild(row);
-    const done = el("button", "sheet__done", "Done ✓"); done.type = "button";
+    const done = el("button", "sheet__done", "Done"); done.type = "button";
     done.addEventListener("click", () => { close(); rerender(); });
     sheet.appendChild(done);
     const clr = el("button", "sheet__clear", "Clear"); clr.type = "button";
@@ -1207,15 +1525,86 @@ function openRpe(mset, rerender, predicted) {
   });
 }
 
-// ── How-to sheet (ⓘ): Claude-generated movement breakdown + follow-up chat ──
+// ── Info sheet (tap a thumbnail): animation, muscles, steps + coach chat ──
 // First open generates via Haiku and caches to the Log tab; afterwards it's
 // instant. Follow-up questions are one-shot, answered in the sheet only.
 function openHowTo(name) {
   openSheet((sheet, close) => {
     sheet.classList.add("sheet--howto");
     sheet.appendChild(el("div", "sheet__title", name));
+    sheetClose(sheet, close);
+
+    // Everything between the title and the ask bar scrolls as ONE region,
+    // contained so it never drags the workout behind it.
+    const scroller = el("div", "howto__scroll");
+
+    // Visuals from the vendored library: the movement loop (tap to pause)
+    // beside the spinning muscle figure, then the written steps.
+    const le = EXLIB[name];
+    const cat = CATALOG && CATALOG.items.find(i => i.name === name);
+    const primary = (le && le.primary.length) ? le.primary : (cat && cat.muscle ? [cat.muscle] : []);
+    const secondary = (le && le.secondary) || [];
+    if ((le && le.img) || primary.length) {
+      const vis = el("div", "howto__vis");
+      if (le && le.img) {
+        // The movement loop: GIF while playing, the still when paused.
+        const anim = el("div", "howto__anim");
+        const img = el("img", "gv-media"); img.alt = name;
+        anim.appendChild(img);
+        const setPlay = on => {
+          anim.classList.toggle("is-paused", !on);
+          img.src = (on && le.gif) ? gvGif(name) : gvStill(name);
+        };
+        anim.addEventListener("click", () => setPlay(anim.classList.contains("is-paused")));
+        // Always start playing — the loop IS the content here (tap pauses).
+        setPlay(!!le.gif);
+        vis.appendChild(anim);
+      }
+      if (primary.length) {
+        // Turntable: front/back views as the outer faces plus stacked
+        // silhouette layers in between for thickness — an extruded body
+        // slowly rotating about the vertical axis.
+        const fig3d = el("div", "mfig3d");
+        const inner = el("div", "mfig3d-inner");
+        for (let z = -6; z <= 6; z += 3) {
+          const mid = muscleSvg(z < 0 ? "back" : "front", [], []);
+          mid.classList.add("is-mid");
+          mid.style.transform = "translateZ(" + z + "px)" + (z < 0 ? " rotateY(180deg)" : "");
+          inner.appendChild(mid);
+        }
+        const front = muscleSvg("front", primary, secondary);
+        front.classList.add("is-front");
+        inner.appendChild(front);
+        const back = muscleSvg("back", primary, secondary);
+        back.classList.add("is-back");
+        inner.appendChild(back);
+        fig3d.appendChild(inner);
+        vis.appendChild(fig3d);
+      }
+      scroller.appendChild(vis);
+      if (primary.length) {
+        const m = el("p", "howto__muscles");
+        m.append("Primary » ");
+        m.appendChild(el("b", null, primary.join(", ")));
+        if (secondary.length) {
+          m.append("  ·  secondary » ");
+          m.appendChild(el("i", null, secondary.join(", ")));
+        }
+        scroller.appendChild(m);
+      }
+      if (le && le.instructions && le.instructions.length) {
+        const steps = el("ol", "howto__steps");
+        le.instructions.forEach(s => steps.appendChild(el("li", null, s)));
+        scroller.appendChild(steps);
+      }
+      if (le && le.img) {
+        scroller.appendChild(el("p", "howto__credit", "Illustration © Gym visual — gymvisual.com"));
+      }
+    }
+
     const thread = el("div", "howto__thread");
-    sheet.appendChild(thread);
+    scroller.appendChild(thread);
+    sheet.appendChild(scroller);
     const ask = el("div", "howto__ask");
     const inp = el("input", "howto__inp"); inp.type = "text";
     inp.placeholder = "Ask a follow-up (grip, depth, pain…)";
@@ -1223,7 +1612,10 @@ function openHowTo(name) {
     ask.appendChild(inp); ask.appendChild(btn);
     sheet.appendChild(ask);
 
-    const query = async (payload, bubble) => {
+    // followScroll: only follow-ups the athlete typed jump the view to the
+    // answer — the intro breakdown must leave the sheet at the top (the
+    // animation and steps are the first thing to see).
+    const query = async (payload, bubble, followScroll) => {
       try {
         const r = await fetch(HOWTO_URL, {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -1233,14 +1625,14 @@ function openHowTo(name) {
         if (!r.ok || d.error) throw new Error(d.error || r.statusText);
         bubble.textContent = d.text;
       } catch (e) {
-        bubble.textContent = "⚠ " + e.message;
+        bubble.textContent = "Couldn\u2019t answer \u2014 " + e.message;
       }
-      thread.scrollTop = thread.scrollHeight;
+      if (followScroll) scroller.scrollTop = scroller.scrollHeight;
     };
 
     const intro = el("div", "howto__a", "Getting the breakdown from your coach…");
     thread.appendChild(intro);
-    query({ name }, intro);
+    query({ name }, intro, false);
 
     const send = async () => {
       const q = inp.value.trim();
@@ -1249,9 +1641,9 @@ function openHowTo(name) {
       thread.appendChild(el("div", "howto__q", q));
       const a = el("div", "howto__a", "…");
       thread.appendChild(a);
-      thread.scrollTop = thread.scrollHeight;
+      scroller.scrollTop = scroller.scrollHeight;
       btn.disabled = true;
-      await query({ name, question: q }, a);
+      await query({ name, question: q }, a, true);
       btn.disabled = false;
     };
     btn.addEventListener("click", send);
@@ -1322,7 +1714,7 @@ function openClassifySheet(mex, name, res, rerender) {
 
     const err = el("div", "classify-q"); err.style.display = "none";
     sheet.appendChild(err);
-    const use = el("button", "sheet__done", "Use it ✓"); use.type = "button";
+    const use = el("button", "sheet__done", "Use it"); use.type = "button";
     use.addEventListener("click", async () => {
       use.disabled = true; use.textContent = "Saving…";
       let saved = false;
@@ -1335,7 +1727,7 @@ function openClassifySheet(mex, name, res, rerender) {
       if (!saved) {
         err.textContent = "Couldn't save — check your connection and try again.";
         err.style.display = "";
-        use.disabled = false; use.textContent = "Use it ✓";
+        use.disabled = false; use.textContent = "Use it";
         return;
       }
       if (CATALOG) {
@@ -1368,6 +1760,9 @@ function modelFromPrescription(w) {
     alternates: (ex.alternates || []).slice(),
     predicted_rpe: ex.predicted_rpe,
     setup: SETUPS[ex.exercise_name] || "",
+    notes: ex.notes || "",
+    previous: (ex.previous && ex.previous.sets) || [],
+    prev_date: (ex.previous && ex.previous.date) || "",
     sets: (ex.sets || []).map(s => ({
       weight: s.weight_kg || 0, reps: s.reps || 0, rpe: "",
       type: s.is_warmup ? "warmup" : "normal", done: false,
@@ -1389,22 +1784,44 @@ function overlaySaved(model, logged) {
   return model;
 }
 
-function setRow(mset, mex, rerender) {
-  const row = el("div", "setrow" + (mset.done ? " is-done" : ""));
+// One line of the PREVIOUS column: "90 kg × 6 @ 7" from the last session's
+// set at the same position, or null if there is none.
+function prevLabel(prev, mex) {
+  if (!prev || !(prev.reps > 0)) return null;
+  const w = prev.weight_kg || 0;
+  const load = mex.is_bodyweight ? (w > 0 ? "BW+" + w : "BW") : w + "kg";
+  return load + "×" + prev.reps + (prev.rpe != null ? " @" + prev.rpe : "");
+}
 
-  const done = el("input", "done"); done.type = "checkbox"; done.checked = mset.done;
-  done.title = "Mark set completed";
-  done.addEventListener("change", () => { mset.done = done.checked; saveDraft();
-    row.classList.toggle("is-done", mset.done);
-    if (mset.done && !isWarm(mset)) RT.start(mex.rest_seconds || 90, mex.exercise_name); });
-  row.appendChild(done);
+// Hevy-style table row: [type badge] [previous] [kg] [reps] [rpe] [✓].
+// Removing a set lives in the set-type sheet (tap the badge).
+function setRow(mset, mex, rerender, rowIdx, workingNo) {
+  const row = el("div", "sett" + (mset.done ? " is-done" : ""));
 
-  // Set-type badge (W / 1 / F / D) — opens the classifier sheet.
+  // Set-type badge — W / working-set number / F / D; opens the classifier sheet.
   const t = SET_TYPE_BY[setType(mset)] || SET_TYPE_BY.normal;
-  const badge = el("button", "st-badge " + t.cls, t.badge); badge.type = "button";
-  badge.title = "Set type";
+  const badge = el("button", "st-badge " + t.cls,
+    setType(mset) === "normal" ? String(workingNo) : t.badge);
+  badge.type = "button";
+  badge.title = "Set type / remove set";
   badge.addEventListener("click", () => openSetType(mset, mex, rerender));
   row.appendChild(badge);
+
+  // PREVIOUS — tap to copy last session's numbers into this set.
+  const prev = (mex.previous || [])[rowIdx];
+  const plabel = prevLabel(prev, mex);
+  const pcell = el("button", "prevcell", plabel || "—");
+  pcell.type = "button";
+  pcell.disabled = !plabel;
+  if (plabel) {
+    pcell.title = "Use last session's numbers" + (mex.prev_date ? " (" + mex.prev_date + ")" : "");
+    pcell.addEventListener("click", () => {
+      mset.weight = prev.weight_kg || 0;
+      mset.reps = prev.reps || 0;
+      saveDraft(); rerender();
+    });
+  }
+  row.appendChild(pcell);
 
   // Highlight the whole value on focus so a new number types straight over it.
   const selectAll = inp => inp.addEventListener("focus", () => { try { inp.select(); } catch (e) {} });
@@ -1414,8 +1831,6 @@ function setRow(mset, mex, rerender) {
   w.inputMode = "decimal"; selectAll(w);
   w.addEventListener("input", () => { mset.weight = parseFloat(w.value) || 0; saveDraft(); });
   row.appendChild(w);
-
-  row.appendChild(el("span", "x", "×"));
 
   const reps = el("input"); reps.type = "number"; reps.step = "1"; reps.min = "0";
   reps.value = mset.reps || ""; reps.placeholder = "reps"; reps.inputMode = "numeric"; selectAll(reps);
@@ -1430,25 +1845,63 @@ function setRow(mset, mex, rerender) {
   rpeCell.addEventListener("click", () => openRpe(mset, rerender, mex.predicted_rpe));
   row.appendChild(rpeCell);
 
-  const rm = el("button", "rm", "×"); rm.type = "button"; rm.title = "Remove set";
-  rm.addEventListener("click", () => {
-    mex.sets.splice(mex.sets.indexOf(mset), 1); saveDraft(); rerender();
+  // Complete-set tick on the right — done turns the row green and arms the
+  // rest timer (working sets only).
+  const done = el("button", "donebtn", "✓"); done.type = "button";
+  done.title = "Mark set completed";
+  done.setAttribute("aria-pressed", mset.done ? "true" : "false");
+  done.addEventListener("click", () => {
+    mset.done = !mset.done; saveDraft();
+    row.classList.toggle("is-done", mset.done);
+    done.setAttribute("aria-pressed", mset.done ? "true" : "false");
+    if (mset.done && !isWarm(mset)) RT.start(mex.rest_seconds || 90, mex.exercise_name);
   });
-  row.appendChild(rm);
+  row.appendChild(done);
 
   return row;
+}
+
+// Column headings row, same grid as the set rows.
+function setTableHead(mex) {
+  const h = el("div", "sett sett-head");
+  h.appendChild(el("span", null, "Set"));
+  h.appendChild(el("span", "h-prev", "Prev"));
+  h.appendChild(el("span", null, mex.is_bodyweight ? "+kg" : "kg"));
+  h.appendChild(el("span", null, "Reps"));
+  h.appendChild(el("span", null, "RPE"));
+  h.appendChild(el("span", null, "✓"));
+  return h;
+}
+
+// Optional stretch routine: accent (orange) marks it as optional, a single
+// toggle records did / didn't — no sets, reps or details.
+function stretchCard(label, st, rerender) {
+  const card = el("div", "stretchcard" + (st.done ? " is-done" : ""));
+  const head = el("div", "stretchcard__head");
+  head.appendChild(el("p", "srt-eyebrow stretchcard__eyebrow", label + " — optional"));
+  const btn = el("button", "stretchcard__btn", st.done ? "✓ Done" : "Mark done");
+  btn.type = "button";
+  btn.addEventListener("click", () => { st.done = !st.done; saveStretchDraft(); rerender(); });
+  head.appendChild(btn);
+  card.appendChild(head);
+  const list = el("div", "stretchcard__list");
+  st.items.forEach(n => list.appendChild(el("span", "stretchcard__item", n)));
+  card.appendChild(list);
+  return card;
 }
 
 function loggerCard(mex, rerender) {
   const card = el("div", "ex logging");
   const head = el("div", "ex__head");
 
+  // Thumbnail and name both open the info sheet.
   const title = el("div", "ex__title");
-  title.appendChild(el("span", "ex__name", mex.exercise_name));
-  const info = el("button", "ex__ctl", "ⓘ"); info.type = "button";
-  info.title = "How to perform this movement";
-  info.addEventListener("click", () => openHowTo(mex.exercise_name));
-  title.appendChild(info);
+  title.appendChild(exThumb(mex.exercise_name, "", "ex__thumb",
+    () => openHowTo(mex.exercise_name)));
+  const name = el("button", "ex__name", mex.exercise_name); name.type = "button";
+  name.title = "How to perform this movement";
+  name.addEventListener("click", () => openHowTo(mex.exercise_name));
+  title.appendChild(name);
   head.appendChild(title);
   const actions = el("div", "ex__actions");
   const swap = el("button", "ex__ctl", "⇄"); swap.type = "button";
@@ -1456,7 +1909,7 @@ function loggerCard(mex, rerender) {
   swap.addEventListener("click", async () => {
     await loadCatalog();
     openExercisePicker(
-      { title: "Swap Exercise",
+      { title: "Swap exercise",
         suggested: (mex.alternates || []).filter(a => a && a !== mex.exercise_name) },
       async (name, isNew) => {
         if (isNew) await addUnknownExercise(mex, name, rerender);
@@ -1474,9 +1927,47 @@ function loggerCard(mex, rerender) {
   head.appendChild(actions);
   card.appendChild(head);
 
-  mex.sets.forEach(mset => card.appendChild(setRow(mset, mex, rerender)));
+  // Chip row: rest timer + notes toggle (Hevy's Rest / Note chips).
+  const chips = el("div", "exchips");
+  const restChip = el("button", "chipbtn",
+    "Rest " + RT.fmt(mex.rest_seconds || 90)); restChip.type = "button";
+  restChip.title = "Start the rest timer";
+  restChip.addEventListener("click", () => RT.start(mex.rest_seconds || 90, mex.exercise_name));
+  chips.appendChild(restChip);
+  const hasNotes = !!((mex.setup || "").trim() || (mex.note || "").trim());
+  if (hasNotes) mex.show_notes = true;
+  const noteChip = el("button", "chipbtn" + (mex.show_notes ? " on" : ""), "Note");
+  noteChip.type = "button"; noteChip.title = "Setup + session note";
+  noteChip.addEventListener("click", () => { mex.show_notes = !mex.show_notes;
+    saveDraft(); rerender(); });
+  chips.appendChild(noteChip);
+  card.appendChild(chips);
 
-  const add = el("button", "addset", "＋ set"); add.type = "button";
+  // The coach's prescription note, kept visible while logging.
+  if (mex.notes) card.appendChild(el("div", "lognote", mex.notes));
+
+  if (mex.show_notes) {
+    const setup = el("input", "exnote exsetup"); setup.type = "text";
+    setup.placeholder = "Setup — seat / pin / pad numbers (saved for next time)";
+    setup.value = mex.setup || "";
+    setup.addEventListener("input", () => { mex.setup = setup.value; saveDraft(); });
+    card.appendChild(setup);
+
+    const note = el("input", "exnote"); note.type = "text";
+    note.placeholder = "Tag a note (form cue, pain, felt easy…)";
+    note.value = mex.note || "";
+    note.addEventListener("input", () => { mex.note = note.value; saveDraft(); });
+    card.appendChild(note);
+  }
+
+  if (mex.sets.length) card.appendChild(setTableHead(mex));
+  let workingNo = 0;
+  mex.sets.forEach((mset, i) => {
+    if (setType(mset) === "normal") workingNo += 1;
+    card.appendChild(setRow(mset, mex, rerender, i, workingNo));
+  });
+
+  const add = el("button", "addset", "＋ Add set"); add.type = "button";
   add.addEventListener("click", () => {
     const last = mex.sets[mex.sets.length - 1];
     mex.sets.push(last
@@ -1485,29 +1976,33 @@ function loggerCard(mex, rerender) {
     saveDraft(); rerender();
   });
   card.appendChild(add);
-
-  const setup = el("input", "exnote exsetup"); setup.type = "text";
-  setup.placeholder = "⚙ Setup — seat / pin / pad numbers (saved for next time)";
-  setup.value = mex.setup || "";
-  setup.addEventListener("input", () => { mex.setup = setup.value; saveDraft(); });
-  card.appendChild(setup);
-
-  const note = el("input", "exnote"); note.type = "text";
-  note.placeholder = "Tag a note (form cue, pain, felt easy…)";
-  note.value = mex.note || "";
-  note.addEventListener("input", () => { mex.note = note.value; saveDraft(); });
-  card.appendChild(note);
   return card;
 }
 
 async function enterLogging(w) {
   LOGGING = true;
+  REVEAL_LOG = true;
   loadCatalog();                         // fire-and-forget; datalist ready shortly
   await loadSetups();                    // saved seat/pin numbers, before we build the model
   MODEL = modelFromPrescription(w);
+  const st = w.stretches || {};
+  STRETCH = loadStretchDraft() || {
+    pre:  { items: st.pre || [],  done: false },
+    post: { items: st.post || [], done: false },
+  };
   const draft = loadDraft();
   if (draft && draft.length) {
-    MODEL = draft;                       // unsaved edits win
+    // Unsaved edits win, but graft the fresh server-side context (PREVIOUS
+    // column, coach notes) onto them — older drafts won't have it.
+    const fresh = {};
+    MODEL.forEach(m => { fresh[m.exercise_name] = m; });
+    draft.forEach(m => {
+      const f = fresh[m.exercise_name];
+      if (!f) return;
+      if (!m.previous || !m.previous.length) { m.previous = f.previous; m.prev_date = f.prev_date; }
+      if (m.notes == null) m.notes = f.notes;
+    });
+    MODEL = draft;
   } else {
     try {                                // else seed from an already-saved session
       const qs = CURRENT && CURRENT.date ? "?date=" + encodeURIComponent(CURRENT.date) : "";
@@ -1521,27 +2016,45 @@ async function enterLogging(w) {
 
 function renderLogger(w) {
   document.body.classList.add("logging-active");
+  const mainEl = document.getElementById("main");
+  if (REVEAL_LOG) {
+    REVEAL_LOG = false;
+    mainEl.classList.add("srt-reveal");
+    setTimeout(() => mainEl.classList.remove("srt-reveal"), 700);
+  }
   const keepY = window.scrollY;
   const main = document.getElementById("main");
   main.textContent = "";
 
-  const banner = el("div", "banner");
-  if (w.session_type) banner.appendChild(el("span", "banner__type", w.session_type));
-  banner.appendChild(el("div", "banner__title", "Logging — " + (w.title || "session")));
-  banner.appendChild(el("div", "banner__meta",
-    "Enter what you actually did. Tick each set as you go — saved to this device."));
-  main.appendChild(banner);
-  sessionStart();          // stamp the session start (drives the sidebar TOTAL clock)
+  const status = el("div", "logstatus");
+
+  // Sticky header: elapsed clock + Finish (the one amber action while logging).
+  const top = el("div", "logtop");
+  const clockBox = el("div");
+  clockBox.appendChild(el("div", "logtop__label", "Logging — " + (w.title || "session")));
+  const clock = el("div", "logtop__clock", "0:00"); clock.id = "logclock";
+  clockBox.appendChild(clock);
+  top.appendChild(clockBox);
+  const finish = el("button", "logtop__finish", "Finish"); finish.type = "button";
+  finish.addEventListener("click", () => saveSession(w, finish, status));
+  top.appendChild(finish);
+  main.appendChild(top);
+
+  sessionStart();          // stamp the session start (drives the header clock)
   RT.showBar();
-  if (loadDraft()) main.appendChild(el("div", "draftflag", "● unsaved draft restored"));
+  if (loadDraft()) main.appendChild(el("div", "draftflag", "Unsaved draft restored"));
 
   const rerender = () => renderLogger(w);
+  if (STRETCH && STRETCH.pre.items.length)
+    main.appendChild(stretchCard("Warm-up stretches", STRETCH.pre, rerender));
   MODEL.forEach(mex => main.appendChild(loggerCard(mex, rerender)));
+  if (STRETCH && STRETCH.post.items.length)
+    main.appendChild(stretchCard("Cool-down stretches", STRETCH.post, rerender));
 
   const addEx = el("button", "addex", "＋ Add exercise"); addEx.type = "button";
   addEx.addEventListener("click", async () => {
     await loadCatalog();
-    openExercisePicker({ title: "Add Exercise" }, async (name, isNew) => {
+    openExercisePicker({ title: "Add exercise" }, async (name, isNew) => {
       // New exercises default to 4 sets; seedFromHistory fills weight/reps
       // from the last logged session of this movement.
       const mex = { exercise_name: "", is_bodyweight: false, rest_seconds: 90,
@@ -1555,13 +2068,10 @@ function renderLogger(w) {
   });
   main.appendChild(addEx);
 
-  const status = el("div", "logstatus");
   const bar = el("div", "logbar");
-  const save = el("button", "save", "✓ Finish & save"); save.type = "button";
   const cancel = el("button", "cancel", "Cancel"); cancel.type = "button";
   cancel.addEventListener("click", () => { LOGGING = false; render(CURRENT); });
-  save.addEventListener("click", () => saveSession(w, save, status));
-  bar.appendChild(cancel); bar.appendChild(save);
+  bar.appendChild(cancel);
   main.appendChild(bar);
   main.appendChild(status);
 
@@ -1594,6 +2104,7 @@ async function saveSession(w, saveBtn, status) {
   if (!exercises.length) {
     status.className = "logstatus err";
     status.textContent = "Add at least one set with reps before saving.";
+    status.scrollIntoView({ block: "nearest" });
     return;
   }
   saveBtn.disabled = true;
@@ -1602,19 +2113,22 @@ async function saveSession(w, saveBtn, status) {
     const r = await fetch(LOG_URL, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ date: CURRENT.date, session_type: w.session_type,
-                             workout_name: w.title, exercises, setups }),
+                             workout_name: w.title, exercises, setups,
+                             stretches: STRETCH ? { pre_done: !!STRETCH.pre.done,
+                                                    post_done: !!STRETCH.post.done } : null }),
     });
     const d = await r.json();
     if (!r.ok || d.error) throw new Error(d.error || r.statusText);
     clearDraft();
     clearSessionStart();
     status.className = "logstatus ok";
-    status.textContent = "✓ Saved " + d.sets_written + " sets — your coach can see it now.";
+    status.textContent = "Saved " + d.sets_written + " sets — your coach can see it now.";
     setTimeout(() => { LOGGING = false; render(CURRENT); }, 1400);
   } catch (e) {
     saveBtn.disabled = false;
     status.className = "logstatus err";
     status.textContent = "Save failed — " + e.message;
+    status.scrollIntoView({ block: "nearest" });
   }
 }
 
@@ -1625,6 +2139,8 @@ function render(d) {
   RT.hideBar();
   const main = document.getElementById("main");
   main.textContent = "";
+  main.classList.add("srt-reveal");
+  setTimeout(() => main.classList.remove("srt-reveal"), 700);
 
   const w = d.workout;
   if (!w) {
@@ -1643,18 +2159,20 @@ function render(d) {
     (a, ex) => a + (ex.sets || []).filter(s => !s.is_warmup).length, 0);
 
   const banner = el("div", "banner");
+  const figs = sessionMuscleFigs(w);
+  if (figs) { banner.appendChild(figs); banner.classList.add("banner--figs"); }
   if (w.session_type) banner.appendChild(el("span", "banner__type", w.session_type));
   banner.appendChild(el("div", "banner__title", w.title || "Prescribed session"));
   const when = el("div", "banner__when " + (d.is_today ? "today" : "stale"));
   when.textContent = d.is_today
-    ? "▸ Today's session"
-    : "▸ Prescribed " + fmtDate(d.date) + " — no newer session yet";
+    ? "Today's session"
+    : "Prescribed " + fmtDate(d.date) + " — no newer session yet";
   banner.appendChild(when);
   banner.appendChild(el("div", "banner__meta",
     exercises.length + (exercises.length === 1 ? " exercise" : " exercises")
     + " · " + working + " working sets"));
   const logBtn = el("button", "logbtn" + (loadDraft() ? " on" : ""),
-    loadDraft() ? "▸ Resume logging" : "▸ Log this session");
+    loadDraft() ? "Resume logging" : "Log this session");
   logBtn.type = "button";
   logBtn.addEventListener("click", () => enterLogging(w));
   banner.appendChild(logBtn);
@@ -1681,9 +2199,10 @@ function render(d) {
 // Re-arm audio when returning to the tab (iOS suspends the context in background).
 document.addEventListener("visibilitychange", () => { if (!document.hidden) _audio(); });
 
-fetch(DATA_URL)
-  .then(r => r.json())
-  .then(d => { if (d.error) throw new Error(d.error); render(d); })
+// Wait for the visuals index too (local + tiny) so thumbnails are on the
+// first paint rather than popping in on a later rerender.
+Promise.all([fetch(DATA_URL).then(r => r.json()), EXLIB_READY])
+  .then(([d]) => { if (d.error) throw new Error(d.error); render(d); })
   .catch(e => {
     document.getElementById("main").innerHTML =
       '<p class="muted">Could not load your workout (' + e.message + ').</p>';

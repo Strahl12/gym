@@ -1,32 +1,20 @@
-/* theme.js — applies the athlete's theme preference before first paint.
-   Preference lives in localStorage ("gym:theme": system | dark | light);
-   "system" resolves via prefers-color-scheme. tdr.css keys its light palette
-   off html[data-theme="light"], so this script is the single switch point.
-   Loaded in <head> BEFORE the stylesheet so there is no wrong-theme flash. */
+/* theme.js — the app is hangar (dark) only; Sortie's daylight theme is not
+   offered. Pinning data-theme ignores any gym:theme preference stored by the
+   old theme picker. Loaded in <head> BEFORE the stylesheets so fonts warm
+   early and the native shell is tagged before first paint. */
 (function () {
-  function resolve(pref) {
-    if (pref === "light" || pref === "dark") return pref;
-    return (window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches)
-      ? "light" : "dark";
-  }
-  function apply() {
-    var pref = "system";
-    try { pref = localStorage.getItem("gym:theme") || "system"; } catch (e) {}
-    document.documentElement.dataset.theme = resolve(pref);
-  }
-  window.__gymTheme = {
-    get: function () {
-      try { return localStorage.getItem("gym:theme") || "system"; } catch (e) { return "system"; }
-    },
-    set: function (pref) {
-      try { localStorage.setItem("gym:theme", pref); } catch (e) {}
-      apply();
-    },
-  };
-  if (window.matchMedia) {   // live-follow the OS while in "system" mode
-    try { matchMedia("(prefers-color-scheme: light)").addEventListener("change", apply); } catch (e) {}
-  }
-  apply();
+  document.documentElement.dataset.theme = "hangar";
+
+  // Warm the webfont faces that only JS-rendered content uses (numerals,
+  // headings). Browsers load faces lazily on first use, which for fetched
+  // content is after the load event — kicking the loads off at
+  // DOMContentLoaded means numbers never paint blank.
+  document.addEventListener("DOMContentLoaded", function () {
+    if (!(document.fonts && document.fonts.load)) return;
+    ["600 32px 'Chakra Petch'", "500 22px 'Chakra Petch'", "400 20px 'Chakra Petch'",
+     "400 15px Saira", "500 15px Saira", "400 12px 'Share Tech Mono'",
+     "400 10px Michroma"].forEach(function (f) { document.fonts.load(f); });
+  });
 
   // iOS app (Capacitor shell appends GymCoachNative to the UA): tag the
   // document so CSS can diverge, and lock the viewport — no pinch zoom and,

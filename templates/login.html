@@ -3,55 +3,44 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Sign in — Gym Coach</title>
-<script src="/static/theme.js?v=2"></script>
-<link rel="stylesheet" href="/static/tdr.css?v=13">
+<title>Sign in — Sortie</title>
+<script src="/static/theme.js?v=5"></script>
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/saira-memjYa2wxmKQyPMrZX79wwYZQMhsyuSLiIvS.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/chakrapetch-cIflMapbsEk7TDLdtEz1BwkebIl1R5_F.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/chakrapetch-cIflMapbsEk7TDLdtEz1BwkeQI51R5_F.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/chakrapetch-cIf6MapbsEk7TDLdtEz1BwkWn6pg.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/michroma-PN_zRfy9qWD8fEagAPg9pTk.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/sharetechmono-J7aHnp1uDWRBEqV98dVQztYldFcLowEF.woff2">
+<link rel="stylesheet" href="/static/fonts.css?v=1">
+<link rel="stylesheet" href="/static/sortie/tokens.css?v=1">
+<link rel="stylesheet" href="/static/sortie/sortie.css?v=1">
+<link rel="stylesheet" href="/static/gym.css?v=6">
 <style>
-  body { min-height: 100dvh; display: grid; place-items: center; padding: 1rem; }
-  .card { width: min(92vw, 23rem); background: var(--panel); border: 1px solid var(--line);
-          padding: 1.6rem 1.4rem 1.8rem; }
-  .card__top { display: flex; align-items: center; gap: .5rem; margin-bottom: 1.4rem; }
-  h1 { font-size: 1.5rem; margin: 0; letter-spacing: .14em; text-transform: uppercase;
-       font-weight: 800; }
-  h1 b { color: var(--magenta); text-shadow: 0 0 12px rgba(255,0,102,.7); }
-  .jp { font-size: .7rem; color: var(--dim); letter-spacing: .28em; margin-left: auto; }
-  label { display: block; font-family: var(--mono); font-size: .66rem; letter-spacing: .14em;
-          text-transform: uppercase; color: var(--dim); margin: 0 0 1rem; }
-  input { display: block; width: 100%; margin-top: .4rem; padding: .6rem .7rem;
-          font: inherit; font-size: 1rem; color: var(--ink); background: var(--bg);
-          border: 1px solid var(--line); border-radius: 0; }
-  input:focus { outline: 0; border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan); }
-  button { width: 100%; padding: .7rem; margin-top: .4rem; font: inherit; font-size: .95rem;
-           font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
-           background: var(--magenta); color: #05050a; border: 0; border-radius: 0; cursor: pointer;
-           box-shadow: 0 0 14px rgba(255,0,102,.45); }
-  button:hover { box-shadow: 0 0 20px rgba(255,0,102,.7); }
-  .err { color: var(--danger); font-family: var(--mono); font-size: .72rem;
-         letter-spacing: .06em; margin: 0 0 1rem; }
-  .hint { color: var(--dim); font-size: .78rem; line-height: 1.5; margin-top: 1.3rem; }
-  .hz { height: 4px; margin-top: 1.3rem;
-        background: repeating-linear-gradient(-45deg, var(--magenta) 0 9px, transparent 9px 18px); }
+  body { min-height: 100dvh; display: grid; place-items: center; padding: var(--space-6); }
+  .login { width: min(92vw, 400px); }
+  .login form { display: grid; gap: var(--space-4); margin-top: var(--space-4); }
+  .login .srt-btn { width: 100%; justify-content: center; margin-top: var(--space-2); }
+  .hint { margin: var(--space-5) 0 0; font-size: 13px; line-height: 18px; color: var(--ink-muted); }
 </style>
 </head>
-<body>
-<div class="card reg">
-  <div class="card__top">
-    <h1><b>■</b>GYM.COACH</h1>
-    <span class="jp">ジム</span>
-  </div>
-  {% if error %}<p class="err">⚠ {{ error }}</p>{% endif %}
+<body class="srt srt-ground">
+<main class="login srt-panel">
+  <p class="srt-eyebrow">Sortie</p>
+  <h1 class="srt-panel-title">Sign in</h1>
+  {% if error %}<p class="srt-error">{{ error }}</p>{% endif %}
   <form method="post" action="/login">
-    <label>Username
-      <input name="username" autocomplete="username" autocapitalize="none"
+    <label class="srt-field">
+      <span class="srt-eyebrow is-plain">Username</span>
+      <input class="srt-input" name="username" autocomplete="username" autocapitalize="none"
              autocorrect="off" spellcheck="false" required value="{{ username or '' }}">
     </label>
-    <label>Password
-      <input type="password" name="password" autocomplete="current-password" required>
+    <label class="srt-field">
+      <span class="srt-eyebrow is-plain">Password</span>
+      <input class="srt-input" type="password" name="password" autocomplete="current-password" required>
     </label>
-    <button type="submit">Sign in</button>
+    <button class="srt-btn is-primary" type="submit"><span class="srt-btn-chev"></span>Sign in</button>
   </form>
   <p class="hint">No password yet? Open the setup link you were sent.</p>
-  <div class="hz"></div>
-</div>
+</main>
 </body>
 </html>

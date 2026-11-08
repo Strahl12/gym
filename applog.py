@@ -204,3 +204,21 @@ def logged_session(db_path: str, d: str | None = None) -> dict | None:
         "date": d,
         "exercises": [{"exercise_name": k, "sets": v} for k, v in grouped.items()],
     }
+
+
+def save_stretch_log(db_path: str, date: str, session_type: str,
+                     pre_done: bool, post_done: bool) -> None:
+    """Record whether the athlete did the optional pre/post stretch routines
+    for a session — one row per (date, session_type), re-saving overwrites."""
+    con = sqlite3.connect(db_path)
+    try:
+        con.execute("""CREATE TABLE IF NOT EXISTS stretch_log (
+            date TEXT NOT NULL, session_type TEXT NOT NULL,
+            pre_done INTEGER NOT NULL DEFAULT 0,
+            post_done INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (date, session_type))""")
+        con.execute("INSERT OR REPLACE INTO stretch_log VALUES (?, ?, ?, ?)",
+                    (date, session_type, int(bool(pre_done)), int(bool(post_done))))
+        con.commit()
+    finally:
+        con.close()
