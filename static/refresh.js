@@ -34,6 +34,17 @@
     if (document.querySelector(".modal-back")) return true;
     if (target && target.closest &&
         target.closest("input, textarea, select, .sheet, .modal")) return true;
+    // Pull-to-refresh belongs to the PAGE scroll. A gesture starting inside
+    // any scrollable container (the chat message list, pickers, …) is that
+    // container's scroll — hijacking it made scrolling chat trigger refresh.
+    var n = target;
+    while (n && n !== document.body && n.nodeType === 1) {
+      if (n.scrollHeight > n.clientHeight + 4) {
+        var oy = getComputedStyle(n).overflowY;
+        if (oy === "auto" || oy === "scroll") return true;
+      }
+      n = n.parentElement;
+    }
     return false;
   }
 
