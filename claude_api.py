@@ -651,9 +651,16 @@ def format_athlete_context(context: dict, all_lifts: bool = False) -> str:
         f"Last session exercises: {', '.join(last_exercises) if last_exercises else 'none'}",
         f"Sessions in last 7 days: {sessions_7d}",
         f"Session balance (last 28 days): {balance}",
-        f"Equipment increments — barbell: {inc['barbell']}kg | cable: {inc['cable']}kg"
+        f"Equipment increments (fallback only) — barbell: {inc['barbell']}kg | cable: {inc['cable']}kg"
         f" | dumbbell: {inc['dumbbell']}kg/side | machine: {inc['machine']}kg",
     ]
+
+    # The gym's REAL loadable weights, learned from the athlete's logs —
+    # overrides the generic increments above wherever listed.
+    wal = context.get("weight_availability") or []
+    if wal:
+        lines.append("\n## Gym weight availability (observed from this athlete's logs — prescribe only loadable weights)")
+        lines.extend(f"  {l}" for l in wal)
 
     if phase_lines:
         lines.append("\n## Focus lift phase")
@@ -770,10 +777,15 @@ def format_athlete_context(context: dict, all_lifts: bool = False) -> str:
         fc = fat.get("components", {})
         lines.append("\n## Fatigue signals")
         lines.append(f"  Score: {fat.get('score')}/100  ({fat.get('verdict')})")
-        lines.append(f"  Last-session avg last-set RPE: {fc.get('last_set_rpe_avg')}")
-        lines.append(f"  Focus-lift e1RM 14d slope: {fc.get('e1rm_slope_kg_per_week_14d')}kg/wk")
+        lines.append(f"  Workload ratio (acute 7d vs chronic 28d): {fc.get('acwr')}"
+                     f"  (sweet spot 0.8-1.3; >1.5 overreaching)")
+        lines.append(f"  Rep shortfall vs prescription (last sessions): {fc.get('rep_shortfall_pct')}%")
+        lines.append(f"  RPE drift vs athlete's own baseline: {fc.get('rpe_drift')}"
+                     f" ({fc.get('rpe_drift_sets')} sets; None = too little RPE data)")
         lines.append(f"  Consecutive training days: {fc.get('consecutive_training_days')}/{config.MAX_CONSECUTIVE_DAYS}")
-        lines.append(f"  Bodyweight 14d slope: {fc.get('bodyweight_slope_kg_per_week_14d')}kg/wk (goal: {config.GOAL_MODE})")
+        if fc.get("deload_active"):
+            lines.append("  NOTE: current prescription is a deliberate deload/re-entry - "
+                         "reduced loads are intentional, not decline.")
         if fc.get("notes_hits"):
             lines.append(f"  Note flags: {'; '.join(fc['notes_hits'])}")
         lines.append("  If verdict is 'rest' OR you judge accumulated fatigue is excessive, return"
@@ -1127,27 +1139,55 @@ def _enforce_fatigue_rules(exercises: list[dict]) -> None:
 
 
 def _snap_weights(exercises: list[dict]) -> None:
-    """Snap every prescribed set weight to the loadable increment for its
-    equipment (config.EQUIPMENT_INCREMENTS; 2.5kg default, e.g. 5kg machine
-    stacks). Nearest multiple wins; an exact halfway tie rounds DOWN so the
-    snap never nudges the athlete heavier than the model intended. Applies to
-    added weight on bodyweight lifts too; a 0/absent weight stays untouched."""
+    """Snap every prescribed set weight to a weight the athlete's gym actually
+    has: the OBSERVED loadable set from their own logs (stats.achievable_weights
+    — e.g. a 2kg-step dumbbell rack, each machine's own stack), falling back to
+    the configured increment grid where history is thin. Nearest value wins;
+    ties round DOWN so the snap never nudges the athlete heavier than the model
+    intended. Applies to added weight on bodyweight lifts too; a 0/absent
+    weight stays untouched."""
     import math
+    import stats
     inc_map = getattr(config, "EQUIPMENT_INCREMENTS", {}) or {}
+    try:
+        avail = stats.achievable_weights(db_path=str(config.DB_PATH))
+    except Exception as e:
+        print(f"[claude_api] achievable_weights unavailable ({e}); grid fallback")
+        avail = {}
+
+    def scope_for(ex):
+        name = (ex.get("exercise_name") or "").strip()
+        eq = (ex.get("equipment_category") or "").strip()
+        hit = avail.get(f"exercise:{name}")
+        if hit:
+            return hit
+        if eq in ("barbell", "dumbbell", "kettlebell", "plate"):
+            return avail.get(f"equipment:{eq}")
+        if eq in ("none", "bodyweight"):
+            return avail.get("equipment:added")
+        return None
+
     for ex in exercises:
         inc = float(inc_map.get(ex.get("equipment_category"), 2.5))
         if inc <= 0:
             continue
+        scope = scope_for(ex)
+        use_observed = bool(scope and len(scope["weights"]) >= 3)
         for s in ex.get("sets", []) or []:
             w = s.get("weight_kg")
             if not isinstance(w, (int, float)) or w <= 0:
                 continue
-            snapped = inc * math.floor(w / inc + 0.5 - 1e-9)
+            if use_observed:
+                snapped = stats.snap_to_achievable(w, scope["weights"], scope["step"], inc)
+                how = "observed set"
+            else:
+                snapped = inc * math.floor(w / inc + 0.5 - 1e-9)
+                how = f"{inc}kg grid"
             if snapped <= 0:
                 snapped = inc
             if abs(snapped - w) > 1e-9:
                 print(f"[claude_api] Snapped {ex.get('exercise_name', '?')}: "
-                      f"{w}kg -> {snapped}kg ({inc}kg grid)")
+                      f"{w}kg -> {snapped}kg ({how})")
             s["weight_kg"] = round(snapped, 2)
 
 

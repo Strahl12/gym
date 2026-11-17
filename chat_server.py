@@ -541,7 +541,7 @@ def _session_user() -> str | None:
 
 
 def _login_redirect(user: str, password_hash: str):
-    resp = make_response(redirect("/app", code=303))
+    resp = make_response(redirect("/app/stats", code=303))
     resp.set_cookie(
         chat_auth.SESSION_COOKIE,
         chat_auth.make_session(SECRET, user, password_hash),
@@ -1575,6 +1575,15 @@ def _applog_response(user: str):
     print(f"[chat] {user}: logged {result['sets_written']} sets "
           f"({result['session_type']}) to {result['session_id']}")
 
+    # One-tap readiness label (fatigue-score ground truth).
+    rd = (body.get("readiness") or "").strip()
+    if rd:
+        try:
+            applog.save_readiness(db_path, result.get("date") or "",
+                                  result["session_type"], rd)
+        except Exception as e:
+            print(f"[chat] {user}: readiness save failed: {e}")
+
     # Record whether the optional stretch routines were done (binary only).
     st = body.get("stretches")
     if isinstance(st, dict):
@@ -2213,7 +2222,8 @@ def chat_devinfo_ping(token: str):
 
 @app.get("/")
 def root():
-    return redirect("/app" if _session_user() else "/login", code=302)
+    # Stats is the app's homepage; everything else hangs off the menu.
+    return redirect("/app/stats" if _session_user() else "/login", code=302)
 
 
 @app.get("/login")

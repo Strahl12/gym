@@ -11,6 +11,7 @@ Reads from the SQLite DB and computes:
 """
 import sqlite3
 import json
+import re
 from datetime import date, datetime, timedelta
 from typing import Optional
 import config
@@ -88,9 +89,41 @@ def lift_history(exercise: str, n: int = 8) -> list[dict]:
     return result
 
 
-def plateau_detected(history: list[dict], threshold: int = config.PLATEAU_SESSIONS) -> bool:
-    """True if e1RM hasn't improved over the last `threshold` sessions."""
+def suppressed_session_dates(days: int = 180) -> set:
+    """Dates whose prescription imposed an RPE cap / deload / re-entry /
+    plateau reset. Sessions on those days had no OPPORTUNITY to progress, so
+    a flat e1RM there is the programme's doing, not the athlete's — they must
+    not count as plateau evidence (that feedback loop drove the squat
+    prescription from 110kg to 80kg over two months)."""
+    con = _con()
+    try:
+        rows = con.execute("""
+            SELECT date, reasoning, exercises_json FROM prescribed_sessions
+            WHERE date >= date('now', ?)
+        """, (f"-{days} days",)).fetchall()
+    except sqlite3.OperationalError:
+        return set()
+    finally:
+        con.close()
+    pat = re.compile(r"deload|re-?entry|plateau reset|rpe cap", re.I)
+    return {r["date"] for r in rows
+            if pat.search((r["reasoning"] or "") + " " + (r["exercises_json"] or ""))}
+
+
+def plateau_detected(history: list[dict], threshold: int = config.PLATEAU_SESSIONS,
+                     suppressed: Optional[set] = None) -> bool:
+    """True if e1RM hasn't improved over the last `threshold` sessions in
+    which the athlete actually HAD the chance to progress (capped/deloaded
+    sessions excluded — see suppressed_session_dates)."""
+    if suppressed:
+        history = [h for h in history if h.get("date") not in suppressed]
     if len(history) < threshold:
+        return False
+    # Stale evidence expires: if the athlete hasn't had a real shot at this
+    # lift in over a month (everything since was capped/deloaded), a months-old
+    # flat spell says nothing about today — let re-entry rules handle it.
+    newest = history[0].get("date")
+    if newest and (date.today() - date.fromisoformat(newest)).days > 35:
         return False
     e1rms = [h["best_e1rm"] for h in history[:threshold] if h["best_e1rm"]]
     if not e1rms:
@@ -940,66 +973,230 @@ def _notes_flag(days: int = 3) -> tuple[bool, list[str]]:
     return (bool(hits), hits)
 
 
+def _predicted_rpe(e1: float, weight: float, reps: int) -> Optional[float]:
+    """Expected RPE at (weight, reps) from an e1RM capability anchor — same
+    Epley inversion the workout page shows as ~RPE."""
+    if not e1 or weight <= 0 or reps <= 0 or weight >= e1:
+        return None
+    reps_to_failure = 30.0 * (e1 / weight - 1.0)
+    pred = 10.0 - (reps_to_failure - reps)
+    return max(4.0, min(10.0, pred))
+
+
+def _acwr() -> dict:
+    """Acute:chronic workload ratio on working-set tonnage — 7-day load vs the
+    28-day daily average. The best-evidenced single marker of accumulated
+    training stress; fully objective. Abstains without a chronic base."""
+    con = _con()
+    rows = con.execute("""
+        SELECT date, SUM(weight_kg * reps) AS load
+        FROM sets WHERE is_warmup = 0 AND reps > 0
+              AND weight_kg <= 350 AND reps <= 50   -- fat-finger guard
+              AND date >= date('now', '-28 days')
+        GROUP BY date
+    """).fetchall()
+    con.close()
+    acute_cut = (date.today() - timedelta(days=7)).isoformat()
+    acute = sum(r["load"] or 0 for r in rows if r["date"] >= acute_cut)
+    chronic = sum(r["load"] or 0 for r in rows)
+    if chronic < 1000 or len(rows) < 6:          # thin history: abstain
+        return {"ratio": None, "acute_7d": round(acute), "sessions_28d": len(rows)}
+    weekly_chronic = chronic / 4.0
+    ratio = acute / weekly_chronic if weekly_chronic > 0 else None
+    return {"ratio": round(ratio, 2) if ratio is not None else None,
+            "acute_7d": round(acute), "sessions_28d": len(rows)}
+
+
+def _deload_active() -> bool:
+    """True when the latest prescription is a deliberate deload / re-entry /
+    plateau reset — its reduced loads must not be re-read as fatigue."""
+    con = _con()
+    row = con.execute("""
+        SELECT exercises_json, reasoning FROM prescribed_sessions
+        ORDER BY date DESC LIMIT 1
+    """).fetchone()
+    con.close()
+    if not row:
+        return False
+    blob = ((row["reasoning"] or "") + " " + (row["exercises_json"] or "")).lower()
+    return bool(re.search(r"deload|re-?entry|plateau reset|rpe cap|caution", blob))
+
+
+def _rep_shortfall(days: int = 4) -> dict:
+    """Objective under-performance: prescribed reps vs reps actually logged at
+    ~the prescribed load, over the last few days. No self-report involved."""
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    con = _con()
+    pres = con.execute("""
+        SELECT date, exercises_json FROM prescribed_sessions
+        WHERE date >= ? ORDER BY date
+    """, (cutoff,)).fetchall()
+    out = {"prescribed_reps": 0, "achieved_reps": 0, "exercises": 0}
+    for p in pres:
+        try:
+            exercises = json.loads(p["exercises_json"])
+        except Exception:
+            continue
+        for ex in exercises:
+            name = (ex.get("exercise_name") or "").strip()
+            psets = [st for st in (ex.get("sets") or [])
+                     if not st.get("is_warmup") and (st.get("reps") or 0) > 0]
+            if not name or not psets:
+                continue
+            logged = con.execute("""
+                SELECT weight_kg, reps FROM sets
+                WHERE date = ? AND exercise = ? AND is_warmup = 0 AND reps > 0
+            """, (p["date"], name)).fetchall()
+            if not logged:
+                continue                         # skipped/swapped: not fatigue evidence
+            # Pair prescribed and logged sets one-to-one per weight bucket —
+            # crediting every prescribed set with the BEST logged set hid
+            # sessions where half the sets collapsed (stress-test finding).
+            matched_p, matched_a = 0, 0
+            buckets: dict = {}
+            for st in psets:
+                pw = float(st.get("weight_kg") or 0)
+                buckets.setdefault(pw, []).append(int(st.get("reps") or 0))
+            for pw, preps in buckets.items():
+                near = sorted((r["reps"] for r in logged
+                               if abs((r["weight_kg"] or 0) - pw) <= max(2.5, pw * 0.075)),
+                              reverse=True)
+                if not near:
+                    continue                     # skipped/swapped: not fatigue evidence
+                for i, pr in enumerate(sorted(preps, reverse=True)):
+                    if i >= len(near):
+                        break                    # fewer sets done: ambiguous (time), skip
+                    matched_p += pr
+                    matched_a += min(pr, near[i])
+            if matched_p:
+                out["prescribed_reps"] += matched_p
+                out["achieved_reps"] += matched_a
+                out["exercises"] += 1
+    con.close()
+    if out["prescribed_reps"]:
+        out["shortfall_pct"] = round(
+            100.0 * (1 - out["achieved_reps"] / out["prescribed_reps"]), 1)
+    else:
+        out["shortfall_pct"] = None
+    return out
+
+
+def _rpe_deviation(window_days: int = 7, baseline_days: int = 90,
+                   min_sets: int = 6) -> dict:
+    """Debiased RPE drift: logged minus predicted RPE at the same load,
+    minus the athlete's own per-exercise baseline offset. Stable biases (the
+    athlete always logs hot, the model always predicts one exercise low)
+    cancel; what remains is transient — i.e. fatigue. Warm-ups and failure
+    sets excluded; abstains below `min_sets` observations in the window."""
+    base_cut = (date.today() - timedelta(days=baseline_days)).isoformat()
+    win_cut = (date.today() - timedelta(days=window_days)).isoformat()
+    con = _con()
+    rows = con.execute("""
+        SELECT date, exercise, weight_kg, reps, rpe
+        FROM sets
+        WHERE is_warmup = 0 AND reps > 0 AND rpe IS NOT NULL
+              AND COALESCE(set_type, 'normal') NOT IN ('failure')
+              AND date >= ?
+        ORDER BY date
+    """, (base_cut,)).fetchall()
+    # capability anchor per exercise: best e1RM in the window before each set's
+    # date would be ideal; a single all-window best is a reasonable, stable
+    # approximation for deviation BASELINES (transients ride on top of it)
+    e1 = {r["exercise"]: None for r in rows}
+    hist = con.execute("""
+        SELECT exercise, MAX(e1rm) AS best FROM sets
+        WHERE is_warmup = 0 AND e1rm IS NOT NULL AND date >= ?
+        GROUP BY exercise
+    """, (base_cut,)).fetchall()
+    con.close()
+    for h in hist:
+        e1[h["exercise"]] = h["best"]
+
+    devs_by_ex: dict[str, list[tuple[str, float]]] = {}
+    for r in rows:
+        anchor = e1.get(r["exercise"])
+        pred = _predicted_rpe(anchor, float(r["weight_kg"] or 0), int(r["reps"]))
+        if pred is None:
+            continue
+        devs_by_ex.setdefault(r["exercise"], []).append(
+            (r["date"], float(r["rpe"]) - pred))
+
+    def median(xs):
+        xs = sorted(xs)
+        n = len(xs)
+        return None if not n else (xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2)
+
+    recent, n_recent = [], 0
+    for ex, pairs in devs_by_ex.items():
+        base_devs = [d for (dt, d) in pairs if dt < win_cut]
+        base = median(base_devs) if len(base_devs) >= 4 else 0.0
+        for dt, d in pairs:
+            if dt >= win_cut:
+                recent.append(d - (base or 0.0))
+                n_recent += 1
+    if n_recent < min_sets:
+        return {"drift": None, "sets": n_recent}
+    return {"drift": round(median(recent), 2), "sets": n_recent}
+
+
 def fatigue_score() -> dict:
     """
     Composite fatigue score 0-100 with component breakdown.
     >=60: rest strongly recommended; 40-59: caution; <40: fine.
+
+    Objective signals carry the weight (workload ratio, rep shortfall);
+    debiased RPE drift corroborates; components ABSTAIN (contribute nothing,
+    say so) when their data is too thin, and deliberate deloads are flagged
+    so reduced loads are never re-read as decline.
     """
     components: dict = {}
     score = 0.0
 
-    rpe_metrics = _last_session_rpe_metrics()
-    components["first_set_rpe_avg"] = rpe_metrics["first_avg"]
-    components["last_set_rpe_avg"]  = rpe_metrics["last_avg"]
-    components["rpe_diff_avg"]      = rpe_metrics["diff_avg"]
-    rpe_pts = 0.0
-    last_rpe = rpe_metrics["last_avg"]
-    if last_rpe is not None:
-        if   last_rpe >= 9.5: rpe_pts += 30
-        elif last_rpe >= 9.0: rpe_pts += 18
-        elif last_rpe >= 8.0: rpe_pts += 8
-    first_rpe = rpe_metrics["first_avg"]
-    if first_rpe is not None and first_rpe >= 8.0:
-        # First-set already high → load is too heavy / poorly recovered going in
-        rpe_pts += 10
-    diff = rpe_metrics["diff_avg"]
-    if diff is not None and diff >= 2.5:
-        # Steep fatigue accumulation under prescribed volume — poor work capacity at load
-        rpe_pts += min(10.0, (diff - 2.0) * 4)
-    rpe_pts = min(40.0, rpe_pts)
-    score += rpe_pts
-    components["rpe_points"] = round(rpe_pts, 1)
+    # ── Workload: acute vs chronic tonnage (cap 30) ──
+    acwr = _acwr()
+    components["acwr"] = acwr["ratio"]
+    components["acute_load_7d"] = acwr["acute_7d"]
+    pts = 0.0
+    if acwr["ratio"] is not None and acwr["ratio"] > 1.2:
+        pts = min(30.0, (acwr["ratio"] - 1.2) / 0.6 * 30)
+    score += pts
+    components["acwr_points"] = round(pts, 1)
 
-    slope = _focus_lift_short_slope(days=14)
-    components["e1rm_slope_kg_per_week_14d"] = slope
-    slope_pts = 0.0
-    if slope is not None and slope < 0:
-        slope_pts = min(25.0, abs(slope) * 8)
-    score += slope_pts
-    components["e1rm_slope_points"] = round(slope_pts, 1)
+    # ── Objective under-performance: rep shortfall vs prescription (cap 25) ──
+    sf = _rep_shortfall()
+    components["rep_shortfall_pct"] = sf["shortfall_pct"]
+    pts = 0.0
+    if sf["shortfall_pct"] is not None and sf["shortfall_pct"] >= 5:
+        pts = min(25.0, (sf["shortfall_pct"] - 5) * 2.0)
+    score += pts
+    components["shortfall_points"] = round(pts, 1)
 
+    # ── Debiased RPE drift vs the athlete's own baseline (cap 20) ──
+    drift = _rpe_deviation()
+    components["rpe_drift"] = drift["drift"]
+    components["rpe_drift_sets"] = drift["sets"]
+    pts = 0.0
+    if drift["drift"] is not None and drift["drift"] >= 0.5:
+        pts = min(25.0, (drift["drift"] - 0.25) * 16)
+    score += pts
+    components["rpe_drift_points"] = round(pts, 1)
+
+    # ── Consecutive training days — only streaks beyond 2 count (cap 15) ──
     consec = consecutive_training_days()
     components["consecutive_training_days"] = consec
-    consec_pts = min(20.0, (consec / config.MAX_CONSECUTIVE_DAYS) * 20)
-    score += consec_pts
-    components["consecutive_points"] = round(consec_pts, 1)
+    span = max(1, config.MAX_CONSECUTIVE_DAYS - 2)
+    pts = min(15.0, max(0, consec - 2) / span * 15)
+    score += pts
+    components["consecutive_points"] = round(pts, 1)
 
-    bw_slope = _composition_slope("weight_kg", 14)
-    components["bodyweight_slope_kg_per_week_14d"] = bw_slope
-    bw_pts = 0.0
-    if bw_slope is not None and getattr(config, "GOAL_MODE", None) == "bulk" and bw_slope <= 0:
-        bw_pts = 10.0
-    elif bw_slope is not None and getattr(config, "GOAL_MODE", None) == "cut" and bw_slope >= 0:
-        bw_pts = 5.0
-    score += bw_pts
-    components["bodyweight_points"] = round(bw_pts, 1)
-
+    # ── Self-reported trouble in notes (cap 5) ──
     flagged, hits = _notes_flag(days=3)
     components["notes_flagged"] = flagged
     components["notes_hits"] = hits
-    notes_pts = 5.0 if flagged else 0.0
-    score += notes_pts
-    components["notes_points"] = notes_pts
+    score += 5.0 if flagged else 0.0
+    components["notes_points"] = 5.0 if flagged else 0.0
+
+    components["deload_active"] = _deload_active()
 
     score = round(score, 1)
     if score >= 60:
@@ -1165,6 +1362,69 @@ def recent_chat_messages(hours: int = 48, limit: int = 15) -> list[dict]:
     return [{"ts": r["ts"], "message": r["content"][:500]} for r in reversed(rows)]
 
 
+def weight_availability_lines(max_prescriptions: int = 10) -> list[str]:
+    """Observed loadable weights (the gym's real racks/stacks, learned from
+    logs) plus any recently prescribed weights that keep missing them — for
+    the prescription prompt, so the model only writes loadable numbers."""
+    import stats
+    try:
+        avail = stats.achievable_weights(db_path=str(config.DB_PATH))
+    except Exception:
+        return []
+    if not avail:
+        return []
+
+    def fmt(w):
+        return str(int(w)) if float(w).is_integer() else str(w)
+
+    lines = []
+    for key in sorted(avail, key=lambda k: (k.startswith("exercise:"), k)):
+        v = avail[key]
+        w = v["weights"]
+        label = key.split(":", 1)[1]
+        span = f"{fmt(w[0])}-{fmt(w[-1])}kg"
+        if len(w) <= 8:
+            lines.append(f"{label}: observed {{{', '.join(fmt(x) for x in w)}}}kg")
+        else:
+            step = f"~{fmt(v['step'])}kg steps, " if v["step"] else ""
+            lines.append(f"{label}: {step}{span} observed")
+
+    # Prescribed weights that repeatedly miss the observed set (inside its
+    # range) are probably not loadable in this gym — say so explicitly.
+    try:
+        con = _con()
+        rows = con.execute("""
+            SELECT exercises_json FROM prescribed_sessions
+            ORDER BY date DESC LIMIT ?""", (max_prescriptions,)).fetchall()
+        con.close()
+        misses: dict[str, int] = {}
+        for r in rows:
+            for ex in json.loads(r[0] if not isinstance(r, sqlite3.Row) else r["exercises_json"]):
+                name = (ex.get("exercise_name") or "").strip()
+                eq = (ex.get("equipment_category") or "").strip()
+                scope = (avail.get(f"exercise:{name}")
+                         or (avail.get(f"equipment:{eq}")
+                             if eq in ("barbell", "dumbbell", "kettlebell", "plate") else None))
+                if not scope or len(scope["weights"]) < 3:
+                    continue
+                ws = scope["weights"]
+                tol = (scope["step"] or 2.5) / 4
+                for st in ex.get("sets") or []:
+                    w = st.get("weight_kg")
+                    if not isinstance(w, (int, float)) or w <= 0:
+                        continue
+                    if ws[0] <= w <= ws[-1] and all(abs(w - x) > tol for x in ws):
+                        k = f"{fmt(w)}kg ({name})"
+                        misses[k] = misses.get(k, 0) + 1
+        for k, n in sorted(misses.items(), key=lambda kv: -kv[1]):
+            if n >= 2:
+                lines.append(f"AVOID {k}: prescribed {n}x recently but never "
+                             f"logged - likely not loadable here")
+    except Exception:
+        pass
+    return lines
+
+
 def build_context(session_type: Optional[str] = None) -> dict:
     """
     Returns a dict with all context needed by Claude to prescribe today's workout.
@@ -1181,10 +1441,11 @@ def build_context(session_type: Optional[str] = None) -> dict:
 
     # Build per-lift context for main lifts
     lifts_context = {}
+    suppressed = suppressed_session_dates()
     for lift_name, cfg in config.MAIN_LIFTS.items():
         history = lift_history(lift_name, n=10)
         days_ago = days_since_last(lift_name)
-        plateau = plateau_detected(history)
+        plateau = plateau_detected(history, suppressed=suppressed)
         is_bw = cfg.get("is_bodyweight", False)
 
         lifts_context[lift_name] = {
@@ -1253,6 +1514,7 @@ def build_context(session_type: Optional[str] = None) -> dict:
         "session_balance_last_28_days": balance,
         "last_session_type": last_session_type(),
         "last_session_exercises": last_session_exercises(),
+        "weight_availability": weight_availability_lines(),
         "recently_trained_exercises": recently_trained_exercises(days=config.MIN_ACCESSORY_REPEAT_DAYS + 1),
         "projected_sessions": projected,
         "next_session_type": projected[1] if len(projected) > 1 else None,

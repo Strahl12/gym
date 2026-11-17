@@ -244,10 +244,11 @@ def main(dry_run: bool = False, context_only: bool = False, find_templates: bool
     fat_emoji = {"rest": "🔴", "caution": "⚠️", "ok": "🟢"}.get(fat.get("verdict"), "?")
     log.info(f"  {fat_emoji} Score: {fat.get('score')}/100  ({fat.get('verdict')})")
     _fc = fat.get("components", {})
-    log.info(f"     last-set RPE avg: {_fc.get('last_set_rpe_avg')}  (+{_fc.get('rpe_points')})")
-    log.info(f"     e1RM 14d slope:   {_fc.get('e1rm_slope_kg_per_week_14d')}kg/wk  (+{_fc.get('e1rm_slope_points')})")
+    log.info(f"     workload ACWR:    {_fc.get('acwr')}  (+{_fc.get('acwr_points')})")
+    log.info(f"     rep shortfall:    {_fc.get('rep_shortfall_pct')}%  (+{_fc.get('shortfall_points')})")
+    log.info(f"     RPE drift:        {_fc.get('rpe_drift')} over {_fc.get('rpe_drift_sets')} sets  (+{_fc.get('rpe_drift_points')})")
     log.info(f"     consecutive days: {_fc.get('consecutive_training_days')}/{_cfg.MAX_CONSECUTIVE_DAYS}  (+{_fc.get('consecutive_points')})")
-    log.info(f"     bodyweight 14d:   {_fc.get('bodyweight_slope_kg_per_week_14d')}kg/wk  (+{_fc.get('bodyweight_points')})")
+    log.info(f"     deload active:    {_fc.get('deload_active')}")
     if _fc.get("notes_hits"):
         log.info(f"     note flags:       {', '.join(_fc['notes_hits'])}  (+{_fc.get('notes_points')})")
 

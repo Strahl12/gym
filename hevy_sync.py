@@ -226,6 +226,18 @@ def sync_to_db(days: int = 14) -> int:
                   f"{int(vote_share * 100)}% of sets are {vote_type!r} — classifying as {vote_type!r}")
             session_type = vote_type
 
+        # An in-app log for this day+type is authoritative — importing the
+        # Hevy copy of the same session would double-count the volume.
+        app_logged = con.execute(
+            "SELECT 1 FROM sets WHERE source = 'app' AND date = ? "
+            "AND session_type = ? LIMIT 1",
+            (workout_date, session_type)).fetchone()
+        if app_logged:
+            print(f"[hevy_sync] Skipping {workout_name!r} ({workout_date}, "
+                  f"{session_type}) — already logged in-app.")
+            _store_hevy_notes(con, workout_date, workout, exercises)
+            continue
+
         set_number = 0
         for ex in exercises:
             tid       = ex.get("exercise_template_id", "")

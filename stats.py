@@ -173,6 +173,100 @@ def last_session_sets(user: str, exercise: str) -> dict | None:
     }
 
 
+# Free weights are pooled per equipment (one dumbbell rack serves every
+# dumbbell movement); machine/cable stacks are all different, so those are
+# scoped per exercise. Bodyweight added load (belt/vest plates) pools too.
+_POOLED_EQUIPMENT = {"barbell", "dumbbell", "kettlebell", "plate"}
+
+
+def achievable_weights(user: str | None = None, db_path: str | None = None,
+                       days: int = 730, min_seen: int = 2) -> dict:
+    """Loadable weights inferred from what the athlete has actually logged —
+    the gym's real racks and stacks, learned rather than configured.
+
+    A weight counts once it has been logged `min_seen` times in working sets
+    within the window (kills typos). Returns per scope:
+        {"equipment:dumbbell": {"weights": [...], "step": 2.0, "n": 14},
+         "exercise:Leg Extension (Machine)": {...}, ...}
+    `step` is the modal gap between neighbouring observed weights (display /
+    extrapolation hint; stacks need not be uniform)."""
+    import json as _json
+    catalog = _json.loads((Path(__file__).parent / "exercises.json").read_text())
+    equip = {}
+    for e in catalog.values():
+        for n in [e.get("canonical") or "", e.get("hevy_title") or "",
+                  *(e.get("aliases") or [])]:
+            if n:
+                equip.setdefault(n, e.get("equipment") or "")
+
+    con = sqlite3.connect(db_path) if db_path else _con(user)
+    con.row_factory = sqlite3.Row
+    try:
+        since = (date.today() - timedelta(days=days)).isoformat()
+        rows = con.execute("""
+            SELECT exercise, weight_kg, COUNT(*) n
+            FROM sets
+            WHERE is_warmup = 0 AND reps > 0 AND weight_kg > 0 AND date >= ?
+            GROUP BY exercise, weight_kg
+        """, (since,)).fetchall()
+    finally:
+        con.close()
+
+    buckets: dict[str, dict[float, int]] = {}
+    for r in rows:
+        eq = equip.get(r["exercise"], "")
+        if eq in _POOLED_EQUIPMENT:
+            key = f"equipment:{eq}"
+        elif eq == "none":
+            key = "equipment:added"          # belt/vest load on bodyweight lifts
+        elif eq == "machine":
+            key = f"exercise:{r['exercise']}"
+        else:
+            continue
+        w = round(float(r["weight_kg"]), 2)
+        buckets.setdefault(key, {})
+        buckets[key][w] = buckets[key].get(w, 0) + r["n"]
+
+    out = {}
+    for key, counts in buckets.items():
+        weights = sorted(w for w, n in counts.items() if n >= min_seen)
+        if len(weights) < 2:
+            continue
+        gaps = [round(b - a, 2) for a, b in zip(weights, weights[1:]) if b - a > 0.01]
+        step = Counter(gaps).most_common(1)[0][0] if gaps else None
+        out[key] = {"weights": weights, "step": step,
+                    "n": sum(counts.values())}
+    return out
+
+
+def snap_to_achievable(target: float, weights: list[float],
+                       step: float | None, fallback_inc: float) -> float:
+    """Snap a prescribed weight onto the observed loadable set. Nearest
+    observed value wins (ties DOWN — never nudge heavier than intended).
+    Above the observed range: extrapolate on the modal step from the max
+    (progression must not be clamped). Below it: fall back to the configured
+    increment grid (lighter plates may simply be unobserved)."""
+    import math
+    if not weights:
+        return target
+    lo, hi = weights[0], weights[-1]
+    inc = step or fallback_inc
+    if target > hi + inc / 2:
+        return round(hi + inc * math.floor((target - hi) / inc + 0.5 - 1e-9), 2)
+    if target < lo - fallback_inc / 2:
+        g = fallback_inc
+        return max(g, round(g * math.floor(target / g + 0.5 - 1e-9), 2))
+    best = min(weights, key=lambda w: (abs(w - target), w))
+    # Sparse-history gap: the nearest OBSERVED value can be far from the
+    # target (never trained that range). Stay on the rack's lattice instead —
+    # modal step anchored at the nearest observed weight.
+    if abs(best - target) > inc * 0.75 and step:
+        k = math.floor((target - best) / step + 0.5 - 1e-9)
+        lattice = round(best + k * step, 2)
+        return min(max(lattice, lo), hi)
+    return best
+
+
 def muscle_usage(user: str, since: str | None = None) -> dict:
     """Per-muscle training totals from logged working sets — powers the body
     heat-maps. Primary muscle counts each set at 1.0, catalog secondaries at
@@ -228,6 +322,25 @@ def muscle_usage(user: str, since: str | None = None) -> dict:
     return out
 
 
+def _suppressed_dates(user: str, days: int = 180) -> set:
+    """Dates whose prescription imposed an RPE cap / deload / re-entry /
+    plateau reset — no opportunity to progress, so not plateau evidence."""
+    import re as _re
+    con = _con(user)
+    try:
+        rows = con.execute("""
+            SELECT date, reasoning, exercises_json FROM prescribed_sessions
+            WHERE date >= date('now', ?)
+        """, (f"-{days} days",)).fetchall()
+    except sqlite3.OperationalError:
+        return set()
+    finally:
+        con.close()
+    pat = _re.compile(r"deload|re-?entry|plateau reset|rpe cap", _re.I)
+    return {r["date"] for r in rows
+            if pat.search((r["reasoning"] or "") + " " + (r["exercises_json"] or ""))}
+
+
 def exercise_readiness(user: str, exercise: str, top_reps: int | None = None,
                        is_bodyweight: bool = False,
                        plateau_sessions: int = 4) -> dict:
@@ -265,10 +378,17 @@ def exercise_readiness(user: str, exercise: str, top_reps: int | None = None,
     last_rpe = rpes[-1] if rpes else None
     min_reps = min(reps)
 
-    # Plateau: e1RM no better than `plateau_sessions` sessions ago.
+    # Plateau: e1RM no better than `plateau_sessions` sessions ago — counting
+    # only sessions where progression was actually on offer. Days prescribed
+    # under an RPE cap / deload / re-entry / reset are excluded: flat e1RM
+    # there is the programme's doing, not the athlete's.
     series = exercise_history(user, exercise).get("series", [])
-    plateaued = (len(series) >= plateau_sessions
-                 and series[-1]["e1rm"] <= series[-plateau_sessions]["e1rm"])
+    suppressed = _suppressed_dates(user)
+    free = [p for p in series if p["date"] not in suppressed]
+    recent_enough = bool(free) and (
+        (date.today() - date.fromisoformat(free[-1]["date"])).days <= 35)
+    plateaued = (recent_enough and len(free) >= plateau_sessions
+                 and free[-1]["e1rm"] <= free[-plateau_sessions]["e1rm"])
 
     hit_top = top_reps is not None and min_reps >= top_reps
     inc = "a rep" if is_bodyweight else "2.5 kg"

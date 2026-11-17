@@ -576,13 +576,18 @@ def add_session_note(note: str, session_date: Optional[str] = None) -> None:
     print(f"[feedback] Note saved for {d}: {note}")
 
 
-def recent_notes(n: int = 5) -> list[dict]:
-    """Returns the last N session notes for Claude's context."""
+def recent_notes(n: int = 5, max_age_days: int = 4) -> list[dict]:
+    """Returns the last N session notes for Claude's context — but only from
+    the last few days. Unbounded, a stale illness/strain note kept haunting
+    prescriptions for a week+ during training gaps (no new notes arrive to
+    push it out), driving unwarranted caution."""
+    cutoff = (date.today() - timedelta(days=max_age_days)).isoformat()
     con = _con()
     rows = con.execute("""
         SELECT date, note, source FROM session_notes
+        WHERE date >= ?
         ORDER BY date DESC, id DESC LIMIT ?
-    """, (n,)).fetchall()
+    """, (cutoff, n)).fetchall()
     con.close()
     return [{"date": r["date"], "note": r["note"], "source": r["source"]} for r in rows]
 

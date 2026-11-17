@@ -77,6 +77,13 @@ def log_session(db_path: str, payload: dict) -> dict:
         con.execute(
             "DELETE FROM sets WHERE session_id = ? AND source = 'app'", (session_id,)
         )
+        # The in-app log is authoritative for this day+type: drop any Hevy copy
+        # of the same session that synced earlier (future syncs skip it — see
+        # hevy_sync.sync_to_db), otherwise the volume double-counts.
+        con.execute(
+            "DELETE FROM sets WHERE source = 'hevy' AND date = ? AND session_type = ?",
+            (d, session_type)
+        )
 
         total = 0
         set_number = 0
@@ -219,6 +226,25 @@ def save_stretch_log(db_path: str, date: str, session_type: str,
             PRIMARY KEY (date, session_type))""")
         con.execute("INSERT OR REPLACE INTO stretch_log VALUES (?, ?, ?, ?)",
                     (date, session_type, int(bool(pre_done)), int(bool(post_done))))
+        con.commit()
+    finally:
+        con.close()
+
+
+def save_readiness(db_path: str, date: str, session_type: str, readiness: str) -> None:
+    """One-tap self-reported readiness (green/amber/red) captured when the
+    athlete opens the logger — the ground-truth label for calibrating the
+    fatigue score. One row per (date, session_type); re-saving overwrites."""
+    if readiness not in ("green", "amber", "red"):
+        return
+    con = sqlite3.connect(db_path)
+    try:
+        con.execute("""CREATE TABLE IF NOT EXISTS readiness_log (
+            date TEXT NOT NULL, session_type TEXT NOT NULL,
+            readiness TEXT NOT NULL,
+            PRIMARY KEY (date, session_type))""")
+        con.execute("INSERT OR REPLACE INTO readiness_log VALUES (?, ?, ?)",
+                    (date, session_type, readiness))
         con.commit()
     finally:
         con.close()
