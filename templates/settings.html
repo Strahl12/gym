@@ -69,11 +69,10 @@
     <details class="srt-menu">
       <summary>Menu</summary>
       <nav class="srt-menu-panel">
-        <a href="{{ chat_url }}">Chat</a>
+        <a href="{{ chat_url }}/stats">Stats</a>
         <a href="{{ chat_url }}/workout">Workout</a>
         <a href="{{ chat_url }}/review">Review</a>
-        <a href="{{ chat_url }}/stats">Stats</a>
-        <a href="{{ chat_url }}/log">Log</a>
+        <a href="{{ chat_url }}">Chat</a>
         <a aria-current="page" href="{{ chat_url }}/settings">Settings</a>
       </nav>
     </details>
@@ -86,6 +85,15 @@
     <p class="sub" style="margin:0">
       Running in <span class="env-val">{{ 'iOS app' if is_native else 'web browser' }}</span>
     </p>
+  </section>
+
+  <section class="srt-panel">
+    <p class="srt-eyebrow">Body metrics — Withings</p>
+    <p class="sub" id="wi-status">Checking connection…</p>
+    <div class="srt-row">
+      <a class="srt-btn" id="wi-connect" href="{{ chat_url }}/withings/connect">Connect Withings</a>
+      <span class="status" id="wi-flash"></span>
+    </div>
   </section>
 
   <section class="srt-panel">
@@ -201,9 +209,45 @@ nov.addEventListener("input", () => {
     const r = await fetch(DATA_URL);
     const d = await r.json();
     if (d.exercise_novelty != null) nov.value = d.exercise_novelty;
+    const w = d.withings || {};
+    const st = document.getElementById("wi-status");
+    const btn = document.getElementById("wi-connect");
+    if (!w.configured) {
+      st.textContent = "Not configured for this account.";
+      btn.setAttribute("aria-disabled", "true");
+    } else if (w.last_weighin) {
+      const stale = w.days_ago != null && w.days_ago > 10;
+      const freshToken = w.token_age_days != null && w.token_age_days < 30;
+      let msg = "Last weigh-in " + w.last_weighin +
+        " (" + w.days_ago + (w.days_ago === 1 ? " day" : " days") + " ago)";
+      if (stale && w.connected && freshToken) {
+        msg += " — connection is fine; Withings just has no newer reading. Hop on the scale.";
+      } else if (stale) {
+        msg += " — sync looks stale, reconnect below.";
+      } else {
+        msg += ".";
+      }
+      st.textContent = msg;
+      st.style.color = stale ? "var(--gold)" : "";
+      btn.textContent = w.connected ? "Reconnect Withings" : "Connect Withings";
+    } else {
+      st.textContent = w.connected
+        ? "Connected, but no weigh-ins synced yet."
+        : "Not connected — weigh-ins won\u2019t reach your coach.";
+      st.style.color = w.connected ? "" : "var(--gold)";
+    }
   } catch (e) {}
   paintNov();
 })();
+
+// Flash the OAuth outcome when returning from Withings.
+{
+  const q = new URLSearchParams(location.search).get("withings");
+  const flash = document.getElementById("wi-flash");
+  if (q === "connected") { flash.className = "status ok"; flash.textContent = "Connected — syncing."; }
+  else if (q === "error") { flash.className = "status err"; flash.textContent = "Authorisation failed — try again."; }
+  if (q) history.replaceState(null, "", location.pathname);
+}
 </script>
 </body>
 </html>

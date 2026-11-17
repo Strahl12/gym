@@ -98,11 +98,10 @@
     <details class="srt-menu">
       <summary>Menu</summary>
       <nav class="srt-menu-panel">
-        <a id="chat-link" aria-current="page" href="#">Chat</a>
+        <a id="stats-link" href="#">Stats</a>
         <a id="workout-link" href="#">Workout</a>
         <a id="review-link" href="#">Review</a>
-        <a id="stats-link" href="#">Stats</a>
-        <a id="log-link" href="#">Log</a>
+        <a id="chat-link" aria-current="page" href="#">Chat</a>
         <a id="settings-link" href="#">Settings</a>
       </nav>
     </details>
@@ -129,7 +128,6 @@ document.getElementById("chat-link").href = base || "/app";
 document.getElementById("workout-link").href = base + "/workout";
 document.getElementById("stats-link").href = base + "/stats";
 document.getElementById("review-link").href = base + "/review";
-document.getElementById("log-link").href = base + "/log";
 document.getElementById("settings-link").href = base + "/settings";
 
 // Dev panel (rendered only for the dev user) — Anthropic API / credit health.

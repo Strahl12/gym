@@ -261,6 +261,26 @@
   .howto__fit.is-off { color: var(--target); }
   .howto__hist { margin: 0 0 var(--space-3); border-top: var(--hairline) solid var(--line);
                  padding-top: var(--space-3); }
+  /* Folded coach notes (absorbed from the old Log tab) */
+  .howto__saved { margin: 0 0 var(--space-3); border-top: var(--hairline) solid var(--line);
+                 padding-top: var(--space-3); }
+  .howto__savednote { border: var(--hairline) solid var(--line); margin-top: var(--space-2); }
+  .howto__savednote summary { list-style: none; cursor: pointer; user-select: none;
+                 display: flex; align-items: baseline; gap: var(--space-3);
+                 padding: var(--space-2) var(--space-3); }
+  .howto__savednote summary::-webkit-details-marker { display: none; }
+  .howto__savednote summary::before { content: "›"; font-family: var(--font-mono);
+                 color: var(--ink-muted); flex: none; }
+  .howto__savednote[open] summary::before { content: "⌄"; }
+  .howto__savedtitle { flex: 1; min-width: 0; font-size: 14px; line-height: 20px;
+                 color: var(--ink); }
+  .howto__savedts { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint);
+                 white-space: nowrap; }
+  .howto__savedbody { font-size: 14px; line-height: 20px; color: var(--ink);
+                 white-space: pre-wrap; overflow-wrap: break-word;
+                 padding: 0 var(--space-3) var(--space-3);
+                 border-top: var(--hairline) solid var(--line);
+                 margin-top: 0; padding-top: var(--space-2); }
   .stretchcard.is-done .stretchcard__item { color: var(--ink-muted); }
 
   .addset { display: block; width: 100%; font-family: var(--font-label); font-size: 10px;
@@ -674,11 +694,10 @@
     <details class="srt-menu">
       <summary>Menu</summary>
       <nav class="srt-menu-panel">
-        <a href="{{ chat_url }}">Chat</a>
+        <a href="{{ chat_url }}/stats">Stats</a>
         <a aria-current="page" href="{{ chat_url }}/workout">Workout</a>
         <a href="{{ chat_url }}/review">Review</a>
-        <a href="{{ chat_url }}/stats">Stats</a>
-        <a href="{{ chat_url }}/log">Log</a>
+        <a href="{{ chat_url }}">Chat</a>
         <a href="{{ chat_url }}/settings">Settings</a>
       </nav>
     </details>
@@ -1735,6 +1754,31 @@ function openHowTo(name) {
         renderHistory(histBody, d, ACCENT);
       })
       .catch(() => { histBox.hidden = true; });
+
+    // Everything the coach ever saved about this exercise (the old Log tab),
+    // folded — titles visible, tap to expand an answer.
+    const notesBox = el("div", "howto__saved"); notesBox.hidden = true;
+    scroller.appendChild(notesBox);
+    fetch(CHAT_URL + "/log/data")
+      .then(r => r.json())
+      .then(d => {
+        const grp = (d.exercises || []).find(g =>
+          (g.exercise || "").toLowerCase() === name.toLowerCase());
+        if (!grp || !grp.entries.length) return;
+        notesBox.hidden = false;
+        notesBox.appendChild(el("p", "srt-eyebrow is-plain",
+          "Saved notes (" + grp.entries.length + ")"));
+        grp.entries.forEach(e2 => {
+          const det = el("details", "howto__savednote");
+          const sum = el("summary");
+          sum.appendChild(el("span", "howto__savedtitle", e2.title || "Note"));
+          if (e2.ts) sum.appendChild(el("span", "howto__savedts", e2.ts.slice(0, 10)));
+          det.appendChild(sum);
+          det.appendChild(el("div", "howto__savedbody", e2.content || ""));
+          notesBox.appendChild(det);
+        });
+      })
+      .catch(() => {});
 
     const thread = el("div", "howto__thread");
     scroller.appendChild(thread);
