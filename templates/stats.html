@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Training Stats — {{ user }}</title>
 <script src="/static/theme.js?v=5"></script>
+<script src="/static/refresh.js?v=1" defer></script>
 <script src="/static/muscles.js?v=2"></script>
 <link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/saira-memjYa2wxmKQyPMrZX79wwYZQMhsyuSLiIvS.woff2">
 <link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/chakrapetch-cIflMapbsEk7TDLdtEz1BwkebIl1R5_F.woff2">
@@ -15,7 +16,7 @@
 <link rel="stylesheet" href="/static/fonts.css?v=1">
 <link rel="stylesheet" href="/static/sortie/tokens.css?v=1">
 <link rel="stylesheet" href="/static/sortie/sortie.css?v=1">
-<link rel="stylesheet" href="/static/gym.css?v=6">
+<link rel="stylesheet" href="/static/gym.css?v=7">
 <style>
   main { padding: var(--space-5); max-width: 720px; margin: 0 auto;
          padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom)); }
@@ -27,6 +28,21 @@
   .card { background: var(--bg-200); border: var(--hairline) solid var(--line);
           padding: var(--space-3) var(--space-4); }
   .card .srt-eyebrow { margin-top: var(--space-1); }
+
+  /* Rest status traffic light */
+  .rest-lamp { display: flex; align-items: center; gap: var(--space-3);
+               padding: var(--space-2) var(--space-3); margin-bottom: var(--space-3);
+               background: var(--bg-200); border: var(--hairline) solid var(--line); }
+  .rest-lamp__dot { width: 10px; height: 10px; border-radius: var(--radius-lamp); flex: none; }
+  .rest-lamp.is-ok .rest-lamp__dot { background: var(--ok); }
+  .rest-lamp.is-warn .rest-lamp__dot { background: var(--gold); }
+  .rest-lamp.is-bad .rest-lamp__dot { background: var(--lamp); }
+  .rest-lamp__text { display: grid; }
+  .rest-lamp__text b { font-family: var(--font-display); font-size: 15px; line-height: 20px;
+               font-weight: 600; letter-spacing: .02em; color: var(--ink); }
+  .rest-lamp__text span { font-size: 12px; line-height: 16px; color: var(--ink-muted); }
+  .rest-lamp.is-warn .rest-lamp__text span { color: var(--gold); }
+  .rest-lamp.is-bad .rest-lamp__text span { color: var(--lamp); }
 
   /* split balance gauges */
   .bars { display: flex; flex-direction: column; gap: var(--space-3); }
@@ -635,6 +651,25 @@ function render(data) {
 
   // headline readouts
   const over = panel("Overview");
+
+  // Rest status lamp: thresholds follow the detraining literature — strength
+  // and muscle hold for ~2 weeks off, so the lamp warns about the HABIT well
+  // before the body is actually at risk.
+  if (s.last_session_date) {
+    const days = Math.floor((new Date() - new Date(s.last_session_date + "T00:00:00")) / 864e5);
+    let cls = "is-ok", word = "recovering — on schedule";
+    if (days >= 14) { cls = "is-bad"; word = "detraining risk — strength fades from here"; }
+    else if (days >= 7) { cls = "is-bad"; word = "losing momentum — get a session in"; }
+    else if (days >= 3) { cls = "is-warn"; word = "habit slipping — plan your next session"; }
+    const rest = el("div", "rest-lamp " + cls);
+    rest.appendChild(el("span", "rest-lamp__dot"));
+    const t = el("div", "rest-lamp__text");
+    t.appendChild(el("b", null, days + (days === 1 ? " day" : " days") + " since last session"));
+    t.appendChild(el("span", null, word));
+    rest.appendChild(t);
+    over.appendChild(rest);
+  }
+
   const cards = el("div", "cards");
   cards.appendChild(card(s.total_sessions, "Total sessions"));
   cards.appendChild(card(s.sessions_this_week, "This week"));

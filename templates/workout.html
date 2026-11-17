@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Today's Workout — {{ user }}</title>
 <script src="/static/theme.js?v=5"></script>
+<script src="/static/refresh.js?v=1" defer></script>
 <link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/saira-memjYa2wxmKQyPMrZX79wwYZQMhsyuSLiIvS.woff2">
 <link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/chakrapetch-cIflMapbsEk7TDLdtEz1BwkebIl1R5_F.woff2">
 <link rel="preload" as="font" type="font/woff2" crossorigin href="/static/fonts/chakrapetch-cIflMapbsEk7TDLdtEz1BwkeQI51R5_F.woff2">
@@ -14,7 +15,7 @@
 <link rel="stylesheet" href="/static/fonts.css?v=1">
 <link rel="stylesheet" href="/static/sortie/tokens.css?v=1">
 <link rel="stylesheet" href="/static/sortie/sortie.css?v=1">
-<link rel="stylesheet" href="/static/gym.css?v=6">
+<link rel="stylesheet" href="/static/gym.css?v=7">
 <script src="/static/alarm.js?v=1"></script>
 <script src="/static/muscles.js?v=1"></script>
 <style>
@@ -211,6 +212,19 @@
             border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
   .sett.is-done .prevcell { color: var(--ink-faint); }
   .sett.is-done .donebtn { color: var(--bg-100); background: var(--ok); border-color: var(--ok); }
+  /* Swipe-to-delete on set rows: the row slides left over a Delete zone. */
+  .swipewrap { position: relative; margin: var(--space-2) 0; }
+  .swipewrap .swipewrap__row { margin: 0; touch-action: pan-y;
+                 position: relative; z-index: 1; background: var(--panel-solid); }
+  .swipewrap__del { position: absolute; top: 0; bottom: 0; right: 0; width: 80px;
+                 display: grid; place-items: center; font-family: var(--font-body);
+                 font-size: 13px; color: var(--target); background: var(--target-soft);
+                 border: var(--hairline) solid var(--target); cursor: pointer;
+                 visibility: hidden; }
+  .swipewrap.is-open .swipewrap__del { visibility: visible; }
+  /* done-tint re-asserted over the row's solid slide background */
+  .swipewrap .sett.is-done { background: color-mix(in srgb, var(--ok) 10%, var(--panel-solid)); }
+
   /* Optional stretch routines: accent-tinted card, single done toggle. */
   .stretchcard { background: var(--accent-soft); border: var(--hairline) solid var(--accent);
                  padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); }
@@ -229,6 +243,24 @@
   .stretchcard__item { font-family: var(--font-mono); font-size: 12px; line-height: 16px;
                  color: var(--ink); background: var(--bg-200);
                  border: var(--hairline) solid var(--line); padding: 2px var(--space-2); }
+  button.stretchcard__item.is-tap { cursor: pointer; text-decoration: underline;
+                 text-decoration-color: var(--ink-faint); text-underline-offset: 3px; }
+  button.stretchcard__item.is-tap:hover { border-color: var(--line-strong); }
+  .stretch__animwrap { display: flex; justify-content: center; padding: var(--space-2) 0; }
+
+  /* Info sheet extras: session-fit lamp + history block */
+  .howto__fit { display: flex; align-items: center; gap: var(--space-2);
+                 font-family: var(--font-mono); font-size: 12px; line-height: 16px;
+                 color: var(--ink-muted); margin: 0 0 var(--space-3); }
+  .howto__fitdot { width: 6px; height: 6px; border-radius: var(--radius-lamp); flex: none; }
+  .howto__fit.is-fit .howto__fitdot { background: var(--ok); }
+  .howto__fit.is-fit { color: var(--ok); }
+  .howto__fit.is-part .howto__fitdot { background: var(--gold); }
+  .howto__fit.is-part { color: var(--gold); }
+  .howto__fit.is-off .howto__fitdot { background: var(--target); }
+  .howto__fit.is-off { color: var(--target); }
+  .howto__hist { margin: 0 0 var(--space-3); border-top: var(--hairline) solid var(--line);
+                 padding-top: var(--space-3); }
   .stretchcard.is-done .stretchcard__item { color: var(--ink-muted); }
 
   .addset { display: block; width: 100%; font-family: var(--font-label); font-size: 10px;
@@ -271,7 +303,9 @@
                 padding: var(--space-3) var(--space-1); min-height: 44px; cursor: pointer;
                 color: var(--ink); font: inherit; }
   .sheet__opt:hover { background: var(--panel-raised); }
+  .sheet__opttext { display: grid; gap: 2px; min-width: 0; }
   .sheet__optlabel { font-family: var(--font-body); font-size: 15px; }
+  .sheet__optdesc { font-size: 12px; line-height: 16px; color: var(--ink-muted); }
   .sheet__opt.danger .sheet__optlabel { color: var(--target); }
   /* Set-type badge (row + sheet) */
   .st-badge { display: inline-flex; align-items: center; justify-content: center;
@@ -496,9 +530,15 @@
   body.logging-active main { padding-bottom: calc(7.5rem + env(safe-area-inset-bottom)); }
   .rtimer[hidden] { display: none; }
   /* The countdown is the hero numeral: display face, tabular, accent while live. */
-  .rtimer__time { flex: 1; font-family: var(--font-display); font-size: 28px; line-height: 32px;
+  .rtimer__mid { flex: 1; display: grid; gap: 1px; justify-items: center; min-width: 0; }
+  .rtimer__time { font-family: var(--font-display); font-size: 26px; line-height: 28px;
                   font-weight: 600; font-variant-numeric: tabular-nums; color: var(--accent);
                   text-align: center; }
+  .rtimer__sub { display: flex; gap: var(--space-2); font-family: var(--font-mono);
+                  font-size: 11px; line-height: 14px; }
+  .rtimer__sub[hidden] { display: none; }
+  .rtimer__nextload { color: var(--ink-muted); }
+  .rtimer__added { color: var(--corp); }
   .rtimer.done { animation: rtflash .6s steps(1) infinite; }
   .rtimer.done .rtimer__time { color: var(--ok); }
   @keyframes rtflash { 50% { opacity: .5; } }
@@ -583,6 +623,20 @@
                 padding: var(--space-2) var(--space-3); min-height: 36px; cursor: pointer; }
   .discardbtn:hover { border-color: var(--target); }
   .discardbtn.inline { display: inline-block; margin: var(--space-3) 0 0 var(--space-2); }
+  /* Readiness one-tap: three lamps, Sortie-coloured. */
+  .readybar { display: flex; align-items: center; gap: var(--space-2);
+              margin: 0 0 var(--space-3); }
+  .readybar__label { font-family: var(--font-label); font-size: 9px; line-height: 13px;
+              letter-spacing: .14em; text-transform: uppercase; color: var(--ink-muted);
+              margin-right: var(--space-1); }
+  .readybar__opt { font-family: var(--font-mono); font-size: 12px; line-height: 16px;
+              color: var(--ink-muted); background: var(--bg-200);
+              border: var(--hairline) solid var(--line);
+              padding: var(--space-1) var(--space-2); min-height: 32px; cursor: pointer; }
+  .readybar__opt.is-green.on { color: var(--ok); border-color: var(--ok); }
+  .readybar__opt.is-amber.on { color: var(--gold); border-color: var(--gold); }
+  .readybar__opt.is-red.on { color: var(--lamp); border-color: var(--lamp); }
+
   .draftflag { display: flex; align-items: center; gap: var(--space-2);
                font-family: var(--font-label); font-size: 10px; letter-spacing: .14em;
                text-transform: uppercase; color: var(--accent); margin: 0 0 var(--space-3); }
@@ -656,6 +710,7 @@ let swapping = false;   // one swap (Hevy PUT) at a time, across all cards
 let LOGGING = false;      // editable logging mode on the Workout tab
 let REVEAL_LOG = false;   // one-shot entrance animation when logging opens
 let STRETCH = null;       // optional pre/post routines: {pre:{items,done}, post:{items,done}}
+let READINESS = "";       // one-tap self-report: green | amber | red
 let CURRENT = null;     // last /workout/data payload, for re-rendering on toggle
 const SVGNS = "http://www.w3.org/2000/svg";
 const MONO = token("--font-mono") || "monospace";
@@ -766,10 +821,17 @@ const RT = {
     gauge.appendChild(this.gfill);
     bar.appendChild(gauge);
     const mk = (t, cls, fn) => { const b = el("button", cls, t); b.type = "button";
+                                 // preventDefault on pointerdown: pressing a
+                                 // timer button must not blur the weight box
+                                 // (closing the keyboard mid-entry is clunky).
+                                 b.addEventListener("pointerdown", e => e.preventDefault());
                                  b.addEventListener("click", fn); return b; };
     bar.appendChild(mk("-15", "rtimer__btn", () => this.bump(-15)));
+    const mid = el("div", "rtimer__mid");
     this.disp = el("div", "rtimer__time", "0:00");
-    bar.appendChild(this.disp);
+    this.sub = el("div", "rtimer__sub");
+    mid.appendChild(this.disp); mid.appendChild(this.sub);
+    bar.appendChild(mid);
     bar.appendChild(mk("+15", "rtimer__btn", () => this.bump(15)));
     bar.appendChild(mk("Skip", "rtimer__btn rtimer__skip", () => this.stopRest()));
     document.body.appendChild(bar);
@@ -821,11 +883,15 @@ const RT = {
     // Done: flash briefly, then put the bar away by itself.
     if (this.remain <= 0 && this.hideAt && Date.now() >= this.hideAt) this.stopRest();
   },
-  start(seconds, name) {
+  // info: { next: "90 kg" } — what to load for the coming set.
+  start(seconds, name, info) {
     this.ensure();
     _audio();                        // prime/unlock while we're in the tap that started it
     this.el.hidden = false;
     if (this._place) this._place();
+    this.added = 0;
+    this.next = (info && info.next) || "";
+    this.paintSub();
     this.total  = Math.max(1, seconds || 90);
     this.remain = this.total;
     this.endAt  = Date.now() + this.total * 1000;
@@ -856,10 +922,28 @@ const RT = {
   bump(d) { if (!this.resting) return;
             this.remain = Math.max(0, this.remain + d);
             this.endAt = Date.now() + this.remain * 1000;
+            this.added = (this.added || 0) + d;
+            this.paintSub();
             if (d > 0) { this.running = true; this.hideAt = 0;
                          this.el.classList.remove("done"); }
             if (this.running) ntArm(this.remain, this.exname);
             this.paint(); },
+  // Sub-line under the countdown: the load for the NEXT set, and how much
+  // rest was added/removed by hand (corp = the athlete's own adjustment).
+  paintSub() {
+    if (!this.sub) return;
+    this.sub.textContent = "";
+    if (this.next) {
+      const n = el("span", "rtimer__nextload", "next \u00bb " + this.next);
+      this.sub.appendChild(n);
+    }
+    if (this.added) {
+      const a = el("span", "rtimer__added",
+        (this.added > 0 ? "+" : "\u2212") + Math.abs(this.added) + "s");
+      this.sub.appendChild(a);
+    }
+    this.sub.hidden = !this.sub.childNodes.length;
+  },
   stopRest() { this.resting = false; this.running = false; ntDisarm();
                if (this.gfill) this.gfill.style.width = "0%";
                if (this.el) { this.el.classList.remove("done"); this.el.hidden = true; } },
@@ -1359,6 +1443,13 @@ function saveDraft() {
 function clearDraft() {
   try { localStorage.removeItem(draftKey()); } catch (e) {}
   try { localStorage.removeItem(draftKey() + ":stretch"); } catch (e) {}
+  try { localStorage.removeItem(draftKey() + ":ready"); } catch (e) {}
+}
+function saveReadinessDraft() {
+  try { localStorage.setItem(draftKey() + ":ready", READINESS); } catch (e) {}
+}
+function loadReadinessDraft() {
+  try { return localStorage.getItem(draftKey() + ":ready") || ""; } catch (e) { return ""; }
 }
 function saveStretchDraft() {
   try { localStorage.setItem(draftKey() + ":stretch", JSON.stringify(STRETCH)); } catch (e) {}
@@ -1451,10 +1542,14 @@ function sheetClose(sheet, close) {
 }
 
 const SET_TYPES = [
-  { key: "warmup",  badge: "W", label: "Warm-up set", cls: "st-warm" },
-  { key: "normal",  badge: "1", label: "Normal set",  cls: "st-normal" },
-  { key: "failure", badge: "F", label: "Failure set", cls: "st-fail" },
-  { key: "drop",    badge: "D", label: "Drop set",    cls: "st-drop" },
+  { key: "warmup",  badge: "W", label: "Warm-up set", cls: "st-warm",
+    desc: "Lighter prep set — doesn't count toward working volume or e1RM" },
+  { key: "normal",  badge: "1", label: "Normal set",  cls: "st-normal",
+    desc: "Standard working set at the prescribed load" },
+  { key: "failure", badge: "F", label: "Failure set", cls: "st-fail",
+    desc: "Taken to technical failure — no clean rep left" },
+  { key: "drop",    badge: "D", label: "Drop set",    cls: "st-drop",
+    desc: "Weight reduced mid-set and continued without rest" },
 ];
 const SET_TYPE_BY = Object.fromEntries(SET_TYPES.map(t => [t.key, t]));
 function setType(mset) { return mset.type || (mset.warmup ? "warmup" : "normal"); }
@@ -1466,7 +1561,10 @@ function openSetType(mset, mex, rerender) {
     SET_TYPES.forEach(t => {
       const row = el("button", "sheet__opt"); row.type = "button";
       row.appendChild(el("span", "st-badge " + t.cls, t.badge));
-      row.appendChild(el("span", "sheet__optlabel", t.label));
+      const txt = el("span", "sheet__opttext");
+      txt.appendChild(el("span", "sheet__optlabel", t.label));
+      txt.appendChild(el("span", "sheet__optdesc", t.desc));
+      row.appendChild(txt);
       row.addEventListener("click", () => { mset.type = t.key; delete mset.warmup;
         saveDraft(); close(); rerender(); });
       sheet.appendChild(row);
@@ -1601,6 +1699,42 @@ function openHowTo(name) {
         scroller.appendChild(el("p", "howto__credit", "Illustration © Gym visual — gymvisual.com"));
       }
     }
+
+    // Fit with today's session: primary muscle overlap = green, secondary
+    // overlap = gold, unrelated = magenta.
+    if (CURRENT && CURRENT.workout && primary.length) {
+      const sessPrim = new Set(), sessSec = new Set();
+      (CURRENT.workout.exercises || []).forEach(x => {
+        if (x.muscle_group) sessPrim.add(x.muscle_group);
+        const xe = EXLIB[x.exercise_name];
+        if (xe) { (xe.primary || []).forEach(m => sessPrim.add(m));
+                  (xe.secondary || []).forEach(m => sessSec.add(m)); }
+      });
+      const mine = new Set(primary.concat(secondary));
+      let cls = "is-off", word = "off-plan for today's session";
+      if (primary.some(m => sessPrim.has(m))) { cls = "is-fit"; word = "fits today's session"; }
+      else if ([...mine].some(m => sessPrim.has(m) || sessSec.has(m))) {
+        cls = "is-part"; word = "partial fit with today's session";
+      }
+      const fit = el("p", "howto__fit " + cls);
+      fit.appendChild(el("span", "howto__fitdot"));
+      fit.append(word);
+      scroller.appendChild(fit);
+    }
+
+    // e1RM history, same chart as the workout cards.
+    const histBox = el("div", "howto__hist");
+    histBox.appendChild(el("p", "srt-eyebrow is-plain", "History"));
+    const histBody = el("div");
+    histBox.appendChild(histBody);
+    scroller.appendChild(histBox);
+    fetch(HIST_URL + "?name=" + encodeURIComponent(name))
+      .then(r => r.json())
+      .then(d => {
+        if (d.error || !(d.series || []).length) { histBox.hidden = true; return; }
+        renderHistory(histBody, d, ACCENT);
+      })
+      .catch(() => { histBox.hidden = true; });
 
     const thread = el("div", "howto__thread");
     scroller.appendChild(thread);
@@ -1854,7 +1988,12 @@ function setRow(mset, mex, rerender, rowIdx, workingNo) {
     mset.done = !mset.done; saveDraft();
     row.classList.toggle("is-done", mset.done);
     done.setAttribute("aria-pressed", mset.done ? "true" : "false");
-    if (mset.done && !isWarm(mset)) RT.start(mex.rest_seconds || 90, mex.exercise_name);
+    if (mset.done && !isWarm(mset)) {
+      const nxt = mex.sets.find(x => !x.done && (x.reps || 0) > 0);
+      const info = (nxt && nxt.weight !== mset.weight)
+        ? { next: (mex.is_bodyweight ? "BW+" : "") + (nxt.weight || 0) + " kg" } : null;
+      RT.start(mex.rest_seconds || 90, mex.exercise_name, info);
+    }
   });
   row.appendChild(done);
 
@@ -1885,9 +2024,86 @@ function stretchCard(label, st, rerender) {
   head.appendChild(btn);
   card.appendChild(head);
   const list = el("div", "stretchcard__list");
-  st.items.forEach(n => list.appendChild(el("span", "stretchcard__item", n)));
+  st.items.forEach(n => {
+    if (gvGif(n) || gvStill(n)) {
+      const b = el("button", "stretchcard__item is-tap", n); b.type = "button";
+      b.title = "Show this stretch";
+      b.addEventListener("click", () => openStretchAnim(n));
+      list.appendChild(b);
+    } else {
+      list.appendChild(el("span", "stretchcard__item", n));
+    }
+  });
   card.appendChild(list);
   return card;
+}
+
+// Mini sheet: just the stretch's animation loop (tap chip in the routine).
+function openStretchAnim(name) {
+  openSheet((sheet, close) => {
+    sheet.classList.add("sheet--stretch");
+    sheet.appendChild(el("div", "sheet__title", name));
+    sheetClose(sheet, close);
+    const anim = el("div", "howto__anim");
+    const img = el("img", "gv-media"); img.alt = name;
+    img.src = gvGif(name) || gvStill(name);
+    anim.appendChild(img);
+    const wrap = el("div", "stretch__animwrap");
+    wrap.appendChild(anim);
+    sheet.appendChild(wrap);
+    sheet.appendChild(el("p", "howto__credit", "Illustration © Gym visual — gymvisual.com"));
+  });
+}
+
+function removeExercise(mex, rerender) {
+  if (mex.sets.some(x => x.done) &&
+      !confirm("Remove " + mex.exercise_name + " and its logged sets?")) return;
+  MODEL.splice(MODEL.indexOf(mex), 1); saveDraft(); rerender();
+}
+
+// One swiped-open row at a time.
+let SWIPE_OPEN = null;
+
+// Swipe an element left to reveal Delete behind it (Hevy-style, used on the
+// set rows). touch-action: pan-y keeps vertical scroll native; only clearly
+// horizontal drags grab the row.
+function swipeWrap(row, onDelete) {
+  const outer = el("div", "swipewrap");
+  const del = el("button", "swipewrap__del", "Delete"); del.type = "button";
+  del.addEventListener("click", onDelete);
+  outer.appendChild(del);
+  outer.appendChild(row);
+  row.classList.add("swipewrap__row");
+
+  const W = 80;                       // revealed width
+  let sx = 0, sy = 0, dx = 0, horiz = null, base = 0;
+  const setX = (x, anim) => {
+    row.style.transition = anim ? "transform .15s ease-out" : "none";
+    row.style.transform = x ? "translateX(" + x + "px)" : "";
+    outer.classList.toggle("is-open", x < 0);
+  };
+  row.addEventListener("touchstart", e => {
+    if (SWIPE_OPEN && SWIPE_OPEN !== outer) SWIPE_OPEN._close();
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+    base = outer.classList.contains("is-open") ? -W : 0;
+    dx = 0; horiz = null;
+  }, { passive: true });
+  row.addEventListener("touchmove", e => {
+    const mx = e.touches[0].clientX - sx, my = e.touches[0].clientY - sy;
+    if (horiz === null && (Math.abs(mx) > 10 || Math.abs(my) > 10))
+      horiz = Math.abs(mx) > Math.abs(my) * 1.2;
+    if (!horiz) return;
+    dx = Math.max(-W - 20, Math.min(0, base + mx));
+    setX(dx, false);
+  }, { passive: true });
+  row.addEventListener("touchend", () => {
+    if (horiz === null) return;
+    const open = dx < -W / 2;
+    setX(open ? -W : 0, true);
+    SWIPE_OPEN = open ? outer : null;
+  }, { passive: true });
+  outer._close = () => { setX(0, true); if (SWIPE_OPEN === outer) SWIPE_OPEN = null; };
+  return outer;
 }
 
 function loggerCard(mex, rerender) {
@@ -1918,11 +2134,7 @@ function loggerCard(mex, rerender) {
   });
   const del = el("button", "ex__ctl del", "✕"); del.type = "button";
   del.title = "Remove exercise";
-  del.addEventListener("click", () => {
-    if (mex.sets.some(s => s.done) &&
-        !confirm("Remove " + mex.exercise_name + " and its logged sets?")) return;
-    MODEL.splice(MODEL.indexOf(mex), 1); saveDraft(); rerender();
-  });
+  del.addEventListener("click", () => removeExercise(mex, rerender));
   actions.appendChild(swap); actions.appendChild(del);
   head.appendChild(actions);
   card.appendChild(head);
@@ -1964,7 +2176,9 @@ function loggerCard(mex, rerender) {
   let workingNo = 0;
   mex.sets.forEach((mset, i) => {
     if (setType(mset) === "normal") workingNo += 1;
-    card.appendChild(setRow(mset, mex, rerender, i, workingNo));
+    card.appendChild(swipeWrap(setRow(mset, mex, rerender, i, workingNo), () => {
+      mex.sets.splice(mex.sets.indexOf(mset), 1); saveDraft(); rerender();
+    }));
   });
 
   const add = el("button", "addset", "＋ Add set"); add.type = "button";
@@ -1986,6 +2200,7 @@ async function enterLogging(w) {
   await loadSetups();                    // saved seat/pin numbers, before we build the model
   MODEL = modelFromPrescription(w);
   const st = w.stretches || {};
+  READINESS = loadReadinessDraft();
   STRETCH = loadStretchDraft() || {
     pre:  { items: st.pre || [],  done: false },
     post: { items: st.post || [], done: false },
@@ -2042,6 +2257,22 @@ function renderLogger(w) {
 
   sessionStart();          // stamp the session start (drives the header clock)
   RT.showBar();
+  // One-tap readiness — the calibration label for the fatigue score.
+  const ready = el("div", "readybar");
+  ready.appendChild(el("span", "readybar__label", "Feeling"));
+  [["green", "Good"], ["amber", "Meh"], ["red", "Rough"]].forEach(([v, label]) => {
+    const b = el("button", "readybar__opt is-" + v + (READINESS === v ? " on" : ""), label);
+    b.type = "button";
+    b.addEventListener("click", () => {
+      READINESS = (READINESS === v) ? "" : v;
+      saveReadinessDraft();
+      ready.querySelectorAll(".readybar__opt").forEach(x =>
+        x.classList.toggle("on", x === b && READINESS === v));
+    });
+    ready.appendChild(b);
+  });
+  main.appendChild(ready);
+
   if (loadDraft()) main.appendChild(el("div", "draftflag", "Unsaved draft restored"));
 
   const rerender = () => renderLogger(w);
@@ -2086,11 +2317,20 @@ function renderLogger(w) {
 }
 
 async function saveSession(w, saveBtn, status) {
+  // Only sets the athlete TICKED count — an unfinished prescription must not
+  // be logged as done. Unticked sets are surfaced before saving.
+  const unticked = MODEL.reduce((n, m) =>
+    n + m.sets.filter(s => !s.done && (s.reps || 0) > 0).length, 0);
+  if (unticked > 0 &&
+      !confirm(unticked + " set" + (unticked === 1 ? "" : "s") +
+               " not ticked \u2014 only ticked sets are saved. Finish anyway?")) {
+    return;
+  }
   const exercises = MODEL.map(mex => ({
     exercise_name: mex.exercise_name,
     note: (mex.note || "").trim() || undefined,
     sets: mex.sets
-      .filter(s => (s.reps || 0) > 0)
+      .filter(s => s.done && (s.reps || 0) > 0)
       .map(s => { const type = setType(s);
                   return { weight_kg: s.weight || 0, reps: s.reps || 0,
                            rpe: s.rpe === "" ? null : parseFloat(s.rpe),
@@ -2103,7 +2343,7 @@ async function saveSession(w, saveBtn, status) {
 
   if (!exercises.length) {
     status.className = "logstatus err";
-    status.textContent = "Add at least one set with reps before saving.";
+    status.textContent = "Tick at least one completed set before saving.";
     status.scrollIntoView({ block: "nearest" });
     return;
   }
@@ -2115,7 +2355,8 @@ async function saveSession(w, saveBtn, status) {
       body: JSON.stringify({ date: CURRENT.date, session_type: w.session_type,
                              workout_name: w.title, exercises, setups,
                              stretches: STRETCH ? { pre_done: !!STRETCH.pre.done,
-                                                    post_done: !!STRETCH.post.done } : null }),
+                                                    post_done: !!STRETCH.post.done } : null,
+                             readiness: READINESS || undefined }),
     });
     const d = await r.json();
     if (!r.ok || d.error) throw new Error(d.error || r.statusText);

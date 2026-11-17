@@ -106,6 +106,21 @@ body { min-height: 100dvh; }
   .srt-reveal > * { animation: none; }
 }
 
+/* ---------- Pull to refresh ----------
+   Fixed readout that slides down over the app bar while dragging from the
+   top; accent fill tracks the pull, sweeps on release (refresh.js). */
+.srt-pull { position: fixed; top: 0; left: 0; right: 0; z-index: 65;
+  transform: translateY(-100%); transition: transform .12s ease-out;
+  background: var(--bg-000); border-bottom: var(--hairline) solid var(--line);
+  padding: calc(env(safe-area-inset-top) + var(--space-2)) var(--space-4) var(--space-2);
+  display: grid; gap: var(--space-1); }
+.srt-pull.show { transform: none; }
+.srt-pull-label { font-family: var(--font-label); font-size: 10px; line-height: 14px;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--ink-muted); }
+.srt-pull-track { height: 4px; background: var(--line); }
+.srt-pull-fill { height: 100%; width: 0; background: var(--accent); }
+.srt-pull.go .srt-pull-label { color: var(--accent); }
+
 /* ---------- Native shell (Capacitor) ----------
    Keep the Sortie geometry (square, hairlines) in the app; only adapt for
    touch: bigger targets and safe-area padding. */
